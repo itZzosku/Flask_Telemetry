@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 import os
 from collections import OrderedDict
 import json
+import socket
+from waitress import serve
 
 # Load environment variables from .env file
 load_dotenv()
@@ -76,5 +78,24 @@ def get_data():
         abort(500, description="Internal Server Error while querying InfluxDB")
 
 
+def get_local_ip():
+    """Function to get the local IP address of the machine."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # Doesn't even have to be reachable
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '0.0.0.0'
+    finally:
+        s.close()
+    return IP
+
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    print("Starting Flask app")
+    # Start the Flask app using the local IP address
+    local_ip = get_local_ip()
+    print(f"Flask app starting on http://{local_ip}:5000")
+    # app.run(host=local_ip)
+    serve(app, host=local_ip, port=5000)

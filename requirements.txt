@@ -2,3 +2,4 @@ Flask
 influxdb_client
 python-dotenv
 gunicorn
+waitress
