@@ -22,6 +22,16 @@ check_env_variables()
 
 app = Flask(__name__)
 
+
+# Landing page route with links
+@app.route('/')
+def index():
+    return '''
+    <h1>Flask is running!</h1>
+    <p>Click <a href="/house">here</a> to get telemetry of the house.</p>
+    '''
+
+
 # InfluxDB settings from environment variables
 influxdb_url = os.getenv('INFLUXDB_URL')
 token = os.getenv('INFLUXDB_TOKEN')
@@ -65,7 +75,7 @@ def process_query_results(result):
     return sensor_data
 
 
-@app.route('/')
+@app.route('/house')
 def get_data():
     try:
         flux_query = construct_flux_query()
@@ -97,4 +107,5 @@ if __name__ == '__main__':
     port = 5000
     print("Flask app starting")
     print(f"http://{local_ip}:{port}/")
+    print(f"http://{local_ip}:{port}/house")
     serve(app, host=local_ip, port=port)
