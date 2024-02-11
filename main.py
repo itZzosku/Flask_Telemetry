@@ -65,7 +65,7 @@ def process_query_results(result):
     return sensor_data
 
 
-@app.route('/house')
+@app.route('/')
 def get_data():
     try:
         flux_query = construct_flux_query()
@@ -86,16 +86,15 @@ def get_local_ip():
         s.connect(('10.255.255.255', 1))
         IP = s.getsockname()[0]
     except Exception:
-        IP = '0.0.0.0'
+        IP = '127.0.0.1'  # Fallback to localhost if unable to determine local IP
     finally:
         s.close()
     return IP
 
 
 if __name__ == '__main__':
-    print("Starting Flask app")
-    # Start the Flask app using the local IP address
     local_ip = get_local_ip()
-    print(f"Flask app starting on http://{local_ip}:5000")
-    # app.run(host=local_ip)
-    serve(app, host=local_ip, port=5000)
+    port = 5000
+    print("Flask app starting")
+    print(f"http://{local_ip}:{port}/")
+    serve(app, host=local_ip, port=port)
