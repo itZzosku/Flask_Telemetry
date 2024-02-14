@@ -29,6 +29,7 @@ def index():
     return '''
     <h1>Flask is running!</h1>
     <p>Click <a href="/house">here</a> to get telemetry of the house.</p>
+    <p>Click <a href="https://github.com/itZzosku/Scope_Adjustment_Calculator_App/releases/latest">here</a> to get latest version of the Scope Adjustment Calculator App.</p>
     '''
 
 
