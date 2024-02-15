@@ -48,13 +48,16 @@ def construct_flux_query():
     # Returns the Flux query string
     return '''
         from(bucket: "House Telemetry")
-        |> range(start: -60m)
+        |> range(start: -7d)
         |> filter(fn: (r) => r["_measurement"] == "ESP32")
         |> filter(fn: (r) => r["Name"] == "Telemetry")
-        |> filter(fn: (r) => r["_field"] == "Pressure" or r["_field"] == "Humidity" or r["_field"] == "Sensor" or r["_field"] == "Temperature")
-        |> aggregateWindow(every: 10s, fn: last, createEmpty: false)
+        |> filter(fn: (r) => 
+            r["_field"] == "Pressure" or 
+            r["_field"] == "Humidity" or 
+            r["_field"] == "Sensor" or 
+            r["_field"] == "Temperature")
         |> last()
-        '''
+'''
 
 
 def process_query_results(result):
