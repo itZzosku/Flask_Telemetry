@@ -48,7 +48,7 @@ def construct_flux_query():
     # Returns the Flux query string
     return '''
         from(bucket: "House Telemetry")
-        |> range(start: -7d)
+        |> range(start: -1h)
         |> filter(fn: (r) => r["_measurement"] == "ESP32")
         |> filter(fn: (r) => r["Name"] == "Telemetry")
         |> filter(fn: (r) => 
