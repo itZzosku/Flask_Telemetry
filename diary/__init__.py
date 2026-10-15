@@ -303,7 +303,7 @@ def put_profile():
 
 
 GUN_KEYS = {"name": str, "type": str, "cal": str, "mode": str, "startCount": int,
-            "archived": bool, "order": int}
+            "archived": bool, "order": int, "acquired": str}
 
 
 @bp.get("/api/guns")
@@ -330,6 +330,8 @@ def put_gun(gid):
             return jsonify(error="bad_" + key), 400
     if not gun.get("name", "").strip():
         return jsonify(error="name_required"), 400
+    if gun.get("acquired") and not DATE_RE.match(gun["acquired"]):
+        return jsonify(error="bad_acquired"), 400
     upsert_gun(db(), gid, gun)
     db().commit()
     return jsonify(ok=True)

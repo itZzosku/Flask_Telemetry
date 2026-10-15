@@ -76,6 +76,12 @@ h1 span{color:var(--accent)}
 h2{font-family:var(--f-display);font-weight:700;font-size:1.35rem;text-transform:uppercase;letter-spacing:.04em;margin:0}
 .loghead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .yrs{display:flex;gap:6px;flex-wrap:wrap}
+.search{position:relative;margin-bottom:12px}
+.search input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:11px 40px 11px 16px;font-size:1rem;color:var(--fg)}
+.search input::-webkit-search-cancel-button{-webkit-appearance:none;display:none}
+.search button{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:32px;height:32px;border:0;border-radius:50%;background:var(--surface-2);color:var(--muted);font-size:1rem;line-height:1}
+.found{font-size:.85rem;color:var(--muted);margin:-4px 0 12px}
+.found b{color:var(--fg);font-family:var(--f-mono)}
 .yr{background:none;border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:.82rem;font-family:var(--f-mono)}
 .yr[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 .month{font-family:var(--f-display);font-weight:600;font-size:1rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px;display:flex;justify-content:space-between}
@@ -198,6 +204,8 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
 
   <section>
     <div class="loghead"><h2>Käynnit</h2><div class="yrs" id="yrs"></div></div>
+    <div class="search"><input type="search" id="q" placeholder="Hae: 9.9.2023, 3.2024, rata tai järjestäjä" aria-label="Hae käyntejä" autocomplete="off" enterkeyhint="search"><button type="button" id="qClear" aria-label="Tyhjennä haku" hidden>✕</button></div>
+    <div class="found" id="found" hidden></div>
     <div id="log"><div class="empty">Ladataan merkintöjä…</div></div>
   </section>
 </div>
@@ -262,7 +270,10 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
       <label class="f">Kaliiperi<input type="text" id="gCal" list="dlCal"></label>
     </div>
     <label class="f">Toimintatapa<input type="text" id="gMode" list="dlMode"></label>
-    <label class="f">Laukaukset ennen päiväkirjaa<input type="number" id="gStart" inputmode="numeric" min="0" placeholder="0"></label>
+    <div class="grid2">
+      <label class="f">Hankittu<input type="date" id="gAcq"></label>
+      <label class="f">Laukaukset ennen päiväkirjaa<input type="number" id="gStart" inputmode="numeric" min="0" placeholder="0"></label>
+    </div>
     <label class="check"><input type="checkbox" id="gArch">Piilota valinnoista (myyty tai ei käytössä)</label>
     <div class="hint" id="gStats"></div>
     <div class="msg" id="gMsg" hidden></div>
@@ -451,7 +462,7 @@ function renderGuns(){
   el.innerHTML=list.map(g=>{const t=tot[g.id]||{r:0,d:new Set(),last:""},all=(+g.startCount||0)+t.r;
     return `<button type="button" class="gun ${g.archived?"archived":""}" data-gun="${esc(g.id)}">
       <b>${esc(g.name)}</b>
-      <span class="g-sub">${esc([g.type,g.cal].filter(Boolean).join(" · "))}${t.d.size?` · ${t.d.size} krt · viimeksi ${fiDate(t.last)}`:""}</span>
+      <span class="g-sub">${esc([g.type,g.cal].filter(Boolean).join(" · "))}${g.acquired?` · hankittu ${fiDate(g.acquired)}`:""}${t.d.size?` · ${t.d.size} krt · viimeksi ${fiDate(t.last)}`:""}</span>
       <span class="g-r"><span class="num">${fmt(all)}</span><small>laukausta</small></span></button>`}).join("");
 }
 function renderYears(){
@@ -459,9 +470,26 @@ function renderYears(){
   if(ys.length&&(!S.year||(S.year!=="all"&&!ys.includes(S.year))))S.year=ys[0];
   $("yrs").innerHTML=ys.map(y=>`<button type="button" class="yr" data-yr="${y}" aria-pressed="${S.year===y}">${y}</button>`).join("")+(ys.length>1?`<button type="button" class="yr" data-yr="all" aria-pressed="${S.year==="all"}">Kaikki</button>`:"");
 }
+/* Search: every word must match. d.m.yyyy = that day, m.yyyy = that month, yyyy = that year,
+   anything else = text in place, organiser, gun, type, calibre or lisätietoja. */
+function matcher(q){
+  const words=q.toLowerCase().split(/\s+/).filter(Boolean);
+  if(!words.length)return null;
+  const tests=words.map(w=>{
+    let m;
+    if((m=w.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/)))return s=>s.date===`${m[3]}-${pad(m[2])}-${pad(m[1])}`;
+    if((m=w.match(/^(\d{1,2})[./](\d{4})$/)))return s=>s.date.startsWith(`${m[2]}-${pad(m[1])}`);
+    if((m=w.match(/^(\d{4})$/)))return s=>s.date.startsWith(m[1]);
+    return s=>[s.place,s.org,s.klo,...(s.lines||[]).flatMap(l=>[l.gun,l.type,l.cal,l.info,l.mode])].some(v=>String(v||"").toLowerCase().includes(w));
+  });
+  return s=>tests.every(t=>t(s));
+}
 function renderLog(){
-  const el=$("log");
-  const list=S.sessions.filter(s=>S.year==="all"||s.date.startsWith(S.year));
+  const el=$("log"),q=$("q").value.trim(),match=matcher(q);
+  $("yrs").hidden=!!match;$("qClear").hidden=!q;
+  const list=match?S.sessions.filter(match):S.sessions.filter(s=>S.year==="all"||s.date.startsWith(S.year));
+  $("found").hidden=!match;
+  if(match)$("found").innerHTML=list.length?`<b>${list.length}</b> käyntiä · <b>${new Set(list.map(s=>s.date)).size}</b> päivää · <b>${fmt(list.reduce((a,s)=>a+sRounds(s),0))}</b> laukausta`:"Ei osumia.";
   if(!S.sessions.length){el.innerHTML='<div class="empty">Ei vielä käyntejä. Paina <b>Uusi käynti</b> radalla – päivä on valmiina, valitse rata ja lisää ammunnat.</div>';return}
   const byM={};list.forEach(s=>{const k=s.date.slice(0,7);byM[k]=byM[k]||{r:0,d:new Set()};byM[k].r+=sRounds(s);byM[k].d.add(s.date)});
   let html="",cur="";
@@ -474,7 +502,7 @@ function renderLog(){
       <div style="min-width:0"><div class="e-head"><span class="e-place">${esc(s.place||"Paikka puuttuu")}</span><span class="e-meta num">${esc(s.klo||"")}</span></div>
       ${s.org?`<div class="e-meta">${esc(s.org)}</div>`:""}<div class="e-lines">${lines}</div></div></button>`;
   });
-  el.innerHTML=html||'<div class="empty">Ei käyntejä tältä vuodelta.</div>';
+  el.innerHTML=html||(match?"":'<div class="empty">Ei käyntejä tältä vuodelta.</div>');
 }
 function fillLists(){
   const opt=a=>a.map(v=>`<option value="${esc(v)}">`).join("");
@@ -484,6 +512,8 @@ function fillLists(){
   $("dlMode").innerHTML=opt([...new Set(MODES.concat(distinct(s=>(s.lines||[]).map(l=>l.mode))))]);
   $("dlInfo").innerHTML=opt(distinct(s=>(s.lines||[]).map(l=>l.info)));
 }
+let qT;$("q").addEventListener("input",()=>{clearTimeout(qT);qT=setTimeout(renderLog,150)});
+$("qClear").addEventListener("click",()=>{$("q").value="";renderLog();$("q").focus()});
 $("yrs").addEventListener("click",e=>{const b=e.target.closest("[data-yr]");if(!b)return;S.year=b.dataset.yr;lsSet(YEAR_KEY,S.year);render()});
 
 /* ---------- entry form ---------- */
@@ -509,8 +539,9 @@ function presets(){
   S.sessions.slice(0,120).forEach(s=>(s.lines||[]).forEach(l=>{if(!l.type)return;const k=[l.type,l.cal,l.mode].join("|");c.set(k,(c.get(k)||0)+1)}));
   return[...c.entries()].sort((a,b)=>b[1]-a[1]).slice(0,6).map(e=>{const[type,cal,mode]=e[0].split("|");return{type,cal,mode}});
 }
+const ownedOn=(g,date)=>!g.acquired||!date||g.acquired<=date;
 function gunOptions(sel){
-  const list=gunsSorted().filter(g=>!g.archived||g.id===sel);
+  const list=gunsSorted().filter(g=>(!g.archived&&ownedOn(g,S.form&&S.form.date))||g.id===sel);
   return `<option value="">— ei asetta —</option>`+list.map(g=>`<option value="${esc(g.id)}" ${g.id===sel?"selected":""}>${esc(g.name)}</option>`).join("");
 }
 function renderChips(){
@@ -519,7 +550,7 @@ function renderChips(){
   $("orgChips").innerHTML=recent("org",3).map(o=>`<button type="button" class="chip" data-org="${esc(o)}" aria-pressed="${f.org===o}">${esc(o)}</button>`).join("");
   // Most used first: visits with the gun, then most recent use, then the list order.
   const gt=gunTotals(),uses=g=>gt[g.id]?gt[g.id].d.size:0,last=g=>gt[g.id]?gt[g.id].last:"";
-  const active=gunsSorted().filter(g=>!g.archived).sort((x,y)=>uses(y)-uses(x)||last(y).localeCompare(last(x)));
+  const active=gunsSorted().filter(g=>!g.archived&&ownedOn(g,f.date)).sort((x,y)=>uses(y)-uses(x)||last(y).localeCompare(last(x)));
   $("presetChips").innerHTML=(active.length
       ?active.map(g=>`<button type="button" class="chip add" data-addgun="${esc(g.id)}">+ ${esc(g.name)}</button>`).join("")
       :presets().map((p,i)=>`<button type="button" class="chip add" data-preset="${i}">+ ${esc(p.type)} ${esc(p.cal)}</button>`).join(""))
@@ -548,7 +579,7 @@ let dT;function saveDraft(){if(S.editId)return;clearTimeout(dT);dT=setTimeout(()
 
 $("form").addEventListener("input",e=>{
   const f=S.form,t=e.target;
-  if(t.id==="fDate")f.date=t.value;else if(t.id==="fStart")f.start=t.value;else if(t.id==="fEnd")f.end=t.value;
+  if(t.id==="fDate"){f.date=t.value;renderChips();renderLines()}else if(t.id==="fStart")f.start=t.value;else if(t.id==="fEnd")f.end=t.value;
   else if(t.id==="fPlace"){f.place=t.value;renderChips()}else if(t.id==="fOrg"){f.org=t.value;renderChips()}
   else if(t.dataset.k&&t.tagName!=="SELECT"){const i=+t.closest(".line").dataset.i;f.lines[i][t.dataset.k]=t.dataset.k==="rounds"?Math.max(0,parseInt(t.value)||0):t.value;if(t.dataset.k==="rounds")updTotal()}
   saveDraft();
@@ -612,7 +643,7 @@ function openGun(id){
   $("gTitle").textContent=g?"Muokkaa asetta":"Uusi ase";
   $("gName").value=g?g.name:"";$("gCal").value=g&&g.cal||"";$("gMode").value=g&&g.mode||"";
   $("gType").innerHTML=`<option value="">—</option>`+TYPES.map(t=>`<option ${g&&g.type===t?"selected":""}>${t}</option>`).join("");
-  $("gStart").value=g&&g.startCount?g.startCount:"";$("gArch").checked=!!(g&&g.archived);
+  $("gStart").value=g&&g.startCount?g.startCount:"";$("gAcq").value=g&&g.acquired||"";$("gArch").checked=!!(g&&g.archived);
   const t=g&&gunTotals()[g.id];
   $("gStats").innerHTML=t?`Päiväkirjassa <b>${fmt(t.r)}</b> laukausta · <b>${t.d.size}</b> käyntiä`:"";
   $("gDel").hidden=!g||!!t;$("gDel").textContent="Poista";$("gMsg").hidden=true;
@@ -625,7 +656,7 @@ $("gForm").addEventListener("submit",async e=>{e.preventDefault();
   const name=$("gName").value.trim();if(!name){$("gMsg").textContent="Anna aseelle nimi.";$("gMsg").hidden=false;return}
   const old=S.editGun&&S.guns.find(x=>x.id===S.editGun);
   const d={name,type:$("gType").value,cal:$("gCal").value.trim(),mode:$("gMode").value.trim(),
-    startCount:Math.max(0,parseInt($("gStart").value)||0),archived:$("gArch").checked,order:old?(old.order??99):S.guns.length+1};
+    startCount:Math.max(0,parseInt($("gStart").value)||0),acquired:$("gAcq").value||"",archived:$("gArch").checked,order:old?(old.order??99):S.guns.length+1};
   await S.store.saveGun(S.editGun||newGunId(),d);closeSheets();toast("Ase tallennettu");
 });
 $("gDel").addEventListener("click",async()=>{
