@@ -686,7 +686,7 @@ $("xForm").addEventListener("submit",async e=>{e.preventDefault();
     await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
     await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js");
     const R=getRange();
-    const list=sortSessions(S.sessions.filter(R.filter)).reverse();
+    const list=sortSessions(S.sessions.filter(R.filter));   // newest first
     const p=S.profile||{};
     const tc=typeCounts(list),tot=list.reduce((a,s)=>a+sRounds(s),0);
     const days=new Set(list.map(s=>s.date)).size;
@@ -694,7 +694,7 @@ $("xForm").addEventListener("submit",async e=>{e.preventDefault();
     const W=doc.internal.pageSize.getWidth(),M=36;
     doc.setFont("helvetica","bold");doc.setFontSize(14);doc.text("Ampumapäiväkirja"+R.title,M,M+4);
     doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(90);
-    const span=R.span?R.span:list.length?fiDate(list[0].date)+" – "+fiDate(list[list.length-1].date):"";
+    const span=R.span?R.span:list.length?fiDate(list[list.length-1].date)+" – "+fiDate(list[0].date):"";
     doc.text(span,W-M,M+4,{align:"right"});doc.setTextColor(0);
     const y0=M+24,cols=[M,M+110,M+190,M+270,M+355,M+450];
     const lab=(t,x,y)=>{doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.text(t,x,y)};
