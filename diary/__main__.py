@@ -97,8 +97,9 @@ def backup(directory, keep):
 def mail_backup(json_path):
     """Email the backup JSON. .env: DIARY_SMTP_USER, DIARY_SMTP_PASSWORD (Gmail app password),
     optional DIARY_BACKUP_TO (default: DIARY_SMTP_USER), DIARY_SMTP_HOST, DIARY_SMTP_PORT."""
-    user = os.getenv("DIARY_SMTP_USER", "").strip()
-    password = os.getenv("DIARY_SMTP_PASSWORD", "").replace(" ", "")
+    user = os.getenv("DIARY_SMTP_USER", "").strip().strip('"\'')
+    # Google shows the app password in groups; copying can bring non-breaking spaces along.
+    password = "".join(os.getenv("DIARY_SMTP_PASSWORD", "").strip().strip('"\'').split())
     if not user or not password:
         sys.exit("DIARY_SMTP_USER ja DIARY_SMTP_PASSWORD puuttuvat .env-tiedostosta.")
     to = os.getenv("DIARY_BACKUP_TO", user).strip()
@@ -125,11 +126,21 @@ def mail_backup(json_path):
         f"Palautus palvelimella:\n  ./venv/bin/python -m diary import {name} --replace\n")
     msg.add_attachment(payload, maintype="application", subtype="json", filename=name)
 
-    with smtplib.SMTP(host, port, timeout=30) as smtp:
-        if os.getenv("DIARY_SMTP_STARTTLS", "1") != "0":
-            smtp.starttls()
-        smtp.login(user, password)
-        smtp.send_message(msg)
+    if not password.isascii() or ("gmail" in host and len(password) != 16):
+        sys.exit(f"DIARY_SMTP_PASSWORD näyttää väärältä: {len(password)} merkkiä"
+                 f"{'' if password.isascii() else ', sisältää erikoismerkkejä'}. "
+                 "Gmailin sovellussalasana on 16 kirjainta – kirjoita se .env-tiedostoon käsin.")
+    try:
+        with smtplib.SMTP(host, port, timeout=30) as smtp:
+            if os.getenv("DIARY_SMTP_STARTTLS", "1") != "0":
+                smtp.starttls()
+            smtp.login(user, password)
+            smtp.send_message(msg)
+    except smtplib.SMTPAuthenticationError as e:
+        sys.exit(f"Kirjautuminen hylättiin ({e.smtp_code}). Tarkista, että DIARY_SMTP_USER on sama "
+                 "Google-tili, jolle sovellussalasana tehtiin, ja että salasana on oikein.")
+    except (smtplib.SMTPException, OSError) as e:
+        sys.exit(f"Sähköpostin lähetys epäonnistui: {type(e).__name__}: {e}")
     print(f"Lähetetty: {name} → {to}")
 
 
