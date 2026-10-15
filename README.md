@@ -52,7 +52,7 @@ SQLite copy on the server (newest 12 kept) and the JSON emailed to your Gmail.
 Add to the server's `.env` (never commit it):
 
 ```
-DIARY_SMTP_USER=you@gmail.com
+DIARY_SMTP_USER=you@gmail.com            # must be the Gmail address the app password belongs to
 DIARY_SMTP_PASSWORD=abcdefghijklmnop     # Gmail app password, myaccount.google.com/apppasswords
 # DIARY_BACKUP_TO=other@address          # optional, defaults to DIARY_SMTP_USER
 ```
