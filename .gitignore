@@ -168,3 +168,4 @@ cython_debug/
 # Shooting diary data (SQLite, password hash, cookie key) – never commit
 diary_data/
 diary_seed*.json
+diary_backups/

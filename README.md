@@ -43,3 +43,27 @@ Guns are for your own round counts only – PDF/CSV exports drop gun names and m
 type, calibre, toimintatapa and lisätietoja within a visit.
 
 Back up `diary_data/diary.db` (or a `python -m diary export` dump) with the rest of the server.
+
+### Weekly backup to Google Drive
+
+`scripts/diary_backup.sh` runs `python -m diary backup diary_backups --keep 12` (dated JSON + SQLite copy,
+newest 12 kept locally) and uploads the folder with [rclone](https://rclone.org/drive/) to
+`gdrive:Ampumapaivakirja`. Drive keeps every weekly file; nothing is deleted there.
+
+One-time rclone setup on the (headless) server:
+
+```bash
+curl https://rclone.org/install.sh | sudo bash
+rclone config        # n → name: gdrive → storage: drive → scope: drive.file
+                     # → "Use web browser to automatically authenticate?" → n
+                     #   run the shown `rclone authorize "drive" ...` on a PC with a browser,
+                     #   paste the token back → no shared drive → y
+./scripts/diary_backup.sh   # test once
+crontab -e           # add: 17 3 * * 0  /root/Flask_Telemetry/scripts/diary_backup.sh >> /var/log/diary_backup.log 2>&1
+```
+
+Override with env vars if needed: `REMOTE`, `BACKUP_DIR`, `KEEP`, `PYTHON`.
+Backups contain your licence numbers – keep the Drive folder private.
+
+Restore: `python -m diary import diary_backups/diary-YYYY-MM-DD.json --replace`
+(or stop the app and copy the `.db` over `diary_data/diary.db`).

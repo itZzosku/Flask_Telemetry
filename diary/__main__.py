@@ -4,15 +4,20 @@
   python -m diary import seed.json        load sessions, guns + profile from JSON
   python -m diary import seed.json --replace   wipe sessions first
   python -m diary export backup.json      dump everything to JSON
+  python -m diary backup DIR [--keep 12]  dated JSON + SQLite copy into DIR, keep newest N
 """
 import argparse
+import glob
 import json
+import os
+import sqlite3
 import sys
+import time
 from getpass import getpass
 
 from werkzeug.security import generate_password_hash
 
-from . import DATA_DIR, connect, init_db, kv_get, kv_set, upsert_gun, upsert_session
+from . import DATA_DIR, DB_PATH, connect, init_db, kv_get, kv_set, upsert_gun, upsert_session
 
 
 def set_password():
@@ -65,6 +70,25 @@ def export_json(path):
     print(f"Viety {len(sessions)} käyntiä → {path}")
 
 
+def backup(directory, keep):
+    """Write diary-YYYY-MM-DD.json and .db into directory, prune to the newest `keep`."""
+    os.makedirs(directory, exist_ok=True)
+    stamp = time.strftime("%Y-%m-%d")
+    base = os.path.join(directory, f"diary-{stamp}")
+    export_json(base + ".json")
+    # sqlite3's backup API gives a consistent copy even while the app is running.
+    src, dst = sqlite3.connect(DB_PATH), sqlite3.connect(base + ".db")
+    with dst:
+        src.backup(dst)
+    src.close()
+    dst.close()
+    for ext in (".json", ".db"):
+        old = sorted(glob.glob(os.path.join(directory, "diary-*" + ext)))[:-keep]
+        for path in old:
+            os.remove(path)
+    print(f"Varmuuskopio: {base}.json + .db (säilytetään {keep} uusinta)")
+
+
 def main():
     p = argparse.ArgumentParser(prog="python -m diary")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -74,12 +98,17 @@ def main():
     i.add_argument("--replace", action="store_true")
     e = sub.add_parser("export")
     e.add_argument("path")
+    b = sub.add_parser("backup")
+    b.add_argument("directory")
+    b.add_argument("--keep", type=int, default=12)
     a = p.parse_args()
     init_db()
     if a.cmd == "set-password":
         set_password()
     elif a.cmd == "import":
         import_json(a.path, a.replace)
+    elif a.cmd == "backup":
+        backup(a.directory, max(1, a.keep))
     else:
         export_json(a.path)
 
