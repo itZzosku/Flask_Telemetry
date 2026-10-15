@@ -91,7 +91,7 @@ h2{font-family:var(--f-display);font-weight:700;font-size:1.35rem;text-transform
 .entry:hover{border-color:var(--muted)}
 .day{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-right:1px solid var(--line);padding-right:10px}
 .day b{font-family:var(--f-mono);font-size:.92rem;font-weight:600;line-height:1.1;white-space:nowrap;font-variant-numeric:tabular-nums}
-.day small{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.day small{font-size:.72rem;color:var(--muted)}
 .e-head{display:flex;gap:4px 10px;align-items:baseline;flex-wrap:wrap}
 .e-place{font-weight:600}
 .e-meta{color:var(--muted);font-size:.85rem}
@@ -204,7 +204,7 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
 
   <section>
     <div class="loghead"><h2>Käynnit</h2><div class="yrs" id="yrs"></div></div>
-    <div class="search"><input type="search" id="q" placeholder="Hae: 9.9.2023, 3.2024, rata tai järjestäjä" aria-label="Hae käyntejä" autocomplete="off" enterkeyhint="search"><button type="button" id="qClear" aria-label="Tyhjennä haku" hidden>✕</button></div>
+    <div class="search"><input type="search" id="q" placeholder="Hae: 6.10.2026, 6.10, 3.2024, rata tai järjestäjä" aria-label="Hae käyntejä" autocomplete="off" enterkeyhint="search"><button type="button" id="qClear" aria-label="Tyhjennä haku" hidden>✕</button></div>
     <div class="found" id="found" hidden></div>
     <div id="log"><div class="empty">Ladataan merkintöjä…</div></div>
   </section>
@@ -312,7 +312,7 @@ const TYPES=["Kivääri","Pienoiskivääri","Pistooli","Pienoispistooli","Revolv
 
 const MODES=["1 - kertatuli","2 - lippaallinen kertatuli","3 - itselataava kertatuli","4 - sarjatuli"];
 const MONTHS=["Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesäkuu","Heinäkuu","Elokuu","Syyskuu","Lokakuu","Marraskuu","Joulukuu"];
-const WD=["su","ma","ti","ke","to","pe","la"];
+const WD=["sunnuntai","maanantai","tiistai","keskiviikko","torstai","perjantai","lauantai"];
 const DRAFT_KEY="ampumapk-draft-v2",YEAR_KEY="ampumapk-year";
 const $=id=>document.getElementById(id);
 const S={sessions:[],guns:[],profile:{},ready:false,editGun:null,gDelArm:false,store:null,editId:null,form:null,delArm:false,year:null};
@@ -477,6 +477,7 @@ function matcher(q){
   if(!words.length)return null;
   const tests=words.map(w=>{
     let m;
+    if((m=w.match(/^(\d{1,2})[./](\d{1,2})[./]?$/)))return s=>s.date.slice(5)===`${pad(m[2])}-${pad(m[1])}`;   // 6.10 = 6 Oct, any year
     if((m=w.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/)))return s=>s.date===`${m[3]}-${pad(m[2])}-${pad(m[1])}`;
     if((m=w.match(/^(\d{1,2})[./](\d{4})$/)))return s=>s.date.startsWith(`${m[2]}-${pad(m[1])}`);
     if((m=w.match(/^(\d{4})$/)))return s=>s.date.startsWith(m[1]);
