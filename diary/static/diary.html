@@ -709,7 +709,7 @@ $("xForm").addEventListener("submit",async e=>{e.preventDefault();
     lab("Yhteenlasketut laukaukset:",cols[5],y0);val(tot,cols[5],y0+12);
     const startY=y0+Math.max(48,18+Object.keys(tc).length*11);
     const body=[];list.forEach(s=>{const ls=exportLines(s);(ls.length?ls:[{}]).forEach(l=>body.push([fiDate(s.date),s.klo||"",s.place||"",s.org||"",l.mode||"",l.type||"",l.cal||"",l.rounds?String(l.rounds):"",l.info||""]))});
-    doc.autoTable({startY,margin:{left:M,right:M,bottom:40},theme:"grid",
+    doc.autoTable({startY,margin:{left:M,right:M,bottom:40},theme:"grid",rowPageBreak:"avoid",
       head:[["Päivämäärä","klo","Paikka","Järjestäjä","Toimintatapa","Tyyppi","Kaliiperi","Laukaukset","Lisätietoja"]],body,
       styles:{font:"helvetica",fontSize:6.5,cellPadding:2,lineColor:[180,180,180],lineWidth:.4,textColor:20,overflow:"linebreak"},
       headStyles:{fillColor:[225,228,222],textColor:20,fontStyle:"bold"},
