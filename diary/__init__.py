@@ -100,6 +100,7 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS sessions_date ON sessions(date);
         CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS guns (id TEXT PRIMARY KEY, data TEXT NOT NULL);
         """
     )
     conn.commit()
@@ -116,6 +117,12 @@ def kv_set(key, value, conn=None):
     conn.execute("INSERT INTO kv(key,value) VALUES(?,?) "
                  "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
     conn.commit()
+
+
+def upsert_gun(conn, gid, body):
+    conn.execute("INSERT INTO guns(id,data) VALUES(?,?) "
+                 "ON CONFLICT(id) DO UPDATE SET data=excluded.data",
+                 (gid, json.dumps(body, ensure_ascii=False)))
 
 
 def upsert_session(conn, sid, body):
@@ -272,4 +279,47 @@ def put_profile():
     body = _json_body()
     kv_set("profile", json.dumps({k: str(body.get(k, ""))[:200] for k in PROFILE_KEYS},
                                  ensure_ascii=False))
+    return jsonify(ok=True)
+
+
+GUN_KEYS = {"name": str, "type": str, "cal": str, "mode": str, "startCount": int,
+            "archived": bool, "order": int}
+
+
+@bp.get("/api/guns")
+@login_required
+def list_guns():
+    rows = db().execute("SELECT id, data FROM guns").fetchall()
+    return jsonify([dict(json.loads(r["data"]), id=r["id"]) for r in rows])
+
+
+@bp.put("/api/guns/<gid>")
+@login_required
+def put_gun(gid):
+    if not ID_RE.match(gid):
+        abort(400)
+    body = _json_body()
+    gun = {}
+    for key, typ in GUN_KEYS.items():
+        val = body.get(key)
+        if val is None:
+            continue
+        try:
+            gun[key] = typ(val) if typ is not str else str(val)[:120]
+        except (TypeError, ValueError):
+            return jsonify(error="bad_" + key), 400
+    if not gun.get("name", "").strip():
+        return jsonify(error="name_required"), 400
+    upsert_gun(db(), gid, gun)
+    db().commit()
+    return jsonify(ok=True)
+
+
+@bp.delete("/api/guns/<gid>")
+@login_required
+def delete_gun(gid):
+    if request.headers.get("X-Requested-With") != "fetch":
+        abort(403)
+    db().execute("DELETE FROM guns WHERE id=?", (gid,))
+    db().commit()
     return jsonify(ok=True)

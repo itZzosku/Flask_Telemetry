@@ -38,4 +38,8 @@ python -m diary export backup.json    # full JSON backup
 python -m diary import file.json [--replace]
 ```
 
+Import files may contain `profile`, `guns` and `sessions`; each part is optional and upserted by id.
+Guns are for your own round counts only – PDF/CSV exports drop gun names and merge rows of the same
+type, calibre, toimintatapa and lisätietoja within a visit.
+
 Back up `diary_data/diary.db` (or a `python -m diary export` dump) with the rest of the server.

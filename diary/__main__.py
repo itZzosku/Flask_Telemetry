@@ -1,7 +1,7 @@
 """Server-side admin for the shooting diary.
 
   python -m diary set-password            set or change the login password
-  python -m diary import seed.json        load sessions + profile from JSON
+  python -m diary import seed.json        load sessions, guns + profile from JSON
   python -m diary import seed.json --replace   wipe sessions first
   python -m diary export backup.json      dump everything to JSON
 """
@@ -12,7 +12,7 @@ from getpass import getpass
 
 from werkzeug.security import generate_password_hash
 
-from . import DATA_DIR, connect, init_db, kv_get, kv_set, upsert_session
+from . import DATA_DIR, connect, init_db, kv_get, kv_set, upsert_gun, upsert_session
 
 
 def set_password():
@@ -39,21 +39,29 @@ def import_json(path, replace):
         sid = s.pop("id")
         upsert_session(conn, sid, s)
         n += 1
+    g = 0
+    for gun in data.get("guns", []):
+        gun = dict(gun)
+        upsert_gun(conn, gun.pop("id"), gun)
+        g += 1
     if data.get("profile"):
         kv_set("profile", json.dumps(data["profile"], ensure_ascii=False), conn)
     conn.commit()
     conn.close()
-    print(f"Tuotu {n} käyntiä → {DATA_DIR}")
+    print(f"Tuotu {n} käyntiä ja {g} asetta → {DATA_DIR}")
 
 
 def export_json(path):
     conn = connect()
     sessions = [dict(json.loads(r["data"]), id=r["id"])
                 for r in conn.execute("SELECT id, data FROM sessions ORDER BY date, id")]
+    guns = [dict(json.loads(r["data"]), id=r["id"])
+            for r in conn.execute("SELECT id, data FROM guns ORDER BY id")]
     profile = json.loads(kv_get("profile", conn) or "{}")
     conn.close()
     with open(path, "w", encoding="utf-8") as f:
-        json.dump({"profile": profile, "sessions": sessions}, f, ensure_ascii=False, indent=1)
+        json.dump({"profile": profile, "guns": guns, "sessions": sessions}, f,
+                  ensure_ascii=False, indent=1)
     print(f"Viety {len(sessions)} käyntiä → {path}")
 
 

@@ -130,6 +130,21 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
 .opt .sub{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding-left:30px}
 .hint{font-size:.85rem;color:var(--muted)}
 .hint b{color:var(--fg);font-family:var(--f-mono)}
+/* Guns */
+.guns{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.gun{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:12px 14px}
+.gun:first-child{border-top:0}
+.gun:hover{background:var(--surface-2)}
+.gun b{font-weight:600}
+.gun .g-sub{color:var(--muted);font-size:.82rem;grid-column:1}
+.gun .g-r{grid-row:1/3;grid-column:2;text-align:right}
+.gun .g-r .num{font-size:1.3rem;font-weight:600;display:block;line-height:1.1}
+.gun .g-r small{color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.06em}
+.gun.archived{opacity:.55}
+.sechead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.check{display:flex;gap:10px;align-items:center;font-size:.95rem;cursor:pointer}
+.check input{width:20px;height:20px;accent-color:var(--accent)}
+.e-line .gname{color:var(--fg);font-weight:500}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(90px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:20}
 
 @media (max-width:560px){ .ids{grid-template-columns:repeat(2,minmax(0,1fr))} .grid3{grid-template-columns:1fr 1fr} .grid3>:first-child{grid-column:1/-1} }
@@ -164,6 +179,11 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
       <div class="stat"><b class="num" id="s24">–</b><small>Kerrat 24 kk</small></div>
     </div>
     <div class="types" id="types"></div>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>Aseet</h2><button class="ghost" type="button" id="addGunBtn">+ Lisää ase</button></div>
+    <div class="guns" id="guns"><div class="empty">Ladataan…</div></div>
   </section>
 
   <section>
@@ -223,6 +243,26 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
   </form>
 </div>
 
+<div class="sheet" id="gSheet" hidden role="dialog" aria-modal="true" aria-labelledby="gTitle">
+  <form class="sheet-in" id="gForm" autocomplete="off">
+    <div class="sheet-bar"><h2 id="gTitle">Ase</h2><button class="ghost" type="button" id="gClose">Sulje</button></div>
+    <label class="f">Nimi<input type="text" id="gName" placeholder="esim. Tikka T3x" required></label>
+    <div class="grid2">
+      <label class="f">Tyyppi<select id="gType"></select></label>
+      <label class="f">Kaliiperi<input type="text" id="gCal" list="dlCal"></label>
+    </div>
+    <label class="f">Toimintatapa<input type="text" id="gMode" list="dlMode"></label>
+    <label class="f">Laukaukset ennen päiväkirjaa<input type="number" id="gStart" inputmode="numeric" min="0" placeholder="0"></label>
+    <label class="check"><input type="checkbox" id="gArch">Piilota valinnoista (myyty tai ei käytössä)</label>
+    <div class="hint" id="gStats"></div>
+    <div class="msg" id="gMsg" hidden></div>
+    <div class="actions">
+      <button class="primary" type="submit">Tallenna ase</button>
+      <button class="danger" type="button" id="gDel" hidden>Poista</button>
+    </div>
+  </form>
+</div>
+
 <div class="sheet" id="xSheet" hidden role="dialog" aria-modal="true" aria-labelledby="xTitle">
   <form class="sheet-in" id="xForm">
     <div class="sheet-bar"><h2 id="xTitle">Vie PDF</h2><button class="ghost" type="button" id="xClose">Sulje</button></div>
@@ -252,7 +292,7 @@ const MONTHS=["Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesäkuu"
 const WD=["su","ma","ti","ke","to","pe","la"];
 const DRAFT_KEY="ampumapk-draft-v2",YEAR_KEY="ampumapk-year";
 const $=id=>document.getElementById(id);
-const S={sessions:[],profile:{},ready:false,store:null,editId:null,form:null,delArm:false,year:null};
+const S={sessions:[],guns:[],profile:{},ready:false,editGun:null,gDelArm:false,store:null,editId:null,form:null,delArm:false,year:null};
 
 /* ---------- storage ---------- */
 function lsGet(k){try{return JSON.parse(localStorage.getItem(k)||"null")}catch(e){return null}}
@@ -260,15 +300,14 @@ function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function lsDel(k){try{localStorage.removeItem(k)}catch(e){}}
 const OUTBOX_KEY="ampumapk-outbox-v1";
 function apiStore(){
-  let server=[],profile={},cb=null,flushing=false;
-  let box=lsGet(OUTBOX_KEY)||{sessions:{},profile:null};
+  let server=[],sguns=[],profile={},cb=null,flushing=false;
+  let box=lsGet(OUTBOX_KEY)||{};box.sessions=box.sessions||{};box.guns=box.guns||{};if(box.profile===undefined)box.profile=null;
   const persist=()=>lsSet(OUTBOX_KEY,box);
-  const pending=()=>Object.keys(box.sessions).length+(box.profile?1:0);
+  const pending=()=>Object.keys(box.sessions).length+Object.keys(box.guns).length+(box.profile?1:0);
+  const merged=(base,over)=>{const m=new Map(base.map(x=>[x.id,x]));for(const[id,d]of Object.entries(over)){if(d===null)m.delete(id);else m.set(id,Object.assign({id},d))}return[...m.values()]};
   function emit(){
     if(!cb)return;
-    const m=new Map(server.map(s=>[s.id,s]));
-    for(const[id,d]of Object.entries(box.sessions)){if(d===null)m.delete(id);else m.set(id,Object.assign({id},d))}
-    cb[0]([...m.values()]);cb[1](box.profile||profile);
+    cb[2](merged(sguns,box.guns));cb[0](merged(server,box.sessions));cb[1](box.profile||profile);
     const n=pending(),el=$("queueNote");
     el.hidden=!n;el.textContent=n?`${n} muutos${n>1?"ta":""} odottaa yhteyttä palvelimeen – lähetetään automaattisesti.`:"";
   }
@@ -281,12 +320,24 @@ function apiStore(){
     return r.json();
   }
   async function load(){
-    try{const[s,p]=await Promise.all([req("GET","sessions"),req("GET","profile")]);server=s;profile=p;emit()}
+    try{const[s,p,gs]=await Promise.all([req("GET","sessions"),req("GET","profile"),req("GET","guns")]);server=s;profile=p;sguns=gs;emit()}
     catch(e){if(e&&e.code==="auth")return;toast("Ei yhteyttä palvelimeen – näytetään tallennetut muutokset");emit()}
   }
   async function flush(){
     if(flushing||!pending())return;flushing=true;let changed=false;
     try{
+      for(const[id,d]of Object.entries(box.guns)){
+        try{
+          if(d===null)await req("DELETE","guns/"+encodeURIComponent(id));
+          else await req("PUT","guns/"+encodeURIComponent(id),d);
+          if(box.guns[id]===d){delete box.guns[id];persist()}
+          sguns=sguns.filter(g=>g.id!==id);if(d!==null)sguns.push(Object.assign({id},d));
+          changed=true;
+        }catch(e){
+          if(e&&e.code==="http"&&e.status>=400&&e.status<500){delete box.guns[id];persist();toast("Palvelin hylkäsi muutoksen ("+e.status+")");changed=true}
+          else throw e;
+        }
+      }
       for(const[id,d]of Object.entries(box.sessions)){
         try{
           if(d===null)await req("DELETE","sessions/"+encodeURIComponent(id));
@@ -309,7 +360,9 @@ function apiStore(){
   setInterval(()=>{if(pending())flush()},20000);
   const queue=(fn)=>{fn();persist();emit();flush();return Promise.resolve()};
   return{
-    sub(a,b){cb=[a,b];load().then(flush)},
+    sub(a,b,c){cb=[a,b,c];load().then(flush)},
+    saveGun:(id,d)=>queue(()=>{box.guns[id]=d}),
+    delGun:id=>queue(()=>{box.guns[id]=null}),
     saveSession:(id,d)=>queue(()=>{box.sessions[id]=d}),
     delSession:id=>queue(()=>{box.sessions[id]=null}),
     saveProfile:d=>queue(()=>{box.profile=d}),
@@ -320,6 +373,7 @@ function saveFile(name,data,type){
   const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();
   setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},1000);
 }
+const newGunId=()=>"g-"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const newId=()=>"s-"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 
 /* ---------- helpers ---------- */
@@ -338,6 +392,24 @@ function sortSessions(a){return a.sort((x,y)=>y.date.localeCompare(x.date)||Stri
 function recent(field,n){const out=[];for(const s of S.sessions){const v=s[field];if(v&&!out.includes(v))out.push(v);if(out.length>=n)break}return out}
 function distinct(get){const c=new Map();S.sessions.forEach(s=>get(s).forEach(v=>{if(v)c.set(v,(c.get(v)||0)+1)}));return[...c.entries()].sort((a,b)=>b[1]-a[1]).map(e=>e[0])}
 
+/* Rows for the official log: gun names dropped, rows of the same kind in one visit merged */
+function exportLines(s){
+  const out=[],idx=new Map();
+  (s.lines||[]).forEach(l=>{
+    if(!l.type){out.push({type:"",cal:l.cal||"",mode:l.mode||"",rounds:+l.rounds||0,info:l.info||""});return}
+    const k=[l.type,l.cal||"",l.mode||"",l.info||""].join("|");
+    if(idx.has(k)){idx.get(k).rounds+=+l.rounds||0;return}
+    const row={type:l.type,cal:l.cal||"",mode:l.mode||"",rounds:+l.rounds||0,info:l.info||""};idx.set(k,row);out.push(row);
+  });
+  return out;
+}
+function typeCounts(list){const tc={};list.forEach(s=>exportLines(s).forEach(l=>{if(l.type)tc[l.type]=(tc[l.type]||0)+1}));return tc}
+function gunTotals(){
+  const t={};S.sessions.forEach(s=>(s.lines||[]).forEach(l=>{if(!l.gunId)return;const g=t[l.gunId]=t[l.gunId]||{r:0,d:new Set(),last:""};g.r+=+l.rounds||0;g.d.add(s.date);if(s.date>g.last)g.last=s.date}));
+  return t;
+}
+const gunsSorted=()=>S.guns.slice().sort((a,b)=>(!!a.archived-!!b.archived)||((a.order??99)-(b.order??99))||String(a.name).localeCompare(b.name));
+
 /* ---------- main render ---------- */
 function render(){
   const p=S.profile||{};
@@ -349,10 +421,19 @@ function render(){
   $("sDays").textContent=fmt(days.size);
   $("sRounds").textContent=fmt(S.sessions.reduce((a,s)=>a+sRounds(s),0));
   $("s24").textContent=fmt(days24.size);
-  const tc={};S.sessions.forEach(s=>(s.lines||[]).forEach(l=>{if(l.type)tc[l.type]=(tc[l.type]||0)+1}));
+  const tc=typeCounts(S.sessions);
   $("types").innerHTML=TYPES.filter(t=>tc[t]).map(t=>`<span>${t} <b>${tc[t]}</b></span>`).join("");
   $("exportBtn").hidden=!S.sessions.length;$("pdfBtn").hidden=!S.sessions.length;
-  renderYears();renderLog();fillLists();
+  renderYears();renderLog();renderGuns();fillLists();
+}
+function renderGuns(){
+  const el=$("guns"),tot=gunTotals(),list=gunsSorted();
+  if(!list.length){el.innerHTML='<div class="empty" style="border:0">Lisää aseesi, niin laukaukset kirjautuvat aseittain. Vanhat käynnit voit liittää aseeseen muokkaamalla niitä.</div>';return}
+  el.innerHTML=list.map(g=>{const t=tot[g.id]||{r:0,d:new Set(),last:""},all=(+g.startCount||0)+t.r;
+    return `<button type="button" class="gun ${g.archived?"archived":""}" data-gun="${esc(g.id)}">
+      <b>${esc(g.name)}</b>
+      <span class="g-sub">${esc([g.type,g.cal].filter(Boolean).join(" · "))}${t.d.size?` · ${t.d.size} krt · viimeksi ${fiDate(t.last)}`:""}</span>
+      <span class="g-r"><span class="num">${fmt(all)}</span><small>laukausta</small></span></button>`}).join("");
 }
 function renderYears(){
   const ys=[...new Set(S.sessions.map(s=>s.date.slice(0,4)))].sort().reverse();
@@ -368,7 +449,7 @@ function renderLog(){
   list.forEach(s=>{
     const k=s.date.slice(0,7),d=parseD(s.date);
     if(k!==cur){cur=k;html+=`<div class="month"><span>${MONTHS[d.getMonth()]} ${d.getFullYear()}</span><span class="num">${byM[k].d.size} krt · ${fmt(byM[k].r)} ls</span></div>`}
-    const lines=(s.lines||[]).map(l=>`<div class="e-line"><div class="what">${l.mode?`<span class="tm" title="${esc(l.mode)}">${esc(modeNo(l.mode))}</span>`:""}${l.type?esc(l.type)+" ":""}${l.cal?`<span>${esc(l.cal)}</span>`:""}${l.info?` <span>· ${esc(l.info)}</span>`:""}</div><div class="num">${l.rounds?fmt(+l.rounds):""}</div></div>`).join("");
+    const lines=(s.lines||[]).map(l=>`<div class="e-line"><div class="what">${l.mode?`<span class="tm" title="${esc(l.mode)}">${esc(modeNo(l.mode))}</span>`:""}${l.gun?`<span class="gname">${esc(l.gun)}</span> `:(l.type?esc(l.type)+" ":"")}${l.cal?`<span>${esc(l.cal)}</span>`:""}${l.info?` <span>· ${esc(l.info)}</span>`:""}</div><div class="num">${l.rounds?fmt(+l.rounds):""}</div></div>`).join("");
     html+=`<button class="entry" type="button" data-id="${esc(s.id)}">
       <div class="day"><b>${d.getDate()}</b><small>${WD[d.getDay()]}</small></div>
       <div style="min-width:0"><div class="e-head"><span class="e-place">${esc(s.place||"Paikka puuttuu")}</span><span class="e-meta num">${esc(s.klo||"")}</span></div>
@@ -403,22 +484,30 @@ function openForm(id){
   renderChips();renderLines();
   $("sheet").hidden=false;document.body.style.overflow="hidden";
 }
-function closeSheets(){$("sheet").hidden=true;$("pSheet").hidden=true;$("xSheet").hidden=true;document.body.style.overflow="";S.editId=null}
+function closeSheets(){$("gSheet").hidden=true;$("sheet").hidden=true;$("pSheet").hidden=true;$("xSheet").hidden=true;document.body.style.overflow="";S.editId=null}
 function presets(){
   const c=new Map();
   S.sessions.slice(0,120).forEach(s=>(s.lines||[]).forEach(l=>{if(!l.type)return;const k=[l.type,l.cal,l.mode].join("|");c.set(k,(c.get(k)||0)+1)}));
   return[...c.entries()].sort((a,b)=>b[1]-a[1]).slice(0,6).map(e=>{const[type,cal,mode]=e[0].split("|");return{type,cal,mode}});
 }
+function gunOptions(sel){
+  const list=gunsSorted().filter(g=>!g.archived||g.id===sel);
+  return `<option value="">— ei asetta —</option>`+list.map(g=>`<option value="${esc(g.id)}" ${g.id===sel?"selected":""}>${esc(g.name)}</option>`).join("");
+}
 function renderChips(){
   const f=S.form;
   $("placeChips").innerHTML=recent("place",4).map(p=>`<button type="button" class="chip" data-place="${esc(p)}" aria-pressed="${f.place===p}">${esc(p)}</button>`).join("");
   $("orgChips").innerHTML=recent("org",3).map(o=>`<button type="button" class="chip" data-org="${esc(o)}" aria-pressed="${f.org===o}">${esc(o)}</button>`).join("");
-  $("presetChips").innerHTML=presets().map((p,i)=>`<button type="button" class="chip add" data-preset="${i}">+ ${esc(p.type)} ${esc(p.cal)}</button>`).join("")
+  const active=gunsSorted().filter(g=>!g.archived);
+  $("presetChips").innerHTML=(active.length
+      ?active.map(g=>`<button type="button" class="chip add" data-addgun="${esc(g.id)}">+ ${esc(g.name)}</button>`).join("")
+      :presets().map((p,i)=>`<button type="button" class="chip add" data-preset="${i}">+ ${esc(p.type)} ${esc(p.cal)}</button>`).join(""))
     +`<button type="button" class="chip add" data-preset="blank">+ Muu rivi</button>`;
 }
 function lineHTML(l,i){
   return `<div class="line" data-i="${i}">
     <div class="line-top"><span class="lbl">Rivi ${i+1}</span><button type="button" class="rm" data-rm="${i}">Poista rivi</button></div>
+    ${S.guns.length?`<label class="f">Ase<select data-k="gunId">${gunOptions(l.gunId)}</select></label>`:""}
     <div class="lgrid">
       <label class="f">Tyyppi<select data-k="type"><option value="">—</option>${TYPES.map(t=>`<option ${l.type===t?"selected":""}>${t}</option>`).join("")}</select></label>
       <label class="f">Kaliiperi<input type="text" data-k="cal" list="dlCal" value="${esc(l.cal)}"></label>
@@ -440,16 +529,29 @@ $("form").addEventListener("input",e=>{
   const f=S.form,t=e.target;
   if(t.id==="fDate")f.date=t.value;else if(t.id==="fStart")f.start=t.value;else if(t.id==="fEnd")f.end=t.value;
   else if(t.id==="fPlace"){f.place=t.value;renderChips()}else if(t.id==="fOrg"){f.org=t.value;renderChips()}
-  else if(t.dataset.k){const i=+t.closest(".line").dataset.i;f.lines[i][t.dataset.k]=t.dataset.k==="rounds"?Math.max(0,parseInt(t.value)||0):t.value;if(t.dataset.k==="rounds")updTotal()}
+  else if(t.dataset.k&&t.tagName!=="SELECT"){const i=+t.closest(".line").dataset.i;f.lines[i][t.dataset.k]=t.dataset.k==="rounds"?Math.max(0,parseInt(t.value)||0):t.value;if(t.dataset.k==="rounds")updTotal()}
   saveDraft();
 });
-$("form").addEventListener("change",e=>{if(e.target.tagName==="SELECT"){const i=+e.target.closest(".line").dataset.i;S.form.lines[i].type=e.target.value;saveDraft()}});
+function applyGun(l,id){
+  const g=S.guns.find(x=>x.id===id);
+  if(!g){delete l.gunId;delete l.gun;return}
+  l.gunId=g.id;l.gun=g.name;if(g.type)l.type=g.type;if(g.cal)l.cal=g.cal;if(g.mode)l.mode=g.mode;
+}
+$("form").addEventListener("change",e=>{
+  const t=e.target;if(t.tagName!=="SELECT")return;const i=+t.closest(".line").dataset.i,l=S.form.lines[i];
+  if(t.dataset.k==="gunId"){applyGun(l,t.value);renderLines()}else l.type=t.value;
+  saveDraft();
+});
 $("form").addEventListener("click",e=>{
   const b=e.target.closest("button");if(!b)return;const f=S.form;
   if(b.dataset.place!==undefined){f.place=b.dataset.place;$("fPlace").value=f.place;
     if(!f.org){const last=S.sessions.find(s=>s.place===f.place&&s.org);if(last){f.org=last.org;$("fOrg").value=f.org}}
     renderChips();saveDraft()}
   else if(b.dataset.org!==undefined){f.org=f.org===b.dataset.org?"":b.dataset.org;$("fOrg").value=f.org;renderChips();saveDraft()}
+  else if(b.dataset.addgun!==undefined){
+    const prevInfo=f.lines.length?f.lines[f.lines.length-1].info:(S.sessions.find(s=>s.org&&s.org===f.org)?.lines?.[0]?.info||"");
+    const l={type:"",cal:"",mode:"",rounds:0,info:prevInfo||""};applyGun(l,b.dataset.addgun);f.lines.push(l);renderLines();saveDraft();
+    const ins=$("lines").querySelectorAll('input[data-k="rounds"]');if(ins.length)ins[ins.length-1].focus()}
   else if(b.dataset.preset!==undefined){
     const prevInfo=f.lines.length?f.lines[f.lines.length-1].info:(S.sessions.find(s=>s.org&&s.org===f.org)?.lines?.[0]?.info||"");
     const p=b.dataset.preset==="blank"?{type:"",cal:"",mode:""}:presets()[+b.dataset.preset];
@@ -462,7 +564,8 @@ $("form").addEventListener("submit",async e=>{
   e.preventDefault();const f=S.form;const msg=m=>{$("fMsg").textContent=m;$("fMsg").hidden=false};
   if(!f.date)return msg("Anna päivämäärä.");
   if(!f.place.trim())return msg("Anna paikka.");
-  const lines=f.lines.map(l=>({mode:(l.mode||"").trim(),type:l.type||"",cal:(l.cal||"").trim(),rounds:+l.rounds||0,info:(l.info||"").trim()})).filter(l=>l.type||l.cal||l.rounds||l.info);
+  const lines=f.lines.map(l=>{const o={mode:(l.mode||"").trim(),type:l.type||"",cal:(l.cal||"").trim(),rounds:+l.rounds||0,info:(l.info||"").trim()};
+    const g=l.gunId&&S.guns.find(x=>x.id===l.gunId);if(g){o.gunId=g.id;o.gun=g.name}else if(l.gunId){o.gunId=l.gunId;o.gun=l.gun||""}return o}).filter(l=>l.type||l.cal||l.rounds||l.info);
   if(!lines.length)return msg("Lisää vähintään yksi rivi.");
   const klo=f.start?(fromTime(f.start)+(f.end?"-"+fromTime(f.end):"")):"";
   const now=new Date().toISOString();
@@ -482,6 +585,33 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")closeSheets()});
 $("newBtn").addEventListener("click",()=>openForm(null));
 $("log").addEventListener("click",e=>{const b=e.target.closest(".entry");if(b)openForm(b.dataset.id)});
 
+/* ---------- guns ---------- */
+function openGun(id){
+  const g=id?S.guns.find(x=>x.id===id):null;S.editGun=id||null;S.gDelArm=false;
+  $("gTitle").textContent=g?"Muokkaa asetta":"Uusi ase";
+  $("gName").value=g?g.name:"";$("gCal").value=g&&g.cal||"";$("gMode").value=g&&g.mode||"";
+  $("gType").innerHTML=`<option value="">—</option>`+TYPES.map(t=>`<option ${g&&g.type===t?"selected":""}>${t}</option>`).join("");
+  $("gStart").value=g&&g.startCount?g.startCount:"";$("gArch").checked=!!(g&&g.archived);
+  const t=g&&gunTotals()[g.id];
+  $("gStats").innerHTML=t?`Päiväkirjassa <b>${fmt(t.r)}</b> laukausta · <b>${t.d.size}</b> käyntiä`:"";
+  $("gDel").hidden=!g||!!t;$("gDel").textContent="Poista";$("gMsg").hidden=true;
+  $("gSheet").hidden=false;document.body.style.overflow="hidden";$("gName").focus();
+}
+$("addGunBtn").addEventListener("click",()=>openGun(null));
+$("guns").addEventListener("click",e=>{const b=e.target.closest("[data-gun]");if(b)openGun(b.dataset.gun)});
+$("gClose").addEventListener("click",closeSheets);
+$("gForm").addEventListener("submit",async e=>{e.preventDefault();
+  const name=$("gName").value.trim();if(!name){$("gMsg").textContent="Anna aseelle nimi.";$("gMsg").hidden=false;return}
+  const old=S.editGun&&S.guns.find(x=>x.id===S.editGun);
+  const d={name,type:$("gType").value,cal:$("gCal").value.trim(),mode:$("gMode").value.trim(),
+    startCount:Math.max(0,parseInt($("gStart").value)||0),archived:$("gArch").checked,order:old?(old.order??99):S.guns.length+1};
+  await S.store.saveGun(S.editGun||newGunId(),d);closeSheets();toast("Ase tallennettu");
+});
+$("gDel").addEventListener("click",async()=>{
+  if(!S.gDelArm){S.gDelArm=true;$("gDel").textContent="Vahvista poisto";return}
+  await S.store.delGun(S.editGun);closeSheets();toast("Ase poistettu");
+});
+
 /* ---------- profile ---------- */
 $("profBtn").addEventListener("click",()=>{const p=S.profile||{};$("iName").value=p.name||"";$("iSra").value=p.sra||"";$("iIpsc").value=p.ipsc||"";$("iHunt").value=p.hunterNo||"";$("pSheet").hidden=false;document.body.style.overflow="hidden"});
 $("pForm").addEventListener("submit",async e=>{e.preventDefault();
@@ -492,12 +622,12 @@ $("pForm").addEventListener("submit",async e=>{e.preventDefault();
 $("exportBtn").addEventListener("click",async()=>{
   const q=v=>{v=String(v??"");return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   const p=S.profile||{};
-  const tc={};let tot=0;S.sessions.forEach(s=>(s.lines||[]).forEach(l=>{if(l.type)tc[l.type]=(tc[l.type]||0)+1;tot+=+l.rounds||0}));
+  const tc=typeCounts(S.sessions),tot=S.sessions.reduce((a,s)=>a+sRounds(s),0);
   const rows=[["Nimi:","SRA Lisenssi:","IPSC Lisenssi:","Metsästäjänumero:","Harrastuskerrat:","Yhteenlasketut laukaukset:"],
     [p.name,p.sra,p.ipsc,p.hunterNo,new Set(S.sessions.map(s=>s.date)).size,tot],
     ["Asetyypit:"].concat(TYPES.filter(t=>tc[t]).map(t=>t+": "+tc[t])),[],
     ["Päivämäärä","klo","Paikka","Järjestäjä","Toimintatapa","Tyyppi","Kaliiperi","Laukaukset","Lisätietoja"]];
-  sortSessions(S.sessions.slice()).reverse().forEach(s=>(s.lines&&s.lines.length?s.lines:[{}]).forEach(l=>rows.push([fiDate(s.date),s.klo,s.place,s.org,l.mode,l.type,l.cal,l.rounds||"",l.info])));
+  sortSessions(S.sessions.slice()).reverse().forEach(s=>{const ls=exportLines(s);(ls.length?ls:[{}]).forEach(l=>rows.push([fiDate(s.date),s.klo,s.place,s.org,l.mode,l.type,l.cal,l.rounds||"",l.info]))});
   const csv="﻿"+rows.map(r=>r.map(q).join(";")).join("\r\n");
   saveFile("ampumapaivakirja-"+todayStr()+".csv",csv,"text/csv;charset=utf-8");
 });
@@ -536,7 +666,7 @@ $("xForm").addEventListener("submit",async e=>{e.preventDefault();
     const R=getRange();
     const list=sortSessions(S.sessions.filter(R.filter)).reverse();
     const p=S.profile||{};
-    const tc={};let tot=0;list.forEach(s=>(s.lines||[]).forEach(l=>{if(l.type)tc[l.type]=(tc[l.type]||0)+1;tot+=+l.rounds||0}));
+    const tc=typeCounts(list),tot=list.reduce((a,s)=>a+sRounds(s),0);
     const days=new Set(list.map(s=>s.date)).size;
     const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"pt",format:"a4"});
     const W=doc.internal.pageSize.getWidth(),M=36;
@@ -556,7 +686,7 @@ $("xForm").addEventListener("submit",async e=>{e.preventDefault();
     TYPES.filter(t=>tc[t]).forEach((t,i)=>val(t+": "+tc[t],cols[4],y0+12+i*11));
     lab("Yhteenlasketut laukaukset:",cols[5],y0);val(tot,cols[5],y0+12);
     const startY=y0+Math.max(48,18+Object.keys(tc).length*11);
-    const body=[];list.forEach(s=>(s.lines&&s.lines.length?s.lines:[{}]).forEach(l=>body.push([fiDate(s.date),s.klo||"",s.place||"",s.org||"",l.mode||"",l.type||"",l.cal||"",l.rounds?String(l.rounds):"",l.info||""])));
+    const body=[];list.forEach(s=>{const ls=exportLines(s);(ls.length?ls:[{}]).forEach(l=>body.push([fiDate(s.date),s.klo||"",s.place||"",s.org||"",l.mode||"",l.type||"",l.cal||"",l.rounds?String(l.rounds):"",l.info||""]))});
     doc.autoTable({startY,margin:{left:M,right:M,bottom:40},theme:"grid",
       head:[["Päivämäärä","klo","Paikka","Järjestäjä","Toimintatapa","Tyyppi","Kaliiperi","Laukaukset","Lisätietoja"]],body,
       styles:{font:"helvetica",fontSize:6.5,cellPadding:2,lineColor:[180,180,180],lineWidth:.4,textColor:20,overflow:"linebreak"},
@@ -573,7 +703,7 @@ $("xForm").addEventListener("submit",async e=>{e.preventDefault();
 async function boot(){
   S.year=lsGet(YEAR_KEY);
   S.store=apiStore();
-  S.store.sub(list=>{S.sessions=sortSessions(list.filter(s=>s.date));S.ready=true;render()},p=>{S.profile=p||{};render()});
+  S.store.sub(list=>{S.sessions=sortSessions(list.filter(s=>s.date));S.ready=true;render()},p=>{S.profile=p||{};render()},g=>{S.guns=g||[]});
 }
 boot();
 })();
