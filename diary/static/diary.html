@@ -147,8 +147,13 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
 .hint b{color:var(--fg);font-family:var(--f-mono)}
 /* Guns */
 .guns{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
-.gun{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:12px 14px}
-.gun:first-child{border-top:0}
+.gunrow{display:grid;grid-template-columns:36px minmax(0,1fr);align-items:stretch;border-top:1px solid var(--line);background:var(--surface)}
+.gunrow:first-child{border-top:0;border-radius:var(--r) var(--r) 0 0}
+.gunrow:last-child{border-radius:0 0 var(--r) var(--r)}
+.grip{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:1.1rem;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.gunrow.dragging{position:relative;z-index:2;box-shadow:0 6px 18px rgba(0,0,0,.18);background:var(--surface-2)}
+.gunrow.dragging .grip{cursor:grabbing;color:var(--accent)}
+.gun{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center;width:100%;text-align:left;background:none;border:0;padding:12px 14px 12px 0}
 .gun:hover{background:var(--surface-2)}
 .gun b{font-weight:600}
 .gun .g-sub{color:var(--muted);font-size:.82rem;grid-column:1}
@@ -475,11 +480,34 @@ function renderGuns(){
   $("gunsCount").textContent=list.length?`${active.length} asetta · ${fmt(active.reduce((a,g)=>a+(+g.startCount||0)+((tot[g.id]||{}).r||0),0))} ls`:"";
   if(!list.length){el.innerHTML='<div class="empty" style="border:0">Lisää aseesi, niin laukaukset kirjautuvat aseittain. Vanhat käynnit voit liittää aseeseen muokkaamalla niitä.</div>';return}
   el.innerHTML=list.map(g=>{const t=tot[g.id]||{r:0,d:new Set(),last:""},all=(+g.startCount||0)+t.r;
-    return `<button type="button" class="gun ${g.archived?"archived":""}" data-gun="${esc(g.id)}">
+    return `<div class="gunrow" data-id="${esc(g.id)}"><span class="grip" aria-label="Siirrä" title="Vedä järjestääksesi">⠿</span><button type="button" class="gun ${g.archived?"archived":""}" data-gun="${esc(g.id)}">
       <b>${esc(g.name)}</b>
       <span class="g-sub">${esc([g.type,g.cal].filter(Boolean).join(" · "))}${g.acquired?` · hankittu ${fiDate(g.acquired)}`:""}${t.d.size?` · ${t.d.size} krt · viimeksi ${fiDate(t.last)}`:""}</span>
-      <span class="g-r"><span class="num">${fmt(all)}</span><small>laukausta</small></span></button>`}).join("");
+      <span class="g-r"><span class="num">${fmt(all)}</span><small>laukausta</small></span></button></div>`}).join("");
 }
+/* Drag the ⠿ handle to reorder guns; the new order is saved as each gun's "order". */
+(function(){
+  let row=null;
+  const box=()=>$("guns");
+  box().addEventListener("pointerdown",e=>{
+    const grip=e.target.closest(".grip");if(!grip)return;
+    e.preventDefault();row=grip.closest(".gunrow");row.classList.add("dragging");grip.setPointerCapture(e.pointerId);
+  });
+  box().addEventListener("pointermove",e=>{
+    if(!row)return;
+    const rows=[...box().querySelectorAll(".gunrow")].filter(r=>r!==row);
+    const after=rows.find(r=>{const b=r.getBoundingClientRect();return e.clientY<b.top+b.height/2});
+    if(after)box().insertBefore(row,after);else box().appendChild(row);
+  });
+  const drop=async()=>{
+    if(!row)return;row.classList.remove("dragging");row=null;
+    const ids=[...box().querySelectorAll(".gunrow")].map(r=>r.dataset.id);
+    const changed=ids.map((id,i)=>[id,i+1]).filter(([id,o])=>{const g=S.guns.find(x=>x.id===id);return g&&g.order!==o});
+    for(const[id,o]of changed){const g=Object.assign({},S.guns.find(x=>x.id===id),{order:o});delete g.id;await S.store.saveGun(id,g)}
+    if(changed.length)toast("Järjestys tallennettu");
+  };
+  box().addEventListener("pointerup",drop);box().addEventListener("pointercancel",drop);
+})();
 function renderYears(){
   const ys=[...new Set(S.sessions.map(s=>s.date.slice(0,4)))].sort().reverse();
   if(ys.length&&(!S.year||(S.year!=="all"&&!ys.includes(S.year))))S.year=ys[0];
