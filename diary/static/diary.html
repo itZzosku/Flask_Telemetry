@@ -335,7 +335,7 @@ function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function lsDel(k){try{localStorage.removeItem(k)}catch(e){}}
 const OUTBOX_KEY="ampumapk-outbox-v1";
 function apiStore(){
-  let server=[],sguns=[],profile={},cb=null,flushing=false,offlineAt=null;
+  let server=[],sguns=[],profile={},cb=null,flushing=false,offlineAt=null,stuck=false;
   let box=lsGet(OUTBOX_KEY)||{};box.sessions=box.sessions||{};box.guns=box.guns||{};if(box.profile===undefined)box.profile=null;
   const persist=()=>lsSet(OUTBOX_KEY,box);
   const pending=()=>Object.keys(box.sessions).length+Object.keys(box.guns).length+(box.profile?1:0);
@@ -345,7 +345,8 @@ function apiStore(){
     cb[2](merged(sguns,box.guns));cb[0](merged(server,box.sessions));cb[1](box.profile||profile);
     const n=pending(),el=$("queueNote"),msgs=[];
     if(offlineAt)msgs.push(`Ei yhteyttä – näytetään tiedot ajalta ${offlineAt}.`);
-    if(n)msgs.push(`${n} muutos${n>1?"ta":""} odottaa yhteyttä palvelimeen – lähetetään automaattisesti.`);
+    // Only mention queued changes once sending has actually failed (not during a normal save).
+    if(n&&(stuck||offlineAt))msgs.push(`${n} muutos${n>1?"ta":""} odottaa yhteyttä palvelimeen – lähetetään automaattisesti.`);
     el.hidden=!msgs.length;el.textContent=msgs.join(" ");
   }
   async function req(method,path,body){
@@ -394,8 +395,9 @@ function apiStore(){
         }
       }
       if(box.profile){const p=box.profile;await req("PUT","profile",p);profile=p;if(box.profile===p){box.profile=null;persist()}changed=true}
-    }catch(e){/* offline: keep the outbox, retry later */}
-    finally{flushing=false;if(changed)emit()}
+      stuck=false;
+    }catch(e){stuck=true;changed=true;/* offline: keep the outbox, retry later */}
+    finally{flushing=false;if(changed)emit();if(!stuck&&pending())setTimeout(flush,0)}   // send anything queued meanwhile
   }
   window.addEventListener("online",flush);
   document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"){flush().then(load)}});
