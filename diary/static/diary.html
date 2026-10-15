@@ -157,6 +157,10 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
 .gun .g-r small{color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.06em}
 .gun.archived{opacity:.55}
 .sechead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.toggle{display:flex;align-items:baseline;gap:10px;background:none;border:0;padding:4px 0;color:var(--fg);text-align:left}
+.toggle .cnt{font-size:.85rem;color:var(--muted)}
+.toggle .chev{display:inline-block;color:var(--muted);transition:transform .15s}
+.toggle[aria-expanded="true"] .chev{transform:rotate(90deg)}
 .check{display:flex;gap:10px;align-items:center;font-size:.95rem;cursor:pointer}
 .check input{width:20px;height:20px;accent-color:var(--accent)}
 .e-line .gname{color:var(--fg);font-weight:500}
@@ -198,8 +202,11 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
   </section>
 
   <section>
-    <div class="sechead"><h2>Aseet</h2><button class="ghost" type="button" id="addGunBtn">+ Lisää ase</button></div>
-    <div class="guns" id="guns"><div class="empty">Ladataan…</div></div>
+    <div class="sechead">
+      <button class="toggle" type="button" id="gunsToggle" aria-expanded="false" aria-controls="guns"><span class="chev">▸</span><h2>Aseet</h2><span class="cnt" id="gunsCount"></span></button>
+      <button class="ghost" type="button" id="addGunBtn" hidden>+ Lisää ase</button>
+    </div>
+    <div class="guns" id="guns" hidden><div class="empty">Ladataan…</div></div>
   </section>
 
   <section>
@@ -456,8 +463,16 @@ function render(){
   $("exportBtn").hidden=!S.sessions.length;$("pdfBtn").hidden=!S.sessions.length;
   renderYears();renderLog();renderGuns();fillLists();
 }
+const GUNS_KEY="ampumapk-guns-open";
+function setGunsOpen(open){
+  $("gunsToggle").setAttribute("aria-expanded",open);$("guns").hidden=!open;$("addGunBtn").hidden=!open;lsSet(GUNS_KEY,open);
+}
+$("gunsToggle").addEventListener("click",()=>setGunsOpen($("guns").hidden));
+setGunsOpen(lsGet(GUNS_KEY)===true);   // collapsed unless opened last time
 function renderGuns(){
   const el=$("guns"),tot=gunTotals(),list=gunsSorted();
+  const active=list.filter(g=>!g.archived);
+  $("gunsCount").textContent=list.length?`${active.length} asetta · ${fmt(active.reduce((a,g)=>a+(+g.startCount||0)+((tot[g.id]||{}).r||0),0))} ls`:"";
   if(!list.length){el.innerHTML='<div class="empty" style="border:0">Lisää aseesi, niin laukaukset kirjautuvat aseittain. Vanhat käynnit voit liittää aseeseen muokkaamalla niitä.</div>';return}
   el.innerHTML=list.map(g=>{const t=tot[g.id]||{r:0,d:new Set(),last:""},all=(+g.startCount||0)+t.r;
     return `<button type="button" class="gun ${g.archived?"archived":""}" data-gun="${esc(g.id)}">
