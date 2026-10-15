@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Kirjaudu · Ampumapäiväkirja</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+:root{--bg:#eef0ec;--surface:#fff;--line:#c9cec4;--fg:#1c211c;--muted:#5b6359;--accent:#e2590f;--accent-ink:#fff;--danger:#b3261e;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#141714;--surface:#1d211d;--line:#363d36;--fg:#e8ebe6;--muted:#9aa398;--accent:#ff7a33;--accent-ink:#1a0d05;--danger:#ff8a80;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--fg)}
+body{font:16px/1.45 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;display:grid;place-items:center;min-height:100vh;
+  padding:24px max(16px,env(safe-area-inset-left,0px)) 24px max(16px,env(safe-area-inset-right,0px))}
+form{width:100%;max-width:360px;display:flex;flex-direction:column;gap:16px}
+h1{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:2.2rem;line-height:1;margin:0 0 8px;text-transform:uppercase;border-bottom:2px solid var(--fg);padding-bottom:12px}
+h1 span{color:var(--accent)}
+label{display:flex;flex-direction:column;gap:6px;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+input{font:inherit;font-size:1rem;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;text-transform:none;letter-spacing:0}
+input:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button{font:inherit;font-weight:600;background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:14px;cursor:pointer}
+button:disabled{opacity:.5;cursor:default}
+.err{color:var(--danger);font-size:.9rem;margin:0}
+</style>
+</head>
+<body>
+<form method="post" autocomplete="on">
+  <h1>Ampuma<span>päiväkirja</span></h1>
+  {% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}
+  <input type="text" name="username" value="osku" autocomplete="username" hidden>
+  <label>Salasana<input type="password" name="password" autocomplete="current-password" required autofocus {% if disabled %}disabled{% endif %}></label>
+  <button type="submit" {% if disabled %}disabled{% endif %}>Kirjaudu</button>
+</form>
+</body>
+</html>

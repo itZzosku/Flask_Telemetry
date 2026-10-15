@@ -8,6 +8,7 @@ import json
 import socket
 import markdown
 from waitress import serve
+import diary
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,6 +25,9 @@ check_env_variables()
 
 app = Flask(__name__)
 
+# Shooting diary (password-protected) at /diary
+diary.init_app(app)
+
 
 # Landing page route with links
 @app.route('/')
@@ -36,7 +40,8 @@ def index():
     return '''
     <h1>Flask is running!</h1>
     <p>Click <a href="/house">here</a> to get telemetry of the house.</p>
-    <p>Click <a href="/ammo">here</a> to open the ammo cost calculator.</p>''' + note_links + '''
+    <p>Click <a href="/ammo">here</a> to open the ammo cost calculator.</p>
+    <p>Click <a href="/diary/">here</a> to open the shooting diary (login required).</p>''' + note_links + '''
     <p>Click <a href="https://github.com/itZzosku/Scope_Adjustment_Calculator_App/releases/latest">here</a> to get latest version of the Scope Adjustment Calculator App.</p>
     '''
 
@@ -447,6 +452,7 @@ if __name__ == '__main__':
     print(f"http://{local_ip}:{port}/")
     print(f"http://{local_ip}:{port}/house")
     print(f"http://{local_ip}:{port}/ammo")
+    print(f"http://{local_ip}:{port}/diary/")
     for slug in list_notes():
         print(f"http://{local_ip}:{port}/notes/{slug}")
     serve(app, host=local_ip, port=port)

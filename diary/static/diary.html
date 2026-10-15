@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Ampumapäiväkirja</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: single-column range log; licence strip + totals up top, entries by month, entry sheet over the log. */
+:root{
+  --bg:#eef0ec; --surface:#ffffff; --surface-2:#e3e6e0; --line:#c9cec4;
+  --fg:#1c211c; --muted:#5b6359; --accent:#e2590f; --accent-ink:#ffffff; --accent-soft:#fbe3d4;
+  --danger:#b3261e;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141714; --surface:#1d211d; --surface-2:#272c27; --line:#363d36;
+  --fg:#e8ebe6; --muted:#9aa398; --accent:#ff7a33; --accent-ink:#1a0d05; --accent-soft:#3a2416;
+  --danger:#ff8a80; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#141714; --surface:#1d211d; --surface-2:#272c27; --line:#363d36;
+  --fg:#e8ebe6; --muted:#9aa398; --accent:#ff7a33; --accent-ink:#1a0d05; --accent-soft:#3a2416;
+  --danger:#ff8a80; color-scheme:dark }
+
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg)}
+[hidden]{display:none!important}
+body{font-family:var(--f-body);font-size:16px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:env(safe-area-inset-top,0px) calc(120px + env(safe-area-inset-bottom,0px))}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+header.top{padding-top:20px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--f-display);font-weight:700;font-size:2.4rem;line-height:1;margin:0;letter-spacing:.01em;text-transform:uppercase}
+h1 span{color:var(--accent)}
+.hbtns{display:flex;gap:8px;flex-wrap:wrap}
+.ghost{background:none;border:1px solid var(--line);border-radius:999px;padding:8px 14px;font-size:.85rem;color:var(--fg)}
+.ghost:hover{border-color:var(--fg)}
+.banner{background:var(--accent-soft);border-radius:var(--r);padding:10px 14px;font-size:.9rem}
+
+/* Licence strip */
+.ids{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px 16px;padding:12px 0;border-top:2px solid var(--fg)}
+.ids div{min-width:0}
+.ids small,.lbl{display:block;color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+.ids b{font-weight:600;overflow-wrap:anywhere}
+.ids .num{font-weight:600}
+
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.stat{padding:12px 4px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.stat+.stat{border-left:1px solid var(--line);padding-left:12px}
+.stat b{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:1.7rem;font-weight:600;line-height:1.1}
+.stat small{color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em}
+.types{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.9rem;padding-top:10px}
+.types span{color:var(--muted)}
+.types b{font-family:var(--f-mono);font-weight:600;color:var(--fg)}
+
+h2{font-family:var(--f-display);font-weight:700;font-size:1.35rem;text-transform:uppercase;letter-spacing:.04em;margin:0}
+.loghead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.yrs{display:flex;gap:6px;flex-wrap:wrap}
+.yr{background:none;border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:.82rem;font-family:var(--f-mono)}
+.yr[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.month{font-family:var(--f-display);font-weight:600;font-size:1rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px;display:flex;justify-content:space-between}
+.month:first-child{margin-top:0}
+
+.entry{display:grid;grid-template-columns:56px minmax(0,1fr);gap:12px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:8px}
+.entry:hover{border-color:var(--muted)}
+.day{display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:1px solid var(--line);padding-right:10px}
+.day b{font-family:var(--f-mono);font-size:1.5rem;line-height:1}
+.day small{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.e-head{display:flex;gap:4px 10px;align-items:baseline;flex-wrap:wrap}
+.e-place{font-weight:600}
+.e-meta{color:var(--muted);font-size:.85rem}
+.e-lines{display:flex;flex-direction:column;gap:2px;margin-top:6px;font-size:.88rem}
+.e-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}
+.e-line .what{min-width:0;overflow-wrap:anywhere}
+.e-line .what span{color:var(--muted)}
+.e-line .num{font-weight:600}
+.tm{display:inline-block;font-family:var(--f-mono);font-size:.72rem;border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-right:4px;color:var(--muted)}
+
+.empty{border:1.5px dashed var(--line);border-radius:var(--r);padding:24px;text-align:center;color:var(--muted)}
+
+.fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));
+  background:var(--accent);color:var(--accent-ink);border:0;border-radius:999px;padding:16px 28px;
+  font-family:var(--f-display);font-weight:700;font-size:1.25rem;letter-spacing:.06em;text-transform:uppercase;
+  box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:5;white-space:nowrap}
+
+/* Sheets */
+.sheet{position:fixed;inset:0;z-index:10;background:var(--bg);overflow-y:auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+.sheet-in{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.sheet-bar{display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--bg);padding-block:12px;z-index:1;border-bottom:1px solid var(--line)}
+label.f{display:flex;flex-direction:column;gap:6px;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;min-width:0}
+.field{display:flex;flex-direction:column;gap:6px}
+input[type=text],input[type=date],input[type=time],input[type=number],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:11px;font-size:1rem;color:var(--fg);font-weight:400;text-transform:none;letter-spacing:0;min-width:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px 13px;font-size:.9rem}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.chip.add{border-style:dashed}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.grid3{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr);gap:12px}
+
+.line{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:10px;box-shadow:inset 4px 0 0 var(--accent)}
+.line-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.line-top .lbl{font-size:.75rem}
+.rm{background:none;border:0;color:var(--muted);font-size:.85rem;padding:4px 6px}
+.lgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.step{display:flex;align-items:center;gap:4px}
+.step button{width:44px;height:44px;flex:0 0 44px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);font-size:1.3rem;line-height:1}
+.step input{text-align:center;font-family:var(--f-mono);font-weight:600}
+.total{font-family:var(--f-mono);font-size:.9rem;color:var(--muted);text-align:right}
+
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.primary{background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:14px 22px;font-weight:600;font-size:1rem;flex:1 1 auto}
+.danger{background:none;border:1px solid var(--danger);color:var(--danger);border-radius:8px;padding:13px 16px}
+.msg{font-size:.88rem;color:var(--danger)}
+.opt{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.opt>label.r{display:flex;gap:10px;align-items:center;font-weight:600;cursor:pointer}
+.opt input[type=radio]{width:20px;height:20px;accent-color:var(--accent)}
+.opt .sub{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding-left:30px}
+.hint{font-size:.85rem;color:var(--muted)}
+.hint b{color:var(--fg);font-family:var(--f-mono)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(90px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:20}
+
+@media (max-width:560px){ .ids{grid-template-columns:repeat(2,minmax(0,1fr))} .grid3{grid-template-columns:1fr 1fr} .grid3>:first-child{grid-column:1/-1} }
+@media (max-width:420px){ .stat b{font-size:1.35rem} h1{font-size:2rem} .lgrid{grid-template-columns:1fr} }
+@media (prefers-reduced-motion:no-preference){ .toast{animation:up .2s ease-out} @keyframes up{from{opacity:0;transform:translate(-50%,8px)}} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Ampuma<span>päiväkirja</span></h1>
+    <div class="hbtns">
+      <button class="ghost" id="profBtn" type="button">Omat tiedot</button>
+      <button class="ghost" id="pdfBtn" type="button" hidden>Vie PDF</button>
+      <button class="ghost" id="exportBtn" type="button" hidden>Vie CSV</button>
+      <form method="post" action="logout" style="display:contents"><button class="ghost" type="submit">Kirjaudu ulos</button></form>
+    </div>
+  </header>
+
+  <div class="banner" id="queueNote" hidden></div>
+
+  <section aria-label="Ampujan tiedot ja yhteenveto">
+    <div class="ids">
+      <div><small>Nimi</small><b id="pName">–</b></div>
+      <div><small>SRA lisenssi</small><span class="num" id="pSra">–</span></div>
+      <div><small>IPSC lisenssi</small><span class="num" id="pIpsc">–</span></div>
+      <div><small>Metsästäjänumero</small><span class="num" id="pHunt">–</span></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><b class="num" id="sDays">–</b><small>Harrastuskerrat</small></div>
+      <div class="stat"><b class="num" id="sRounds">–</b><small>Laukaukset yht.</small></div>
+      <div class="stat"><b class="num" id="s24">–</b><small>Kerrat 24 kk</small></div>
+    </div>
+    <div class="types" id="types"></div>
+  </section>
+
+  <section>
+    <div class="loghead"><h2>Käynnit</h2><div class="yrs" id="yrs"></div></div>
+    <div id="log"><div class="empty">Ladataan merkintöjä…</div></div>
+  </section>
+</div>
+
+<button class="fab" id="newBtn" type="button">+ Uusi käynti</button>
+
+<datalist id="dlPlace"></datalist><datalist id="dlOrg"></datalist><datalist id="dlCal"></datalist><datalist id="dlMode"></datalist><datalist id="dlInfo"></datalist>
+
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <form class="sheet-in" id="form" autocomplete="off">
+    <div class="sheet-bar"><h2 id="sheetTitle">Uusi käynti</h2><button class="ghost" type="button" id="closeBtn">Sulje</button></div>
+
+    <div class="grid3">
+      <label class="f">Päivämäärä<input type="date" id="fDate" required></label>
+      <label class="f">Alkoi<input type="time" id="fStart" step="900"></label>
+      <label class="f">Päättyi<input type="time" id="fEnd" step="900"></label>
+    </div>
+
+    <div class="field">
+      <label class="f">Paikka<input type="text" id="fPlace" list="dlPlace" placeholder="Ampumarata" required></label>
+      <div class="chips" id="placeChips"></div>
+    </div>
+    <div class="field">
+      <label class="f">Järjestäjä<input type="text" id="fOrg" list="dlOrg" placeholder="Seura tai yhdistys, valinnainen"></label>
+      <div class="chips" id="orgChips"></div>
+    </div>
+
+    <div class="field">
+      <span class="lbl">Ammunnat</span>
+      <div class="chips" id="presetChips"></div>
+      <div id="lines" style="display:flex;flex-direction:column;gap:10px"></div>
+      <div class="total" id="fTotal"></div>
+    </div>
+
+    <div class="msg" id="fMsg" hidden></div>
+    <div class="actions">
+      <button class="primary" type="submit" id="saveBtn">Tallenna</button>
+      <button class="danger" type="button" id="delBtn" hidden>Poista</button>
+    </div>
+  </form>
+</div>
+
+<div class="sheet" id="pSheet" hidden role="dialog" aria-modal="true" aria-labelledby="pTitle">
+  <form class="sheet-in" id="pForm" autocomplete="off">
+    <div class="sheet-bar"><h2 id="pTitle">Omat tiedot</h2><button class="ghost" type="button" id="pClose">Sulje</button></div>
+    <label class="f">Nimi<input type="text" id="iName"></label>
+    <div class="grid2">
+      <label class="f">SRA lisenssi<input type="text" id="iSra" inputmode="numeric"></label>
+      <label class="f">IPSC lisenssi<input type="text" id="iIpsc" inputmode="numeric"></label>
+    </div>
+    <label class="f">Metsästäjänumero<input type="text" id="iHunt" inputmode="numeric"></label>
+    <div class="actions"><button class="primary" type="submit">Tallenna tiedot</button></div>
+  </form>
+</div>
+
+<div class="sheet" id="xSheet" hidden role="dialog" aria-modal="true" aria-labelledby="xTitle">
+  <form class="sheet-in" id="xForm">
+    <div class="sheet-bar"><h2 id="xTitle">Vie PDF</h2><button class="ghost" type="button" id="xClose">Sulje</button></div>
+    <div class="opt">
+      <label class="r"><input type="radio" name="xr" value="2y" id="xr2y" checked>2 vuotta taaksepäin</label>
+      <div class="sub">
+        <label class="f">Päättyen päivään<input type="date" id="xEnd"></label>
+        <div class="hint" id="x2yHint"></div>
+      </div>
+    </div>
+    <div class="opt">
+      <label class="r"><input type="radio" name="xr" value="year" id="xrYear">Vuosi</label>
+      <div class="sub"><select id="xYear" aria-label="Vuosi"></select></div>
+    </div>
+    <div class="opt"><label class="r"><input type="radio" name="xr" value="all" id="xrAll">Koko päiväkirja</label></div>
+    <div class="actions"><button class="primary" type="submit" id="pdfGo">Luo PDF</button></div>
+  </form>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+const TYPES=["Kivääri","Pienoiskivääri","Pistooli","Revolveri","Haulikko"];
+const MODES=["2 - lippaallinen kertatuli","3 - itselataava kertatuli"];
+const MONTHS=["Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesäkuu","Heinäkuu","Elokuu","Syyskuu","Lokakuu","Marraskuu","Joulukuu"];
+const WD=["su","ma","ti","ke","to","pe","la"];
+const DRAFT_KEY="ampumapk-draft-v2",YEAR_KEY="ampumapk-year";
+const $=id=>document.getElementById(id);
+const S={sessions:[],profile:{},ready:false,store:null,editId:null,form:null,delArm:false,year:null};
+
+/* ---------- storage ---------- */
+function lsGet(k){try{return JSON.parse(localStorage.getItem(k)||"null")}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+function lsDel(k){try{localStorage.removeItem(k)}catch(e){}}
+const OUTBOX_KEY="ampumapk-outbox-v1";
+function apiStore(){
+  let server=[],profile={},cb=null,flushing=false;
+  let box=lsGet(OUTBOX_KEY)||{sessions:{},profile:null};
+  const persist=()=>lsSet(OUTBOX_KEY,box);
+  const pending=()=>Object.keys(box.sessions).length+(box.profile?1:0);
+  function emit(){
+    if(!cb)return;
+    const m=new Map(server.map(s=>[s.id,s]));
+    for(const[id,d]of Object.entries(box.sessions)){if(d===null)m.delete(id);else m.set(id,Object.assign({id},d))}
+    cb[0]([...m.values()]);cb[1](box.profile||profile);
+    const n=pending(),el=$("queueNote");
+    el.hidden=!n;el.textContent=n?`${n} muutos${n>1?"ta":""} odottaa yhteyttä palvelimeen – lähetetään automaattisesti.`:"";
+  }
+  async function req(method,path,body){
+    const r=await fetch("api/"+path,{method,credentials:"same-origin",
+      headers:Object.assign({"X-Requested-With":"fetch"},body?{"Content-Type":"application/json"}:{}),
+      body:body?JSON.stringify(body):undefined});
+    if(r.status===401){location.href="login";throw{code:"auth"}}
+    if(!r.ok)throw{code:"http",status:r.status};
+    return r.json();
+  }
+  async function load(){
+    try{const[s,p]=await Promise.all([req("GET","sessions"),req("GET","profile")]);server=s;profile=p;emit()}
+    catch(e){if(e&&e.code==="auth")return;toast("Ei yhteyttä palvelimeen – näytetään tallennetut muutokset");emit()}
+  }
+  async function flush(){
+    if(flushing||!pending())return;flushing=true;let changed=false;
+    try{
+      for(const[id,d]of Object.entries(box.sessions)){
+        try{
+          if(d===null)await req("DELETE","sessions/"+encodeURIComponent(id));
+          else await req("PUT","sessions/"+encodeURIComponent(id),d);
+          if(box.sessions[id]===d){delete box.sessions[id];persist()}
+          if(d===null)server=server.filter(s=>s.id!==id);
+          else server=server.filter(s=>s.id!==id).concat([Object.assign({id},d)]);
+          changed=true;
+        }catch(e){
+          if(e&&e.code==="http"&&e.status>=400&&e.status<500){delete box.sessions[id];persist();toast("Palvelin hylkäsi muutoksen ("+e.status+")");changed=true}
+          else throw e;
+        }
+      }
+      if(box.profile){const p=box.profile;await req("PUT","profile",p);profile=p;if(box.profile===p){box.profile=null;persist()}changed=true}
+    }catch(e){/* offline: keep the outbox, retry later */}
+    finally{flushing=false;if(changed)emit()}
+  }
+  window.addEventListener("online",flush);
+  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"){flush().then(load)}});
+  setInterval(()=>{if(pending())flush()},20000);
+  const queue=(fn)=>{fn();persist();emit();flush();return Promise.resolve()};
+  return{
+    sub(a,b){cb=[a,b];load().then(flush)},
+    saveSession:(id,d)=>queue(()=>{box.sessions[id]=d}),
+    delSession:id=>queue(()=>{box.sessions[id]=null}),
+    saveProfile:d=>queue(()=>{box.profile=d}),
+  };
+}
+function saveFile(name,data,type){
+  const url=URL.createObjectURL(new Blob([data],{type}));
+  const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},1000);
+}
+const newId=()=>"s-"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+
+/* ---------- helpers ---------- */
+const pad=n=>String(n).padStart(2,"0");
+const todayStr=()=>{const d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
+const parseD=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
+const fiDate=s=>{const d=parseD(s);return d.getDate()+"/"+(d.getMonth()+1)+"/"+d.getFullYear()};
+const fmt=n=>n.toLocaleString("fi-FI");
+const sRounds=s=>(s.lines||[]).reduce((a,l)=>a+(+l.rounds||0),0);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const toTime=s=>s?s.replace(".",":"):"";
+const fromTime=s=>s?s.replace(":","."):"";
+const modeNo=m=>(m||"").split(" ")[0];
+function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>el.hidden=true,2200)}
+function sortSessions(a){return a.sort((x,y)=>y.date.localeCompare(x.date)||String(y.klo||"").localeCompare(String(x.klo||"")))}
+function recent(field,n){const out=[];for(const s of S.sessions){const v=s[field];if(v&&!out.includes(v))out.push(v);if(out.length>=n)break}return out}
+function distinct(get){const c=new Map();S.sessions.forEach(s=>get(s).forEach(v=>{if(v)c.set(v,(c.get(v)||0)+1)}));return[...c.entries()].sort((a,b)=>b[1]-a[1]).map(e=>e[0])}
+
+/* ---------- main render ---------- */
+function render(){
+  const p=S.profile||{};
+  $("pName").textContent=p.name||"–";$("pSra").textContent=p.sra||"–";$("pIpsc").textContent=p.ipsc||"–";$("pHunt").textContent=p.hunterNo||"–";
+  if(!S.ready)return;
+  const days=new Set(S.sessions.map(s=>s.date));
+  const cut=new Date();cut.setMonth(cut.getMonth()-24);
+  const days24=new Set(S.sessions.filter(s=>parseD(s.date)>=cut).map(s=>s.date));
+  $("sDays").textContent=fmt(days.size);
+  $("sRounds").textContent=fmt(S.sessions.reduce((a,s)=>a+sRounds(s),0));
+  $("s24").textContent=fmt(days24.size);
+  const tc={};S.sessions.forEach(s=>(s.lines||[]).forEach(l=>{if(l.type)tc[l.type]=(tc[l.type]||0)+1}));
+  $("types").innerHTML=TYPES.filter(t=>tc[t]).map(t=>`<span>${t} <b>${tc[t]}</b></span>`).join("");
+  $("exportBtn").hidden=!S.sessions.length;$("pdfBtn").hidden=!S.sessions.length;
+  renderYears();renderLog();fillLists();
+}
+function renderYears(){
+  const ys=[...new Set(S.sessions.map(s=>s.date.slice(0,4)))].sort().reverse();
+  if(ys.length&&(!S.year||(S.year!=="all"&&!ys.includes(S.year))))S.year=ys[0];
+  $("yrs").innerHTML=ys.map(y=>`<button type="button" class="yr" data-yr="${y}" aria-pressed="${S.year===y}">${y}</button>`).join("")+(ys.length>1?`<button type="button" class="yr" data-yr="all" aria-pressed="${S.year==="all"}">Kaikki</button>`:"");
+}
+function renderLog(){
+  const el=$("log");
+  const list=S.sessions.filter(s=>S.year==="all"||s.date.startsWith(S.year));
+  if(!S.sessions.length){el.innerHTML='<div class="empty">Ei vielä käyntejä. Paina <b>Uusi käynti</b> radalla – päivä on valmiina, valitse rata ja lisää ammunnat.</div>';return}
+  const byM={};list.forEach(s=>{const k=s.date.slice(0,7);byM[k]=byM[k]||{r:0,d:new Set()};byM[k].r+=sRounds(s);byM[k].d.add(s.date)});
+  let html="",cur="";
+  list.forEach(s=>{
+    const k=s.date.slice(0,7),d=parseD(s.date);
+    if(k!==cur){cur=k;html+=`<div class="month"><span>${MONTHS[d.getMonth()]} ${d.getFullYear()}</span><span class="num">${byM[k].d.size} krt · ${fmt(byM[k].r)} ls</span></div>`}
+    const lines=(s.lines||[]).map(l=>`<div class="e-line"><div class="what">${l.mode?`<span class="tm" title="${esc(l.mode)}">${esc(modeNo(l.mode))}</span>`:""}${l.type?esc(l.type)+" ":""}${l.cal?`<span>${esc(l.cal)}</span>`:""}${l.info?` <span>· ${esc(l.info)}</span>`:""}</div><div class="num">${l.rounds?fmt(+l.rounds):""}</div></div>`).join("");
+    html+=`<button class="entry" type="button" data-id="${esc(s.id)}">
+      <div class="day"><b>${d.getDate()}</b><small>${WD[d.getDay()]}</small></div>
+      <div style="min-width:0"><div class="e-head"><span class="e-place">${esc(s.place||"Paikka puuttuu")}</span><span class="e-meta num">${esc(s.klo||"")}</span></div>
+      ${s.org?`<div class="e-meta">${esc(s.org)}</div>`:""}<div class="e-lines">${lines}</div></div></button>`;
+  });
+  el.innerHTML=html||'<div class="empty">Ei käyntejä tältä vuodelta.</div>';
+}
+function fillLists(){
+  const opt=a=>a.map(v=>`<option value="${esc(v)}">`).join("");
+  $("dlPlace").innerHTML=opt(distinct(s=>[s.place]));
+  $("dlOrg").innerHTML=opt(distinct(s=>[s.org]));
+  $("dlCal").innerHTML=opt(distinct(s=>(s.lines||[]).map(l=>l.cal)));
+  $("dlMode").innerHTML=opt([...new Set(MODES.concat(distinct(s=>(s.lines||[]).map(l=>l.mode))))]);
+  $("dlInfo").innerHTML=opt(distinct(s=>(s.lines||[]).map(l=>l.info)));
+}
+$("yrs").addEventListener("click",e=>{const b=e.target.closest("[data-yr]");if(!b)return;S.year=b.dataset.yr;lsSet(YEAR_KEY,S.year);render()});
+
+/* ---------- entry form ---------- */
+function nowTime(){const d=new Date();return pad(d.getHours())+":"+(d.getMinutes()<30?"00":"30")}
+function openForm(id){
+  S.editId=id||null;S.delArm=false;
+  if(id){const s=S.sessions.find(x=>x.id===id);if(!s)return;
+    const [a,b]=(s.klo||"").split("-");
+    S.form={date:s.date,start:toTime(a),end:toTime(b),place:s.place||"",org:s.org||"",lines:(s.lines||[]).map(l=>Object.assign({},l))};
+  }else{
+    const d=lsGet(DRAFT_KEY);
+    S.form=d&&d.date?d:{date:todayStr(),start:nowTime(),end:"",place:"",org:"",lines:[]};
+  }
+  $("sheetTitle").textContent=id?"Muokkaa käyntiä":"Uusi käynti";
+  $("delBtn").hidden=!id;$("delBtn").textContent="Poista";$("fMsg").hidden=true;
+  const f=S.form;$("fDate").value=f.date;$("fStart").value=f.start;$("fEnd").value=f.end;$("fPlace").value=f.place;$("fOrg").value=f.org;
+  renderChips();renderLines();
+  $("sheet").hidden=false;document.body.style.overflow="hidden";
+}
+function closeSheets(){$("sheet").hidden=true;$("pSheet").hidden=true;$("xSheet").hidden=true;document.body.style.overflow="";S.editId=null}
+function presets(){
+  const c=new Map();
+  S.sessions.slice(0,120).forEach(s=>(s.lines||[]).forEach(l=>{if(!l.type)return;const k=[l.type,l.cal,l.mode].join("|");c.set(k,(c.get(k)||0)+1)}));
+  return[...c.entries()].sort((a,b)=>b[1]-a[1]).slice(0,6).map(e=>{const[type,cal,mode]=e[0].split("|");return{type,cal,mode}});
+}
+function renderChips(){
+  const f=S.form;
+  $("placeChips").innerHTML=recent("place",4).map(p=>`<button type="button" class="chip" data-place="${esc(p)}" aria-pressed="${f.place===p}">${esc(p)}</button>`).join("");
+  $("orgChips").innerHTML=recent("org",3).map(o=>`<button type="button" class="chip" data-org="${esc(o)}" aria-pressed="${f.org===o}">${esc(o)}</button>`).join("");
+  $("presetChips").innerHTML=presets().map((p,i)=>`<button type="button" class="chip add" data-preset="${i}">+ ${esc(p.type)} ${esc(p.cal)}</button>`).join("")
+    +`<button type="button" class="chip add" data-preset="blank">+ Muu rivi</button>`;
+}
+function lineHTML(l,i){
+  return `<div class="line" data-i="${i}">
+    <div class="line-top"><span class="lbl">Rivi ${i+1}</span><button type="button" class="rm" data-rm="${i}">Poista rivi</button></div>
+    <div class="lgrid">
+      <label class="f">Tyyppi<select data-k="type"><option value="">—</option>${TYPES.map(t=>`<option ${l.type===t?"selected":""}>${t}</option>`).join("")}</select></label>
+      <label class="f">Kaliiperi<input type="text" data-k="cal" list="dlCal" value="${esc(l.cal)}"></label>
+      <label class="f">Toimintatapa<input type="text" data-k="mode" list="dlMode" value="${esc(l.mode)}"></label>
+      <label class="f">Laukaukset<div class="step"><button type="button" data-step="-5" aria-label="Vähennä 5">−</button><input type="number" inputmode="numeric" min="0" data-k="rounds" value="${l.rounds||""}" placeholder="0"><button type="button" data-step="5" aria-label="Lisää 5">+</button></div></label>
+    </div>
+    <label class="f">Lisätietoja<input type="text" data-k="info" list="dlInfo" value="${esc(l.info)}" placeholder="esim. SRA, PRS, IPSC, Toimitsija"></label>
+  </div>`;
+}
+function renderLines(){
+  const f=S.form;
+  $("lines").innerHTML=f.lines.length?f.lines.map(lineHTML).join(""):'<div class="empty" style="padding:16px">Lisää ammuntarivi yllä olevista napeista. Teoriakoe tai toimitsijatehtävä: valitse “Muu rivi” ja kirjoita lisätietoihin.</div>';
+  updTotal();
+}
+function updTotal(){const t=S.form.lines.reduce((a,l)=>a+(+l.rounds||0),0);$("fTotal").textContent=t?("Yhteensä "+fmt(t)+" laukausta"):""}
+let dT;function saveDraft(){if(S.editId)return;clearTimeout(dT);dT=setTimeout(()=>lsSet(DRAFT_KEY,S.form),300)}
+
+$("form").addEventListener("input",e=>{
+  const f=S.form,t=e.target;
+  if(t.id==="fDate")f.date=t.value;else if(t.id==="fStart")f.start=t.value;else if(t.id==="fEnd")f.end=t.value;
+  else if(t.id==="fPlace"){f.place=t.value;renderChips()}else if(t.id==="fOrg"){f.org=t.value;renderChips()}
+  else if(t.dataset.k){const i=+t.closest(".line").dataset.i;f.lines[i][t.dataset.k]=t.dataset.k==="rounds"?Math.max(0,parseInt(t.value)||0):t.value;if(t.dataset.k==="rounds")updTotal()}
+  saveDraft();
+});
+$("form").addEventListener("change",e=>{if(e.target.tagName==="SELECT"){const i=+e.target.closest(".line").dataset.i;S.form.lines[i].type=e.target.value;saveDraft()}});
+$("form").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;const f=S.form;
+  if(b.dataset.place!==undefined){f.place=b.dataset.place;$("fPlace").value=f.place;
+    if(!f.org){const last=S.sessions.find(s=>s.place===f.place&&s.org);if(last){f.org=last.org;$("fOrg").value=f.org}}
+    renderChips();saveDraft()}
+  else if(b.dataset.org!==undefined){f.org=f.org===b.dataset.org?"":b.dataset.org;$("fOrg").value=f.org;renderChips();saveDraft()}
+  else if(b.dataset.preset!==undefined){
+    const prevInfo=f.lines.length?f.lines[f.lines.length-1].info:(S.sessions.find(s=>s.org&&s.org===f.org)?.lines?.[0]?.info||"");
+    const p=b.dataset.preset==="blank"?{type:"",cal:"",mode:""}:presets()[+b.dataset.preset];
+    f.lines.push({type:p.type,cal:p.cal,mode:p.mode,rounds:0,info:prevInfo||""});renderLines();saveDraft();
+    const ins=$("lines").querySelectorAll('input[data-k="rounds"]');if(ins.length&&p.type)ins[ins.length-1].focus()}
+  else if(b.dataset.rm!==undefined){f.lines.splice(+b.dataset.rm,1);renderLines();saveDraft()}
+  else if(b.dataset.step){const box=b.closest(".line"),i=+box.dataset.i,l=f.lines[i];l.rounds=Math.max(0,(+l.rounds||0)+(+b.dataset.step));box.querySelector('input[data-k="rounds"]').value=l.rounds;updTotal();saveDraft()}
+});
+$("form").addEventListener("submit",async e=>{
+  e.preventDefault();const f=S.form;const msg=m=>{$("fMsg").textContent=m;$("fMsg").hidden=false};
+  if(!f.date)return msg("Anna päivämäärä.");
+  if(!f.place.trim())return msg("Anna paikka.");
+  const lines=f.lines.map(l=>({mode:(l.mode||"").trim(),type:l.type||"",cal:(l.cal||"").trim(),rounds:+l.rounds||0,info:(l.info||"").trim()})).filter(l=>l.type||l.cal||l.rounds||l.info);
+  if(!lines.length)return msg("Lisää vähintään yksi rivi.");
+  const klo=f.start?(fromTime(f.start)+(f.end?"-"+fromTime(f.end):"")):"";
+  const now=new Date().toISOString();
+  const old=S.editId&&S.sessions.find(x=>x.id===S.editId);
+  const doc={date:f.date,klo,place:f.place.trim(),org:f.org.trim(),lines,createdAt:old&&old.createdAt||now,updatedAt:now};
+  $("saveBtn").disabled=true;
+  try{await S.store.saveSession(S.editId||newId(),doc);if(!S.editId)lsDel(DRAFT_KEY);S.year=f.date.slice(0,4);closeSheets();toast("Tallennettu")}
+  catch(err){msg(err&&err.code==="invalid_argument"?"Sinulla ei ole oikeutta tallentaa tähän päiväkirjaan.":"Tallennus epäonnistui ("+(err&&err.code||"virhe")+"). Luonnos on tallessa, yritä uudelleen.")}
+  finally{$("saveBtn").disabled=false}
+});
+$("delBtn").addEventListener("click",async()=>{
+  if(!S.delArm){S.delArm=true;$("delBtn").textContent="Vahvista poisto";return}
+  try{await S.store.delSession(S.editId);closeSheets();toast("Poistettu")}catch(e){$("fMsg").textContent="Poisto epäonnistui.";$("fMsg").hidden=false}
+});
+$("closeBtn").addEventListener("click",closeSheets);$("pClose").addEventListener("click",closeSheets);
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeSheets()});
+$("newBtn").addEventListener("click",()=>openForm(null));
+$("log").addEventListener("click",e=>{const b=e.target.closest(".entry");if(b)openForm(b.dataset.id)});
+
+/* ---------- profile ---------- */
+$("profBtn").addEventListener("click",()=>{const p=S.profile||{};$("iName").value=p.name||"";$("iSra").value=p.sra||"";$("iIpsc").value=p.ipsc||"";$("iHunt").value=p.hunterNo||"";$("pSheet").hidden=false;document.body.style.overflow="hidden"});
+$("pForm").addEventListener("submit",async e=>{e.preventDefault();
+  const d={name:$("iName").value.trim(),sra:$("iSra").value.trim(),ipsc:$("iIpsc").value.trim(),hunterNo:$("iHunt").value.trim()};
+  try{await S.store.saveProfile(d);closeSheets();toast("Tiedot tallennettu")}catch(err){toast("Tallennus epäonnistui")}});
+
+/* ---------- export (same columns as the Excel sheet) ---------- */
+$("exportBtn").addEventListener("click",async()=>{
+  const q=v=>{v=String(v??"");return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  const p=S.profile||{};
+  const tc={};let tot=0;S.sessions.forEach(s=>(s.lines||[]).forEach(l=>{if(l.type)tc[l.type]=(tc[l.type]||0)+1;tot+=+l.rounds||0}));
+  const rows=[["Nimi:","SRA Lisenssi:","IPSC Lisenssi:","Metsästäjänumero:","Harrastuskerrat:","Yhteenlasketut laukaukset:"],
+    [p.name,p.sra,p.ipsc,p.hunterNo,new Set(S.sessions.map(s=>s.date)).size,tot],
+    ["Asetyypit:"].concat(TYPES.filter(t=>tc[t]).map(t=>t+": "+tc[t])),[],
+    ["Päivämäärä","klo","Paikka","Järjestäjä","Toimintatapa","Tyyppi","Kaliiperi","Laukaukset","Lisätietoja"]];
+  sortSessions(S.sessions.slice()).reverse().forEach(s=>(s.lines&&s.lines.length?s.lines:[{}]).forEach(l=>rows.push([fiDate(s.date),s.klo,s.place,s.org,l.mode,l.type,l.cal,l.rounds||"",l.info])));
+  const csv="﻿"+rows.map(r=>r.map(q).join(";")).join("\r\n");
+  saveFile("ampumapaivakirja-"+todayStr()+".csv",csv,"text/csv;charset=utf-8");
+});
+
+/* ---------- PDF export (layout follows the Excel printout) ---------- */
+function loadScript(src){return new Promise((ok,no)=>{if(document.querySelector('script[src="'+src+'"]'))return ok();const s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=()=>no(new Error("load"));document.head.appendChild(s)})}
+function minus2y(s){const[y,m,d]=s.split("-").map(Number);const t=new Date(y-2,m-1,d);t.setDate(t.getDate()+1);return t.getFullYear()+"-"+pad(t.getMonth()+1)+"-"+pad(t.getDate())}
+function getRange(){
+  const v=document.querySelector('input[name="xr"]:checked').value;
+  if(v==="2y"){const end=$("xEnd").value||todayStr(),start=minus2y(end);
+    return{filter:s=>s.date>=start&&s.date<=end,title:" – 2 vuotta",span:fiDate(start)+" – "+fiDate(end),slug:"2v-"+end}}
+  if(v==="year"){const y=$("xYear").value;return{filter:s=>s.date.startsWith(y),title:" "+y,slug:y}}
+  return{filter:()=>true,title:"",slug:"kaikki"}
+}
+function updHint(){
+  const r=getRange(),list=S.sessions.filter(r.filter);
+  const days=new Set(list.map(s=>s.date)).size;
+  const pd=new Set(list.filter(s=>(s.lines||[]).some(l=>l.type==="Pistooli"||l.type==="Revolveri")).map(s=>s.date)).size;
+  $("x2yHint").innerHTML=document.querySelector('input[name="xr"]:checked').value==="2y"?`${esc(r.span)}<br>Harrastuskerrat <b>${days}</b> · joista pistooli/revolveri <b>${pd}</b>`:"";
+}
+$("pdfBtn").addEventListener("click",()=>{
+  if(!$("xEnd").value)$("xEnd").value=todayStr();
+  const ys=[...new Set(S.sessions.map(s=>s.date.slice(0,4)))].sort().reverse();
+  const cur=$("xYear").value||(S.year&&S.year!=="all"?S.year:ys[0]);
+  $("xYear").innerHTML=ys.map(y=>`<option ${y===cur?"selected":""}>${y}</option>`).join("");
+  updHint();$("xSheet").hidden=false;document.body.style.overflow="hidden";
+});
+$("xClose").addEventListener("click",closeSheets);
+$("xForm").addEventListener("input",e=>{if(e.target.id==="xYear")$("xrYear").checked=true;if(e.target.id==="xEnd")$("xr2y").checked=true;updHint()});
+$("xForm").addEventListener("change",updHint);
+$("xForm").addEventListener("submit",async e=>{e.preventDefault();
+  const btn=$("pdfGo"),label=btn.textContent;btn.disabled=true;btn.textContent="Luodaan PDF…";
+  try{
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js");
+    const R=getRange();
+    const list=sortSessions(S.sessions.filter(R.filter)).reverse();
+    const p=S.profile||{};
+    const tc={};let tot=0;list.forEach(s=>(s.lines||[]).forEach(l=>{if(l.type)tc[l.type]=(tc[l.type]||0)+1;tot+=+l.rounds||0}));
+    const days=new Set(list.map(s=>s.date)).size;
+    const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"pt",format:"a4"});
+    const W=doc.internal.pageSize.getWidth(),M=36;
+    doc.setFont("helvetica","bold");doc.setFontSize(14);doc.text("Ampumapäiväkirja"+R.title,M,M+4);
+    doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(90);
+    const span=R.span?R.span:list.length?fiDate(list[0].date)+" – "+fiDate(list[list.length-1].date):"";
+    doc.text(span,W-M,M+4,{align:"right"});doc.setTextColor(0);
+    const y0=M+24,cols=[M,M+110,M+190,M+270,M+355,M+450];
+    const lab=(t,x,y)=>{doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.text(t,x,y)};
+    const val=(t,x,y)=>{doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text(String(t||""),x,y)};
+    lab("Nimi:",cols[0],y0);val(p.name,cols[0],y0+12);
+    lab("SRA Lisenssi:",cols[1],y0);val(p.sra,cols[1],y0+12);
+    lab("Metsästäjänumero:",cols[1],y0+28);val(p.hunterNo,cols[1],y0+40);
+    lab("IPSC Lisenssi:",cols[2],y0);val(p.ipsc,cols[2],y0+12);
+    lab("Harrastuskerrat:",cols[3],y0);val(days,cols[3],y0+12);
+    lab("Asetyypit:",cols[4],y0);
+    TYPES.filter(t=>tc[t]).forEach((t,i)=>val(t+": "+tc[t],cols[4],y0+12+i*11));
+    lab("Yhteenlasketut laukaukset:",cols[5],y0);val(tot,cols[5],y0+12);
+    const startY=y0+Math.max(48,18+Object.keys(tc).length*11);
+    const body=[];list.forEach(s=>(s.lines&&s.lines.length?s.lines:[{}]).forEach(l=>body.push([fiDate(s.date),s.klo||"",s.place||"",s.org||"",l.mode||"",l.type||"",l.cal||"",l.rounds?String(l.rounds):"",l.info||""])));
+    doc.autoTable({startY,margin:{left:M,right:M,bottom:40},theme:"grid",
+      head:[["Päivämäärä","klo","Paikka","Järjestäjä","Toimintatapa","Tyyppi","Kaliiperi","Laukaukset","Lisätietoja"]],body,
+      styles:{font:"helvetica",fontSize:6.5,cellPadding:2,lineColor:[180,180,180],lineWidth:.4,textColor:20,overflow:"linebreak"},
+      headStyles:{fillColor:[225,228,222],textColor:20,fontStyle:"bold"},
+      columnStyles:{0:{cellWidth:44},1:{cellWidth:46},7:{halign:"right",cellWidth:40}},
+      didDrawPage:d=>{doc.setFontSize(7);doc.setTextColor(120);doc.text((p.name?p.name+" · ":"")+"Ampumapäiväkirja",M,doc.internal.pageSize.getHeight()-20);doc.text("Sivu "+d.pageNumber,W-M,doc.internal.pageSize.getHeight()-20,{align:"right"});doc.setTextColor(0)}});
+    closeSheets();
+    saveFile("ampumapaivakirja-"+R.slug+".pdf",doc.output("arraybuffer"),"application/pdf");
+  }catch(e){toast(e&&e.message==="load"?"PDF-kirjaston lataus epäonnistui, tarkista yhteys":"PDF-vienti epäonnistui")}
+  finally{btn.disabled=false;btn.textContent=label}
+});
+
+/* ---------- boot ---------- */
+async function boot(){
+  S.year=lsGet(YEAR_KEY);
+  S.store=apiStore();
+  S.store.sub(list=>{S.sessions=sortSessions(list.filter(s=>s.date));S.ready=true;render()},p=>{S.profile=p||{};render()});
+}
+boot();
+})();
+</script>
+</body>
+</html>
