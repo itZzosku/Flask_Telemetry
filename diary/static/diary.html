@@ -287,7 +287,7 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
 <script>
 (function(){
 const TYPES=["Kivääri","Pienoiskivääri","Pistooli","Revolveri","Haulikko"];
-const MODES=["2 - lippaallinen kertatuli","3 - itselataava kertatuli"];
+const MODES=["1 - kertatuli","2 - lippaallinen kertatuli","3 - itselataava kertatuli","4 - sarjatuli"];
 const MONTHS=["Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesäkuu","Heinäkuu","Elokuu","Syyskuu","Lokakuu","Marraskuu","Joulukuu"];
 const WD=["su","ma","ti","ke","to","pe","la"];
 const DRAFT_KEY="ampumapk-draft-v2",YEAR_KEY="ampumapk-year";
@@ -498,7 +498,9 @@ function renderChips(){
   const f=S.form;
   $("placeChips").innerHTML=recent("place",4).map(p=>`<button type="button" class="chip" data-place="${esc(p)}" aria-pressed="${f.place===p}">${esc(p)}</button>`).join("");
   $("orgChips").innerHTML=recent("org",3).map(o=>`<button type="button" class="chip" data-org="${esc(o)}" aria-pressed="${f.org===o}">${esc(o)}</button>`).join("");
-  const active=gunsSorted().filter(g=>!g.archived);
+  // Most used first: visits with the gun, then most recent use, then the list order.
+  const gt=gunTotals(),uses=g=>gt[g.id]?gt[g.id].d.size:0,last=g=>gt[g.id]?gt[g.id].last:"";
+  const active=gunsSorted().filter(g=>!g.archived).sort((x,y)=>uses(y)-uses(x)||last(y).localeCompare(last(x)));
   $("presetChips").innerHTML=(active.length
       ?active.map(g=>`<button type="button" class="chip add" data-addgun="${esc(g.id)}">+ ${esc(g.name)}</button>`).join("")
       :presets().map((p,i)=>`<button type="button" class="chip add" data-preset="${i}">+ ${esc(p.type)} ${esc(p.cal)}</button>`).join(""))
