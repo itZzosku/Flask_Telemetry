@@ -8,6 +8,14 @@ Everything else on the site stays public as before.
 Data is stored outside git in `diary_data/` (SQLite `diary.db`, password hash, cookie key).
 `diary_data/` and `diary_seed*.json` are in `.gitignore` – this repo is public, never commit them.
 
+### Phone app
+
+The diary is an installable web app (manifest + service worker in `diary/static/`). Open `/diary/` over HTTPS:
+Android Chrome → menu → **Install app** (or the page's *Asenna sovellus* button); iPhone Safari → Share →
+**Add to Home Screen**. It then opens full-screen, starts without a connection using the last synced data,
+and queues saves until the server is reachable again. Logging out clears the cached data.
+After changing `diary/static/sw.js`, bump `VERSION` in it so phones drop the old cache.
+
 ### First-time setup on the server
 
 ```bash

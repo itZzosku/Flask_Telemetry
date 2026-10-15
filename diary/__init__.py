@@ -218,6 +218,21 @@ def page():
     return resp
 
 
+@bp.get("/manifest.webmanifest")
+def manifest():
+    return send_from_directory(os.path.join(HERE, "static"), "manifest.webmanifest",
+                               mimetype="application/manifest+json", max_age=3600)
+
+
+@bp.get("/sw.js")
+def service_worker():
+    # Served from /diary/ (not /diary/static/) so it may control the whole app.
+    resp = send_from_directory(os.path.join(HERE, "static"), "sw.js",
+                               mimetype="application/javascript", max_age=0)
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
 @bp.after_request
 def _headers(resp):
     resp.headers.setdefault("X-Content-Type-Options", "nosniff")
