@@ -286,7 +286,9 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
 
 <script>
 (function(){
-const TYPES=["Kivääri","Pienoiskivääri","Pistooli","Revolveri","Haulikko"];
+// Firearm types as listed in the Ampuma-aselaki (6 §)
+const TYPES=["Kivääri","Pienoiskivääri","Pistooli","Pienoispistooli","Revolveri","Pienoisrevolveri","Haulikko","Yhdistelmäase","Mustaruutiase","Kaasuase","Merkinantopistooli","Muu ampuma-ase"];
+const HANDGUNS=["Pistooli","Pienoispistooli","Revolveri","Pienoisrevolveri"];
 const MODES=["1 - kertatuli","2 - lippaallinen kertatuli","3 - itselataava kertatuli","4 - sarjatuli"];
 const MONTHS=["Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesäkuu","Heinäkuu","Elokuu","Syyskuu","Lokakuu","Marraskuu","Joulukuu"];
 const WD=["su","ma","ti","ke","to","pe","la"];
@@ -647,8 +649,8 @@ function getRange(){
 function updHint(){
   const r=getRange(),list=S.sessions.filter(r.filter);
   const days=new Set(list.map(s=>s.date)).size;
-  const pd=new Set(list.filter(s=>(s.lines||[]).some(l=>l.type==="Pistooli"||l.type==="Revolveri")).map(s=>s.date)).size;
-  $("x2yHint").innerHTML=document.querySelector('input[name="xr"]:checked').value==="2y"?`${esc(r.span)}<br>Harrastuskerrat <b>${days}</b> · joista pistooli/revolveri <b>${pd}</b>`:"";
+  const pd=new Set(list.filter(s=>(s.lines||[]).some(l=>HANDGUNS.includes(l.type))).map(s=>s.date)).size;
+  $("x2yHint").innerHTML=document.querySelector('input[name="xr"]:checked').value==="2y"?`${esc(r.span)}<br>Harrastuskerrat <b>${days}</b> · joista käsiaseella <b>${pd}</b>`:"";
 }
 $("pdfBtn").addEventListener("click",()=>{
   if(!$("xEnd").value)$("xEnd").value=todayStr();
