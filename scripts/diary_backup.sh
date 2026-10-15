@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Weekly shooting-diary backup on the server: dated JSON + SQLite copy in diary_backups/.
-# Your Windows PC pulls the folder with scripts/diary_backup_pull.ps1.
+# Weekly shooting-diary backup: dated JSON + SQLite copy in diary_backups/, JSON emailed to you.
+# Needs DIARY_SMTP_USER and DIARY_SMTP_PASSWORD (Gmail app password) in the repo's .env.
 # Cron (Sundays 03:17):  17 3 * * 0  /root/Flask_Telemetry/scripts/diary_backup.sh >> /var/log/diary_backup.log 2>&1
 set -euo pipefail
 
@@ -11,4 +11,4 @@ KEEP="${KEEP:-12}"                                       # copies kept on the se
 
 echo "== $(date -Is) diary backup"
 cd "$REPO_DIR"
-"$PYTHON" -m diary backup "$BACKUP_DIR" --keep "$KEEP"
+"$PYTHON" -m diary backup "$BACKUP_DIR" --keep "$KEEP" --mail

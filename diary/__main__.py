@@ -4,7 +4,9 @@
   python -m diary import seed.json        load sessions, guns + profile from JSON
   python -m diary import seed.json --replace   wipe sessions first
   python -m diary export backup.json      dump everything to JSON
-  python -m diary backup DIR [--keep 12]  dated JSON + SQLite copy into DIR, keep newest N
+  python -m diary backup DIR [--keep 12] [--mail]
+                                          dated JSON + SQLite copy into DIR, keep newest N,
+                                          --mail: also email the JSON (settings in .env)
 """
 import argparse
 import glob
@@ -12,7 +14,9 @@ import json
 import os
 import sqlite3
 import sys
+import smtplib
 import time
+from email.message import EmailMessage
 from getpass import getpass
 
 from werkzeug.security import generate_password_hash
@@ -87,6 +91,46 @@ def backup(directory, keep):
         for path in old:
             os.remove(path)
     print(f"Varmuuskopio: {base}.json + .db (säilytetään {keep} uusinta)")
+    return base + ".json"
+
+
+def mail_backup(json_path):
+    """Email the backup JSON. .env: DIARY_SMTP_USER, DIARY_SMTP_PASSWORD (Gmail app password),
+    optional DIARY_BACKUP_TO (default: DIARY_SMTP_USER), DIARY_SMTP_HOST, DIARY_SMTP_PORT."""
+    user = os.getenv("DIARY_SMTP_USER", "").strip()
+    password = os.getenv("DIARY_SMTP_PASSWORD", "").replace(" ", "")
+    if not user or not password:
+        sys.exit("DIARY_SMTP_USER ja DIARY_SMTP_PASSWORD puuttuvat .env-tiedostosta.")
+    to = os.getenv("DIARY_BACKUP_TO", user).strip()
+    host = os.getenv("DIARY_SMTP_HOST", "smtp.gmail.com")
+    port = int(os.getenv("DIARY_SMTP_PORT", "587"))
+
+    with open(json_path, "rb") as f:
+        payload = f.read()
+    data = json.loads(payload)
+    sessions = data.get("sessions", [])
+    days = len({s["date"] for s in sessions})
+    rounds = sum(int(l.get("rounds") or 0) for s in sessions for l in s.get("lines", []))
+    last = max((s["date"] for s in sessions), default="–")
+    name = os.path.basename(json_path)
+
+    msg = EmailMessage()
+    msg["Subject"] = f"Ampumapäiväkirja varmuuskopio {time.strftime('%Y-%m-%d')}"
+    msg["From"] = user
+    msg["To"] = to
+    msg.set_content(
+        f"Viikoittainen varmuuskopio ampumapäiväkirjasta.\n\n"
+        f"Käyntejä: {len(sessions)}\nHarrastuskertoja: {days}\nLaukauksia: {rounds}\n"
+        f"Aseita: {len(data.get('guns', []))}\nViimeisin käynti: {last}\n\n"
+        f"Palautus palvelimella:\n  ./venv/bin/python -m diary import {name} --replace\n")
+    msg.add_attachment(payload, maintype="application", subtype="json", filename=name)
+
+    with smtplib.SMTP(host, port, timeout=30) as smtp:
+        if os.getenv("DIARY_SMTP_STARTTLS", "1") != "0":
+            smtp.starttls()
+        smtp.login(user, password)
+        smtp.send_message(msg)
+    print(f"Lähetetty: {name} → {to}")
 
 
 def main():
@@ -101,6 +145,7 @@ def main():
     b = sub.add_parser("backup")
     b.add_argument("directory")
     b.add_argument("--keep", type=int, default=12)
+    b.add_argument("--mail", action="store_true", help="email the JSON after the backup")
     a = p.parse_args()
     init_db()
     if a.cmd == "set-password":
@@ -108,7 +153,9 @@ def main():
     elif a.cmd == "import":
         import_json(a.path, a.replace)
     elif a.cmd == "backup":
-        backup(a.directory, max(1, a.keep))
+        json_path = backup(a.directory, max(1, a.keep))
+        if a.mail:
+            mail_backup(json_path)
     else:
         export_json(a.path)
 

@@ -23,6 +23,11 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(HERE), ".env"))
+except ImportError:
+    pass
 DATA_DIR = os.getenv("DIARY_DATA_DIR", os.path.join(os.path.dirname(HERE), "diary_data"))
 DB_PATH = os.path.join(DATA_DIR, "diary.db")
 ID_RE = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
