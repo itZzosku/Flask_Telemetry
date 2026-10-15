@@ -7,6 +7,9 @@
   python -m diary backup DIR [--keep 12] [--mail]
                                           dated JSON + SQLite copy into DIR, keep newest N,
                                           --mail: also email the JSON (settings in .env)
+  python -m diary assign-gun GUN_ID --cal ".223 Rem" [--type Kivääri] [--from 2024-04-17] [--to 2026-07-10]
+                                          tie existing rows without a gun to GUN_ID (dates inclusive);
+                                          --dry-run shows what would change, --list-guns shows ids
 """
 import argparse
 import glob
@@ -144,6 +147,54 @@ def mail_backup(json_path):
     print(f"Lähetetty: {name} → {to}")
 
 
+def _norm(v):
+    return " ".join(str(v or "").split()).casefold()
+
+
+def list_guns():
+    conn = connect()
+    for r in conn.execute("SELECT id, data FROM guns ORDER BY id"):
+        g = json.loads(r["data"])
+        print(f"{r['id']:<16} {g.get('name', '')}  ({g.get('type', '')}, {g.get('cal', '')})")
+    conn.close()
+
+
+def assign_gun(gun_id, cal, typ, date_from, date_to, dry_run):
+    conn = connect()
+    row = conn.execute("SELECT data FROM guns WHERE id=?", (gun_id,)).fetchone()
+    if not row:
+        sys.exit(f"Asetta {gun_id!r} ei löydy. Katso tunnukset: python -m diary assign-gun --list-guns")
+    gun = json.loads(row["data"])
+    lines = visits = rounds = skipped = 0
+    first = last = None
+    for r in conn.execute("SELECT id, date, data FROM sessions ORDER BY date, id").fetchall():
+        if (date_from and r["date"] < date_from) or (date_to and r["date"] > date_to):
+            continue
+        body, changed = json.loads(r["data"]), False
+        for l in body.get("lines", []):
+            if _norm(l.get("cal")) != _norm(cal) or (typ and _norm(l.get("type")) != _norm(typ)):
+                continue
+            if l.get("gunId"):
+                skipped += 1          # already tied to a gun – leave it alone
+                continue
+            l["gunId"], l["gun"] = gun_id, gun.get("name", "")
+            lines += 1
+            rounds += int(l.get("rounds") or 0)
+            changed = True
+        if changed:
+            visits += 1
+            first = first or r["date"]
+            last = r["date"]
+            if not dry_run:
+                upsert_session(conn, r["id"], body)
+    if not dry_run:
+        conn.commit()
+    conn.close()
+    span = f", {first} – {last}" if first else ""
+    print(f"{'[KOE] ' if dry_run else ''}{gun.get('name', gun_id)}: {lines} riviä / {visits} käyntiä / "
+          f"{rounds} laukausta{span}" + (f" (ohitettu {skipped} riviä, joilla on jo ase)" if skipped else ""))
+
+
 def main():
     p = argparse.ArgumentParser(prog="python -m diary")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -157,12 +208,27 @@ def main():
     b.add_argument("directory")
     b.add_argument("--keep", type=int, default=12)
     b.add_argument("--mail", action="store_true", help="email the JSON after the backup")
+    g = sub.add_parser("assign-gun")
+    g.add_argument("gun_id", nargs="?")
+    g.add_argument("--cal")
+    g.add_argument("--type", dest="typ")
+    g.add_argument("--from", dest="date_from", help="YYYY-MM-DD, inclusive")
+    g.add_argument("--to", dest="date_to", help="YYYY-MM-DD, inclusive")
+    g.add_argument("--dry-run", action="store_true")
+    g.add_argument("--list-guns", action="store_true")
     a = p.parse_args()
     init_db()
     if a.cmd == "set-password":
         set_password()
     elif a.cmd == "import":
         import_json(a.path, a.replace)
+    elif a.cmd == "assign-gun":
+        if a.list_guns or not a.gun_id:
+            list_guns()
+        elif not a.cal:
+            sys.exit("Anna --cal, esim. --cal \".223 Rem\"")
+        else:
+            assign_gun(a.gun_id, a.cal, a.typ, a.date_from, a.date_to, a.dry_run)
     elif a.cmd == "backup":
         json_path = backup(a.directory, max(1, a.keep))
         if a.mail:
