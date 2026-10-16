@@ -1,7 +1,7 @@
 """Loads as structured fields with one uniform, generated name.
 
-Handload:  <calibre> · <bullet maker> <bullet> <weight> gr · hylsy <brass> · <powder> <charge> gr
-           e.g. "6.5 CM · Lapua Scenar 139 gr · hylsy Lapua · N555 44,0 gr"
+Handload:  <calibre> · <bullet maker> <bullet> <weight> gr · <brass> brass · <powder> <charge> gr
+           e.g. "6.5 CM · Lapua Scenar 139 gr · Lapua brass · N555 44.0 gr"
 Factory:   <calibre> · <maker> <product> <weight> gr
            e.g. ".22 LR · SK Long Range Match 40 gr"
 
@@ -33,12 +33,13 @@ FIELDS = {"kind": str, "cal": str, "bullet_maker": str, "bullet_model": str, "bu
 
 
 def _num(v):
-    """'44.0' / 44 → '44,0' for a charge; whole bullet weights without decimals."""
-    return f"{v:.1f}".replace(".", ",")
+    """44 → '44.0' for a charge (one decimal always)."""
+    return f"{v:.1f}"
 
 
 def _weight(v):
-    return f"{v:g}".replace(".", ",") if float(v) != int(v) else str(int(v))
+    """Bullet weight: whole grains without decimals, 100.3 as is."""
+    return f"{v:g}" if float(v) != int(v) else str(int(v))
 
 
 def bullet_label(f):
@@ -54,10 +55,10 @@ def load_name(f):
         parts = [f.get("maker"), f.get("product")]
         if f.get("bullet_gr"):
             parts.append(_weight(f["bullet_gr"]) + " gr")
-        return " · ".join(cal + [" ".join(p for p in parts if p) or "Tehdaspatruuna"])
-    out = cal + [bullet_label(f) or "Lataus"]
+        return " · ".join(cal + [" ".join(p for p in parts if p) or "Factory ammo"])
+    out = cal + [bullet_label(f) or "Load"]
     if f.get("brass"):
-        out.append("hylsy " + f["brass"])
+        out.append(f["brass"] + " brass")
     pw = " ".join(p for p in [f.get("powder"), _num(f["charge_gr"]) + " gr" if f.get("charge_gr") is not None else None] if p)
     if pw:
         out.append(pw)
@@ -66,9 +67,9 @@ def load_name(f):
 
 def ladder_group(f):
     """Everything but the charge: the line a charge ladder is drawn along."""
-    out = ([f["cal"]] if f.get("cal") else []) + [bullet_label(f) or "Lataus"]
+    out = ([f["cal"]] if f.get("cal") else []) + [bullet_label(f) or "Load"]
     if f.get("brass"):
-        out.append("hylsy " + f["brass"])
+        out.append(f["brass"] + " brass")
     if f.get("powder"):
         out.append(f["powder"])
     return " · ".join(out)

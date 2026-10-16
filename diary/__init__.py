@@ -1,4 +1,4 @@
-"""Ampumapäiväkirja (shooting diary) – password-protected blueprint at /diary.
+"""Shooting diary – password-protected blueprint at /diary.
 
 Data and secrets live in DIARY_DATA_DIR (default: <repo>/diary_data, git-ignored):
   diary.db     SQLite: sessions, profile, password hash
@@ -184,12 +184,12 @@ def login():
     pw_hash = kv_get("password_hash")
     if not pw_hash:
         return render_template("diary_login.html", disabled=True,
-                               error="Salasanaa ei ole asetettu. Aja palvelimella: python -m diary set-password"), 503
+                               error="No password set. Run on the server: python -m diary set-password"), 503
     error = None
     if request.method == "POST":
         ip = request.remote_addr or "?"
         if _too_many(ip):
-            error = "Liian monta väärää yritystä. Odota 15 minuuttia."
+            error = "Too many wrong attempts. Wait 15 minutes."
         elif check_password_hash(pw_hash, request.form.get("password", "")):
             with _fails_lock:
                 _fails.pop(ip, None)
@@ -201,7 +201,7 @@ def login():
         else:
             _note_fail(ip)
             time.sleep(1)
-            error = "Väärä salasana."
+            error = "Wrong password."
     return render_template("diary_login.html", error=error, disabled=False)
 
 

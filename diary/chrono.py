@@ -229,7 +229,7 @@ def preview(conn, parsed):
         if votes and s["source"] != "shotview":
             d, cnt = max(votes.items(), key=lambda kv: kv[1])
             if d != s["date"] and cnt >= max(2, len(vs) / 2):
-                warnings.append({"code": "date_corrected", "text": f"päivä {s['date']} → {d}: samat laukaukset löytyvät ShotView-viennistä"})
+                warnings.append({"code": "date_corrected", "text": f"date {s['date']} → {d}: the same shots are in a ShotView export"})
                 s["date_original"], s["date"] = s["date"], d
 
         # Gun, visit, load
@@ -250,7 +250,7 @@ def preview(conn, parsed):
         s["suggest"] = {"gun_id": gun_id, "visit_id": visit_id, "load_id": load_id,
                         "load": None if load_id else spec}
         if not load_id and not spec:
-            warnings.append({"code": "no_load", "text": "latausta ei tunnistettu – valitse se tai jätä tyhjäksi"})
+            warnings.append({"code": "no_load", "text": "load not recognised – pick one or leave it empty"})
 
         # Already imported?
         fps = [fingerprint(s["date"], x["t"], x["v_ms"]) for x in s["shots"]]

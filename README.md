@@ -1,6 +1,6 @@
 # Flask_Telemetry
 
-## Ampumapäiväkirja (`/diary/`)
+## Shooting diary (`/diary/`)
 
 Password-protected shooting diary. Code lives in `diary/`; `main.py` only calls `diary.init_app(app)`.
 Everything else on the site stays public as before.
@@ -11,7 +11,7 @@ Data is stored outside git in `diary_data/` (SQLite `diary.db`, password hash, c
 ### Phone app
 
 The diary is an installable web app (manifest + service worker in `diary/static/`). Open `/diary/` over HTTPS:
-Android Chrome → menu → **Install app** (or the page's *Asenna sovellus* button); iPhone Safari → Share →
+Android Chrome → menu → **Install app** (or the page's *Install app* button); iPhone Safari → Share →
 **Add to Home Screen**. It then opens full-screen, starts without a connection using the last synced data,
 and queues saves until the server is reachable again. Logging out clears the cached data.
 After changing `diary/static/sw.js`, bump `VERSION` in it so phones drop the old cache.
@@ -82,24 +82,30 @@ Backups contain your licence numbers – they only go to your own mailbox.
 Restore: `python -m diary import diary_backups/diary-YYYY-MM-DD.json --replace`
 (or stop the app and copy the `.db` over `diary_data/diary.db`).
 
-## Lähtönopeudet (`/diary/chrono`)
+## Language
+
+The pages, the command line and the backup e-mail are in English. Firearm types and firing modes are stored
+in the Finnish legal wording (Ampuma-aselaki: *Kivääri*, *2 - lippaallinen kertatuli* …) and shown in English;
+the PDF and CSV exports stay in Finnish, as the shooting-activity record for a licence application.
+
+## Muzzle velocity (`/diary/chrono`)
 
 Muzzle-velocity data inside the diary (same login): Garmin Xero C1 ShotView exports, your own velocity
-workbooks and Kestrel DROP weather logs. Open it from the diary header (*Nopeudet*).
+workbooks and Kestrel DROP weather logs. Open it from the diary header (*Velocity*).
 
-- **Import** (*+ Tuo nopeudet*): pick files or a whole folder. ShotView `.xls`/`.xlsx`, velocity workbooks
+- **Import** (*+ Import velocities*): pick files or a whole folder. ShotView `.xls`/`.xlsx`, velocity workbooks
   (`<gun>, <bullet>, <brass>, <charge> gr.xlsx`, one `DDMMYYYY` sheet per day) and Kestrel CSVs are
   recognised by content. Folder names give the powder (`N555`, `N133`, `N150` …) and the gun, in either
-  order. Nothing is saved until you press *Tallenna valitut* in the preview.
+  order. Nothing is saved until you press *Save selected* in the preview.
 - Shots are fingerprinted (date + time + speed): re-importing is harmless, and a raw ShotView session that
   overlaps a stored day only fills missing weather — fliers you removed in a workbook stay removed.
 - **Statistics** are computed from included shots: average, sample SD (÷ n−1), Garmin's SD (÷ n), ES,
   95 % CI, KE. Days pool all strings of the same gun + load; the same load in two guns is tracked separately.
 - Views: per-day list, trend of a load (average + CI, SD per day), charge ladder per gun, shot dot-plot with
   exclude/include per shot, manual weather per string.
-- **Loads** (*Lataukset*): like guns, each load is a set of fields — handload: bullet maker, bullet,
+- **Loads**: like guns, each load is a set of fields — handload: bullet maker, bullet,
   weight, brass, powder, charge, primer, COAL; factory: maker, product, bullet weight. The name is generated,
-  e.g. `6.5 CM · Lapua Scenar 139 gr · hylsy Lapua · N555 44,0 gr` or `.22 LR · SK Long Range Match 40 gr`.
+  e.g. `6.5 CM · Lapua Scenar 139 gr · Lapua brass · N555 44.0 gr` or `.22 LR · SK Long Range Match 40 gr`.
   The calibre is part of the load: the same 123 gr FMJ in .308 Win and 7.62x53R are two loads. Saving a load
   whose name matches another offers to merge them. Loads saved before this were converted on first start.
 

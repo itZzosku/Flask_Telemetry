@@ -1,17 +1,17 @@
 <!doctype html>
-<html lang="fi">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
-<title>Ampumapäiväkirja</title>
+<title>Shooting Diary</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#eef0ec" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#141714" media="(prefers-color-scheme: dark)">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Ampumapäiväkirja">
+<meta name="apple-mobile-web-app-title" content="Shooting Diary">
 <link rel="apple-touch-icon" href="static/icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="static/icons/favicon-32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -179,75 +179,75 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
 <body>
 <div class="wrap">
   <header class="top">
-    <h1>Ampuma<span>päiväkirja</span></h1>
+    <h1>Shooting <span>diary</span></h1>
     <div class="hbtns">
-      <button class="ghost" id="installBtn" type="button" hidden>Asenna sovellus</button>
-      <a class="ghost" href="chrono" style="text-decoration:none">Nopeudet</a>
-      <button class="ghost" id="profBtn" type="button">Omat tiedot</button>
-      <button class="ghost" id="pdfBtn" type="button" hidden>Vie PDF</button>
-      <button class="ghost" id="exportBtn" type="button" hidden>Vie CSV</button>
-      <form method="post" action="logout" style="display:contents"><button class="ghost" type="submit">Kirjaudu ulos</button></form>
+      <button class="ghost" id="installBtn" type="button" hidden>Install app</button>
+      <a class="ghost" href="chrono" style="text-decoration:none">Velocity</a>
+      <button class="ghost" id="profBtn" type="button">My details</button>
+      <button class="ghost" id="pdfBtn" type="button" hidden>Export PDF</button>
+      <button class="ghost" id="exportBtn" type="button" hidden>Export CSV</button>
+      <form method="post" action="logout" style="display:contents"><button class="ghost" type="submit">Log out</button></form>
     </div>
   </header>
 
   <div class="banner" id="queueNote" hidden></div>
 
-  <section aria-label="Ampujan tiedot ja yhteenveto">
+  <section aria-label="Shooter details and summary">
     <div class="ids">
-      <div><small>Nimi</small><b id="pName">–</b></div>
-      <div><small>SRA lisenssi</small><span class="num" id="pSra">–</span></div>
-      <div><small>IPSC lisenssi</small><span class="num" id="pIpsc">–</span></div>
-      <div><small>Metsästäjänumero</small><span class="num" id="pHunt">–</span></div>
+      <div><small>Name</small><b id="pName">–</b></div>
+      <div><small>SRA licence</small><span class="num" id="pSra">–</span></div>
+      <div><small>IPSC licence</small><span class="num" id="pIpsc">–</span></div>
+      <div><small>Hunter number</small><span class="num" id="pHunt">–</span></div>
     </div>
     <div class="stats">
-      <div class="stat"><b class="num" id="sDays">–</b><small>Harrastuskerrat</small></div>
-      <div class="stat"><b class="num" id="sRounds">–</b><small>Laukaukset yht.</small></div>
-      <div class="stat"><b class="num" id="s24">–</b><small>Kerrat 24 kk</small></div>
+      <div class="stat"><b class="num" id="sDays">–</b><small>Shooting days</small></div>
+      <div class="stat"><b class="num" id="sRounds">–</b><small>Shots in total</small></div>
+      <div class="stat"><b class="num" id="s24">–</b><small>Days in 24 months</small></div>
     </div>
     <div class="types" id="types"></div>
   </section>
 
   <section>
     <div class="sechead">
-      <button class="toggle" type="button" id="gunsToggle" aria-expanded="false" aria-controls="guns"><span class="chev">▸</span><h2>Aseet</h2><span class="cnt" id="gunsCount"></span></button>
-      <button class="ghost" type="button" id="addGunBtn" hidden>+ Lisää ase</button>
+      <button class="toggle" type="button" id="gunsToggle" aria-expanded="false" aria-controls="guns"><span class="chev">▸</span><h2>Guns</h2><span class="cnt" id="gunsCount"></span></button>
+      <button class="ghost" type="button" id="addGunBtn" hidden>+ Add gun</button>
     </div>
-    <div class="guns" id="guns" hidden><div class="empty">Ladataan…</div></div>
+    <div class="guns" id="guns" hidden><div class="empty">Loading…</div></div>
   </section>
 
   <section>
-    <div class="loghead"><h2>Käynnit</h2><div class="yrs" id="yrs"></div></div>
-    <div class="search"><input type="search" id="q" placeholder="Hae: 6.10.2026, 6.10, 3.2024, rata tai järjestäjä" aria-label="Hae käyntejä" autocomplete="off" enterkeyhint="search"><button type="button" id="qClear" aria-label="Tyhjennä haku" hidden>✕</button></div>
+    <div class="loghead"><h2>Visits</h2><div class="yrs" id="yrs"></div></div>
+    <div class="search"><input type="search" id="q" placeholder="Search: 6.10.2026, 6.10, 3.2024, range or organiser" aria-label="Search visits" autocomplete="off" enterkeyhint="search"><button type="button" id="qClear" aria-label="Clear search" hidden>✕</button></div>
     <div class="found" id="found" hidden></div>
-    <div id="log"><div class="empty">Ladataan merkintöjä…</div></div>
+    <div id="log"><div class="empty">Loading entries…</div></div>
   </section>
 </div>
 
-<button class="fab" id="newBtn" type="button">+ Uusi käynti</button>
+<button class="fab" id="newBtn" type="button">+ New visit</button>
 
 <datalist id="dlPlace"></datalist><datalist id="dlOrg"></datalist><datalist id="dlCal"></datalist><datalist id="dlMode"></datalist><datalist id="dlInfo"></datalist>
 
 <div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <form class="sheet-in" id="form" autocomplete="off">
-    <div class="sheet-bar"><h2 id="sheetTitle">Uusi käynti</h2><button class="ghost" type="button" id="closeBtn">Sulje</button></div>
+    <div class="sheet-bar"><h2 id="sheetTitle">New visit</h2><button class="ghost" type="button" id="closeBtn">Close</button></div>
 
     <div class="grid3">
-      <label class="f">Päivämäärä<input type="date" id="fDate" required></label>
-      <label class="f">Alkoi<input type="time" id="fStart" step="900"></label>
-      <label class="f">Päättyi<input type="time" id="fEnd" step="900"></label>
+      <label class="f">Date<input type="date" id="fDate" required></label>
+      <label class="f">Started<input type="time" id="fStart" step="900"></label>
+      <label class="f">Ended<input type="time" id="fEnd" step="900"></label>
     </div>
 
     <div class="field">
-      <label class="f">Paikka<input type="text" id="fPlace" list="dlPlace" placeholder="Ampumarata" required></label>
+      <label class="f">Place<input type="text" id="fPlace" list="dlPlace" placeholder="Shooting range" required></label>
       <div class="chips" id="placeChips"></div>
     </div>
     <div class="field">
-      <label class="f">Järjestäjä<input type="text" id="fOrg" list="dlOrg" placeholder="Seura tai yhdistys, valinnainen"></label>
+      <label class="f">Organiser<input type="text" id="fOrg" list="dlOrg" placeholder="Club or association, optional"></label>
       <div class="chips" id="orgChips"></div>
     </div>
 
     <div class="field">
-      <span class="lbl">Ammunnat</span>
+      <span class="lbl">Shooting</span>
       <div class="chips" id="presetChips"></div>
       <div id="lines" style="display:flex;flex-direction:column;gap:10px"></div>
       <div class="total" id="fTotal"></div>
@@ -255,64 +255,64 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
 
     <div class="msg" id="fMsg" hidden></div>
     <div class="actions">
-      <button class="primary" type="submit" id="saveBtn">Tallenna</button>
-      <button class="danger" type="button" id="delBtn" hidden>Poista</button>
+      <button class="primary" type="submit" id="saveBtn">Save</button>
+      <button class="danger" type="button" id="delBtn" hidden>Delete</button>
     </div>
   </form>
 </div>
 
 <div class="sheet" id="pSheet" hidden role="dialog" aria-modal="true" aria-labelledby="pTitle">
   <form class="sheet-in" id="pForm" autocomplete="off">
-    <div class="sheet-bar"><h2 id="pTitle">Omat tiedot</h2><button class="ghost" type="button" id="pClose">Sulje</button></div>
-    <label class="f">Nimi<input type="text" id="iName"></label>
+    <div class="sheet-bar"><h2 id="pTitle">My details</h2><button class="ghost" type="button" id="pClose">Close</button></div>
+    <label class="f">Name<input type="text" id="iName"></label>
     <div class="grid2">
-      <label class="f">SRA lisenssi<input type="text" id="iSra" inputmode="numeric"></label>
-      <label class="f">IPSC lisenssi<input type="text" id="iIpsc" inputmode="numeric"></label>
+      <label class="f">SRA licence<input type="text" id="iSra" inputmode="numeric"></label>
+      <label class="f">IPSC licence<input type="text" id="iIpsc" inputmode="numeric"></label>
     </div>
-    <label class="f">Metsästäjänumero<input type="text" id="iHunt" inputmode="numeric"></label>
-    <div class="actions"><button class="primary" type="submit">Tallenna tiedot</button></div>
+    <label class="f">Hunter number<input type="text" id="iHunt" inputmode="numeric"></label>
+    <div class="actions"><button class="primary" type="submit">Save details</button></div>
   </form>
 </div>
 
 <div class="sheet" id="gSheet" hidden role="dialog" aria-modal="true" aria-labelledby="gTitle">
   <form class="sheet-in" id="gForm" autocomplete="off">
-    <div class="sheet-bar"><h2 id="gTitle">Ase</h2><button class="ghost" type="button" id="gClose">Sulje</button></div>
-    <label class="f">Nimi<input type="text" id="gName" placeholder="esim. Tikka T3x" required></label>
+    <div class="sheet-bar"><h2 id="gTitle">Gun</h2><button class="ghost" type="button" id="gClose">Close</button></div>
+    <label class="f">Name<input type="text" id="gName" placeholder="e.g. Tikka T3x" required></label>
     <div class="grid2">
-      <label class="f">Tyyppi<select id="gType"></select></label>
-      <label class="f">Kaliiperi<input type="text" id="gCal" list="dlCal"></label>
+      <label class="f">Type<select id="gType"></select></label>
+      <label class="f">Calibre<input type="text" id="gCal" list="dlCal"></label>
     </div>
-    <label class="f">Toimintatapa<input type="text" id="gMode" list="dlMode"></label>
+    <label class="f">Firing mode<input type="text" id="gMode" list="dlMode"></label>
     <div class="grid2">
-      <label class="f">Hankittu<input type="date" id="gAcq"></label>
-      <label class="f">Laukaukset ennen päiväkirjaa<input type="number" id="gStart" inputmode="numeric" min="0" placeholder="0"></label>
+      <label class="f">Acquired<input type="date" id="gAcq"></label>
+      <label class="f">Shots before the diary<input type="number" id="gStart" inputmode="numeric" min="0" placeholder="0"></label>
     </div>
-    <label class="check"><input type="checkbox" id="gArch">Piilota valinnoista (myyty tai ei käytössä)</label>
+    <label class="check"><input type="checkbox" id="gArch">Hide from pickers (sold or not in use)</label>
     <div class="hint" id="gStats"></div>
     <div class="msg" id="gMsg" hidden></div>
     <div class="actions">
-      <button class="primary" type="submit">Tallenna ase</button>
-      <button class="danger" type="button" id="gDel" hidden>Poista</button>
+      <button class="primary" type="submit">Save gun</button>
+      <button class="danger" type="button" id="gDel" hidden>Delete</button>
     </div>
   </form>
 </div>
 
 <div class="sheet" id="xSheet" hidden role="dialog" aria-modal="true" aria-labelledby="xTitle">
   <form class="sheet-in" id="xForm">
-    <div class="sheet-bar"><h2 id="xTitle">Vie PDF</h2><button class="ghost" type="button" id="xClose">Sulje</button></div>
+    <div class="sheet-bar"><h2 id="xTitle">Export PDF</h2><button class="ghost" type="button" id="xClose">Close</button></div>
     <div class="opt">
-      <label class="r"><input type="radio" name="xr" value="2y" id="xr2y" checked>2 vuotta taaksepäin</label>
+      <label class="r"><input type="radio" name="xr" value="2y" id="xr2y" checked>Last 2 years</label>
       <div class="sub">
-        <label class="f">Päättyen päivään<input type="date" id="xEnd"></label>
+        <label class="f">Ending on<input type="date" id="xEnd"></label>
         <div class="hint" id="x2yHint"></div>
       </div>
     </div>
     <div class="opt">
-      <label class="r"><input type="radio" name="xr" value="year" id="xrYear">Vuosi</label>
-      <div class="sub"><select id="xYear" aria-label="Vuosi"></select></div>
+      <label class="r"><input type="radio" name="xr" value="year" id="xrYear">Year</label>
+      <div class="sub"><select id="xYear" aria-label="Year"></select></div>
     </div>
-    <div class="opt"><label class="r"><input type="radio" name="xr" value="all" id="xrAll">Koko päiväkirja</label></div>
-    <div class="actions"><button class="primary" type="submit" id="pdfGo">Luo PDF</button></div>
+    <div class="opt"><label class="r"><input type="radio" name="xr" value="all" id="xrAll">Whole diary</label></div>
+    <div class="actions"><button class="primary" type="submit" id="pdfGo">Create PDF</button></div>
   </form>
 </div>
 
@@ -324,8 +324,17 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
 const TYPES=["Kivääri","Pienoiskivääri","Pistooli","Pienoispistooli","Revolveri","Pienoisrevolveri","Haulikko","Yhdistelmäase","Mustaruutiase","Kaasuase","Merkinantopistooli","Muu ampuma-ase"];
 
 const MODES=["1 - kertatuli","2 - lippaallinen kertatuli","3 - itselataava kertatuli","4 - sarjatuli"];
-const MONTHS=["Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesäkuu","Heinäkuu","Elokuu","Syyskuu","Lokakuu","Marraskuu","Joulukuu"];
-const WD=["sunnuntai","maanantai","tiistai","keskiviikko","torstai","perjantai","lauantai"];
+// Types and modes are stored (and exported) in the Finnish legal wording; the page shows English.
+const TYPE_EN={"Kivääri":"Rifle","Pienoiskivääri":"Small-bore rifle","Pistooli":"Pistol","Pienoispistooli":"Small-bore pistol",
+  "Revolveri":"Revolver","Pienoisrevolveri":"Small-bore revolver","Haulikko":"Shotgun","Yhdistelmäase":"Combination gun",
+  "Mustaruutiase":"Black-powder gun","Kaasuase":"Gas weapon","Merkinantopistooli":"Signal pistol","Muu ampuma-ase":"Other firearm"};
+const MODE_EN={"1 - kertatuli":"1 - single shot","2 - lippaallinen kertatuli":"2 - magazine-fed single shot",
+  "3 - itselataava kertatuli":"3 - semi-automatic","4 - sarjatuli":"4 - automatic"};
+const tEn=t=>TYPE_EN[t]||t||"";
+const mEn=m=>MODE_EN[m]||m||"";
+const mFi=m=>{const k=String(m||"").trim().toLowerCase();const hit=Object.entries(MODE_EN).find(([,en])=>en.toLowerCase()===k);return hit?hit[0]:String(m||"").trim()};
+const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+const WD=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const DRAFT_KEY="ampumapk-draft-v2",YEAR_KEY="ampumapk-year";
 const $=id=>document.getElementById(id);
 const S={sessions:[],guns:[],profile:{},ready:false,editGun:null,gDelArm:false,store:null,editId:null,form:null,delArm:false,year:null};
@@ -345,9 +354,9 @@ function apiStore(){
     if(!cb)return;
     cb[2](merged(sguns,box.guns));cb[0](merged(server,box.sessions));cb[1](box.profile||profile);
     const n=pending(),el=$("queueNote"),msgs=[];
-    if(offlineAt)msgs.push(`Ei yhteyttä – näytetään tiedot ajalta ${offlineAt}.`);
+    if(offlineAt)msgs.push(`Offline – showing data from ${offlineAt}.`);
     // Only mention queued changes once sending has actually failed (not during a normal save).
-    if(n&&(stuck||offlineAt))msgs.push(`${n} muutos${n>1?"ta":""} odottaa yhteyttä palvelimeen – lähetetään automaattisesti.`);
+    if(n&&(stuck||offlineAt))msgs.push(`${n} change${n>1?"s":""} waiting for the server – will be sent automatically.`);
     el.hidden=!msgs.length;el.textContent=msgs.join(" ");
   }
   async function req(method,path,body){
@@ -358,14 +367,14 @@ function apiStore(){
     if(r.status===503&&method==="GET")throw{code:"offline"};
     if(!r.ok)throw{code:"http",status:r.status};
     if(method==="GET"){
-      if(r.headers.get("X-Offline")){const d=new Date(r.headers.get("Date")||Date.now());offlineAt=d.toLocaleString("fi-FI",{day:"numeric",month:"numeric",hour:"2-digit",minute:"2-digit"})}
+      if(r.headers.get("X-Offline")){const d=new Date(r.headers.get("Date")||Date.now());offlineAt=d.toLocaleString("en-GB",{day:"numeric",month:"numeric",hour:"2-digit",minute:"2-digit"})}
       else offlineAt=null;
     }
     return r.json();
   }
   async function load(){
     try{const[s,p,gs]=await Promise.all([req("GET","sessions"),req("GET","profile"),req("GET","guns")]);server=s;profile=p;sguns=gs;emit()}
-    catch(e){if(e&&e.code==="auth")return;toast("Ei yhteyttä palvelimeen – näytetään tallennetut muutokset");emit()}
+    catch(e){if(e&&e.code==="auth")return;toast("Cannot reach the server – showing saved changes");emit()}
   }
   async function flush(){
     if(flushing||!pending())return;flushing=true;let changed=false;
@@ -378,7 +387,7 @@ function apiStore(){
           sguns=sguns.filter(g=>g.id!==id);if(d!==null)sguns.push(Object.assign({id},d));
           changed=true;
         }catch(e){
-          if(e&&e.code==="http"&&e.status>=400&&e.status<500){delete box.guns[id];persist();toast("Palvelin hylkäsi muutoksen ("+e.status+")");changed=true}
+          if(e&&e.code==="http"&&e.status>=400&&e.status<500){delete box.guns[id];persist();toast("The server rejected a change ("+e.status+")");changed=true}
           else throw e;
         }
       }
@@ -391,7 +400,7 @@ function apiStore(){
           else server=server.filter(s=>s.id!==id).concat([Object.assign({id},d)]);
           changed=true;
         }catch(e){
-          if(e&&e.code==="http"&&e.status>=400&&e.status<500){delete box.sessions[id];persist();toast("Palvelin hylkäsi muutoksen ("+e.status+")");changed=true}
+          if(e&&e.code==="http"&&e.status>=400&&e.status<500){delete box.sessions[id];persist();toast("The server rejected a change ("+e.status+")");changed=true}
           else throw e;
         }
       }
@@ -426,7 +435,7 @@ const pad=n=>String(n).padStart(2,"0");
 const todayStr=()=>{const d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
 const parseD=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
 const fiDate=s=>{const d=parseD(s);return d.getDate()+"/"+(d.getMonth()+1)+"/"+d.getFullYear()};
-const fmt=n=>n.toLocaleString("fi-FI");
+const fmt=n=>n.toLocaleString("en-GB");
 const sRounds=s=>(s.lines||[]).reduce((a,l)=>a+(+l.rounds||0),0);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const toTime=s=>s?s.replace(".",":"):"";
@@ -467,7 +476,7 @@ function render(){
   $("sRounds").textContent=fmt(S.sessions.reduce((a,s)=>a+sRounds(s),0));
   $("s24").textContent=fmt(days24.size);
   const tc=typeCounts(S.sessions);
-  $("types").innerHTML=TYPES.filter(t=>tc[t]).map(t=>`<span>${t} <b>${tc[t]}</b></span>`).join("");
+  $("types").innerHTML=TYPES.filter(t=>tc[t]).map(t=>`<span>${tEn(t)} <b>${tc[t]}</b></span>`).join("");
   $("exportBtn").hidden=!S.sessions.length;$("pdfBtn").hidden=!S.sessions.length;
   renderYears();renderLog();renderGuns();fillLists();
 }
@@ -480,13 +489,13 @@ setGunsOpen(lsGet(GUNS_KEY)===true);   // collapsed unless opened last time
 function renderGuns(){
   const el=$("guns"),tot=gunTotals(),list=gunsSorted();
   const active=list.filter(g=>!g.archived);
-  $("gunsCount").textContent=list.length?`${active.length} asetta · ${fmt(active.reduce((a,g)=>a+(+g.startCount||0)+((tot[g.id]||{}).r||0),0))} ls`:"";
-  if(!list.length){el.innerHTML='<div class="empty" style="border:0">Lisää aseesi, niin laukaukset kirjautuvat aseittain. Vanhat käynnit voit liittää aseeseen muokkaamalla niitä.</div>';return}
+  $("gunsCount").textContent=list.length?`${active.length} gun${active.length>1?"s":""} · ${fmt(active.reduce((a,g)=>a+(+g.startCount||0)+((tot[g.id]||{}).r||0),0))} shots`:"";
+  if(!list.length){el.innerHTML='<div class="empty" style="border:0">Add your guns and shots are counted per gun. Older visits can be tied to a gun by editing them.</div>';return}
   el.innerHTML=list.map(g=>{const t=tot[g.id]||{r:0,d:new Set(),last:""},all=(+g.startCount||0)+t.r;
-    return `<div class="gunrow" data-id="${esc(g.id)}"><span class="grip" aria-label="Siirrä" title="Vedä järjestääksesi">⠿</span><button type="button" class="gun ${g.archived?"archived":""}" data-gun="${esc(g.id)}">
+    return `<div class="gunrow" data-id="${esc(g.id)}"><span class="grip" aria-label="Move" title="Drag to reorder">⠿</span><button type="button" class="gun ${g.archived?"archived":""}" data-gun="${esc(g.id)}">
       <b>${esc(g.name)}</b>
-      <span class="g-sub">${esc([g.type,g.cal].filter(Boolean).join(" · "))}${g.acquired?` · hankittu ${fiDate(g.acquired)}`:""}${t.d.size?` · ${t.d.size} krt · viimeksi ${fiDate(t.last)}`:""}</span>
-      <span class="g-r"><span class="num">${fmt(all)}</span><small>laukausta</small></span></button></div>`}).join("");
+      <span class="g-sub">${esc([tEn(g.type),g.cal].filter(Boolean).join(" · "))}${g.acquired?` · acquired ${fiDate(g.acquired)}`:""}${t.d.size?` · ${t.d.size} days · last ${fiDate(t.last)}`:""}</span>
+      <span class="g-r"><span class="num">${fmt(all)}</span><small>shots</small></span></button></div>`}).join("");
 }
 /* Drag the ⠿ handle to reorder guns; the new order is saved as each gun's "order". */
 (function(){
@@ -507,14 +516,14 @@ function renderGuns(){
     const ids=[...box().querySelectorAll(".gunrow")].map(r=>r.dataset.id);
     const changed=ids.map((id,i)=>[id,i+1]).filter(([id,o])=>{const g=S.guns.find(x=>x.id===id);return g&&g.order!==o});
     for(const[id,o]of changed){const g=Object.assign({},S.guns.find(x=>x.id===id),{order:o});delete g.id;await S.store.saveGun(id,g)}
-    if(changed.length)toast("Järjestys tallennettu");
+    if(changed.length)toast("Order saved");
   };
   box().addEventListener("pointerup",drop);box().addEventListener("pointercancel",drop);
 })();
 function renderYears(){
   const ys=[...new Set(S.sessions.map(s=>s.date.slice(0,4)))].sort().reverse();
   if(ys.length&&(!S.year||(S.year!=="all"&&!ys.includes(S.year))))S.year=ys[0];
-  $("yrs").innerHTML=ys.map(y=>`<button type="button" class="yr" data-yr="${y}" aria-pressed="${S.year===y}">${y}</button>`).join("")+(ys.length>1?`<button type="button" class="yr" data-yr="all" aria-pressed="${S.year==="all"}">Kaikki</button>`:"");
+  $("yrs").innerHTML=ys.map(y=>`<button type="button" class="yr" data-yr="${y}" aria-pressed="${S.year===y}">${y}</button>`).join("")+(ys.length>1?`<button type="button" class="yr" data-yr="all" aria-pressed="${S.year==="all"}">All</button>`:"");
 }
 /* Search: every word must match. d.m.yyyy = that day, m.yyyy = that month, yyyy = that year,
    anything else = text in place, organiser, gun, type, calibre or lisätietoja. */
@@ -527,7 +536,7 @@ function matcher(q){
     if((m=w.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/)))return s=>s.date===`${m[3]}-${pad(m[2])}-${pad(m[1])}`;
     if((m=w.match(/^(\d{1,2})[./](\d{4})$/)))return s=>s.date.startsWith(`${m[2]}-${pad(m[1])}`);
     if((m=w.match(/^(\d{4})$/)))return s=>s.date.startsWith(m[1]);
-    return s=>[s.place,s.org,s.klo,...(s.lines||[]).flatMap(l=>[l.gun,l.type,l.cal,l.info,l.mode])].some(v=>String(v||"").toLowerCase().includes(w));
+    return s=>[s.place,s.org,s.klo,...(s.lines||[]).flatMap(l=>[l.gun,l.type,tEn(l.type),l.cal,l.info,l.mode,mEn(l.mode)])].some(v=>String(v||"").toLowerCase().includes(w));
   });
   return s=>tests.every(t=>t(s));
 }
@@ -536,27 +545,27 @@ function renderLog(){
   $("yrs").hidden=!!match;$("qClear").hidden=!q;
   const list=match?S.sessions.filter(match):S.sessions.filter(s=>S.year==="all"||s.date.startsWith(S.year));
   $("found").hidden=!match;
-  if(match)$("found").innerHTML=list.length?`<b>${list.length}</b> käyntiä · <b>${new Set(list.map(s=>s.date)).size}</b> päivää · <b>${fmt(list.reduce((a,s)=>a+sRounds(s),0))}</b> laukausta`:"Ei osumia.";
-  if(!S.sessions.length){el.innerHTML='<div class="empty">Ei vielä käyntejä. Paina <b>Uusi käynti</b> radalla – päivä on valmiina, valitse rata ja lisää ammunnat.</div>';return}
+  if(match)$("found").innerHTML=list.length?`<b>${list.length}</b> visits · <b>${new Set(list.map(s=>s.date)).size}</b> days · <b>${fmt(list.reduce((a,s)=>a+sRounds(s),0))}</b> shots`:"No matches.";
+  if(!S.sessions.length){el.innerHTML='<div class="empty">No visits yet. Press <b>New visit</b> at the range – the date is filled in, pick the range and add what you shot.</div>';return}
   const byM={};list.forEach(s=>{const k=s.date.slice(0,7);byM[k]=byM[k]||{r:0,d:new Set()};byM[k].r+=sRounds(s);byM[k].d.add(s.date)});
   let html="",cur="";
   list.forEach(s=>{
     const k=s.date.slice(0,7),d=parseD(s.date);
-    if(k!==cur){cur=k;html+=`<div class="month"><span>${MONTHS[d.getMonth()]} ${d.getFullYear()}</span><span class="num">${byM[k].d.size} krt · ${fmt(byM[k].r)} ls</span></div>`}
-    const lines=(s.lines||[]).map(l=>`<div class="e-line"><div class="what">${l.mode?`<span class="tm" title="${esc(l.mode)}">${esc(modeNo(l.mode))}</span>`:""}${l.gun?`<span class="gname">${esc(l.gun)}</span> `:(l.type?esc(l.type)+" ":"")}${l.cal?`<span>${esc(l.cal)}</span>`:""}${l.info?` <span>· ${esc(l.info)}</span>`:""}</div><div class="num">${l.rounds?fmt(+l.rounds):""}</div></div>`).join("");
+    if(k!==cur){cur=k;html+=`<div class="month"><span>${MONTHS[d.getMonth()]} ${d.getFullYear()}</span><span class="num">${byM[k].d.size} days · ${fmt(byM[k].r)} shots</span></div>`}
+    const lines=(s.lines||[]).map(l=>`<div class="e-line"><div class="what">${l.mode?`<span class="tm" title="${esc(mEn(l.mode))}">${esc(modeNo(l.mode))}</span>`:""}${l.gun?`<span class="gname">${esc(l.gun)}</span> `:(l.type?esc(tEn(l.type))+" ":"")}${l.cal?`<span>${esc(l.cal)}</span>`:""}${l.info?` <span>· ${esc(l.info)}</span>`:""}</div><div class="num">${l.rounds?fmt(+l.rounds):""}</div></div>`).join("");
     html+=`<button class="entry" type="button" data-id="${esc(s.id)}">
       <div class="day"><b>${fiDate(s.date)}</b><small>${WD[d.getDay()]}</small></div>
-      <div style="min-width:0"><div class="e-head"><span class="e-place">${esc(s.place||"Paikka puuttuu")}</span><span class="e-meta num">${esc(s.klo||"")}</span></div>
+      <div style="min-width:0"><div class="e-head"><span class="e-place">${esc(s.place||"No place")}</span><span class="e-meta num">${esc(s.klo||"")}</span></div>
       ${s.org?`<div class="e-meta">${esc(s.org)}</div>`:""}<div class="e-lines">${lines}</div></div></button>`;
   });
-  el.innerHTML=html||(match?"":'<div class="empty">Ei käyntejä tältä vuodelta.</div>');
+  el.innerHTML=html||(match?"":'<div class="empty">No visits this year.</div>');
 }
 function fillLists(){
   const opt=a=>a.map(v=>`<option value="${esc(v)}">`).join("");
   $("dlPlace").innerHTML=opt(distinct(s=>[s.place]));
   $("dlOrg").innerHTML=opt(distinct(s=>[s.org]));
   $("dlCal").innerHTML=opt(distinct(s=>(s.lines||[]).map(l=>l.cal)));
-  $("dlMode").innerHTML=opt([...new Set(MODES.concat(distinct(s=>(s.lines||[]).map(l=>l.mode))))]);
+  $("dlMode").innerHTML=opt([...new Set(MODES.concat(distinct(s=>(s.lines||[]).map(l=>l.mode))).map(mEn))]);
   $("dlInfo").innerHTML=opt(distinct(s=>(s.lines||[]).map(l=>l.info)));
 }
 let qT;$("q").addEventListener("input",()=>{clearTimeout(qT);qT=setTimeout(renderLog,150)});
@@ -574,8 +583,8 @@ function openForm(id){
     const d=lsGet(DRAFT_KEY);
     S.form=d&&d.date?d:{date:todayStr(),start:nowTime(),end:"",place:"",org:"",lines:[]};
   }
-  $("sheetTitle").textContent=id?"Muokkaa käyntiä":"Uusi käynti";
-  $("delBtn").hidden=!id;$("delBtn").textContent="Poista";$("fMsg").hidden=true;
+  $("sheetTitle").textContent=id?"Edit visit":"New visit";
+  $("delBtn").hidden=!id;$("delBtn").textContent="Delete";$("fMsg").hidden=true;
   const f=S.form;$("fDate").value=f.date;$("fStart").value=f.start;$("fEnd").value=f.end;$("fPlace").value=f.place;$("fOrg").value=f.org;
   renderChips();renderLines();
   $("sheet").hidden=false;document.body.style.overflow="hidden";
@@ -589,7 +598,7 @@ function presets(){
 const ownedOn=(g,date)=>!g.acquired||!date||g.acquired<=date;
 function gunOptions(sel){
   const list=gunsSorted().filter(g=>(!g.archived&&ownedOn(g,S.form&&S.form.date))||g.id===sel);
-  return `<option value="">— ei asetta —</option>`+list.map(g=>`<option value="${esc(g.id)}" ${g.id===sel?"selected":""}>${esc(g.name)}</option>`).join("");
+  return `<option value="">— no gun —</option>`+list.map(g=>`<option value="${esc(g.id)}" ${g.id===sel?"selected":""}>${esc(g.name)}</option>`).join("");
 }
 function renderChips(){
   const f=S.form;
@@ -600,28 +609,28 @@ function renderChips(){
   const active=gunsSorted().filter(g=>!g.archived&&ownedOn(g,f.date)).sort((x,y)=>uses(y)-uses(x)||last(y).localeCompare(last(x)));
   $("presetChips").innerHTML=(active.length
       ?active.map(g=>`<button type="button" class="chip add" data-addgun="${esc(g.id)}">+ ${esc(g.name)}</button>`).join("")
-      :presets().map((p,i)=>`<button type="button" class="chip add" data-preset="${i}">+ ${esc(p.type)} ${esc(p.cal)}</button>`).join(""))
-    +`<button type="button" class="chip add" data-preset="blank">+ Muu rivi</button>`;
+      :presets().map((p,i)=>`<button type="button" class="chip add" data-preset="${i}">+ ${esc(tEn(p.type))} ${esc(p.cal)}</button>`).join(""))
+    +`<button type="button" class="chip add" data-preset="blank">+ Other row</button>`;
 }
 function lineHTML(l,i){
   return `<div class="line" data-i="${i}">
-    <div class="line-top"><span class="lbl">Rivi ${i+1}</span><button type="button" class="rm" data-rm="${i}">Poista rivi</button></div>
-    ${S.guns.length?`<label class="f">Ase<select data-k="gunId">${gunOptions(l.gunId)}</select></label>`:""}
+    <div class="line-top"><span class="lbl">Row ${i+1}</span><button type="button" class="rm" data-rm="${i}">Remove row</button></div>
+    ${S.guns.length?`<label class="f">Gun<select data-k="gunId">${gunOptions(l.gunId)}</select></label>`:""}
     <div class="lgrid">
-      <label class="f">Tyyppi<select data-k="type"><option value="">—</option>${TYPES.map(t=>`<option ${l.type===t?"selected":""}>${t}</option>`).join("")}</select></label>
-      <label class="f">Kaliiperi<input type="text" data-k="cal" list="dlCal" value="${esc(l.cal)}"></label>
-      <label class="f">Toimintatapa<input type="text" data-k="mode" list="dlMode" value="${esc(l.mode)}"></label>
-      <label class="f">Laukaukset<div class="step"><button type="button" data-step="-5" aria-label="Vähennä 5">−</button><input type="number" inputmode="numeric" min="0" data-k="rounds" value="${l.rounds||""}" placeholder="0"><button type="button" data-step="5" aria-label="Lisää 5">+</button></div></label>
+      <label class="f">Type<select data-k="type"><option value="">—</option>${TYPES.map(t=>`<option value="${t}" ${l.type===t?"selected":""}>${tEn(t)}</option>`).join("")}</select></label>
+      <label class="f">Calibre<input type="text" data-k="cal" list="dlCal" value="${esc(l.cal)}"></label>
+      <label class="f">Firing mode<input type="text" data-k="mode" list="dlMode" value="${esc(mEn(l.mode))}"></label>
+      <label class="f">Shots<div class="step"><button type="button" data-step="-5" aria-label="Minus 5">−</button><input type="number" inputmode="numeric" min="0" data-k="rounds" value="${l.rounds||""}" placeholder="0"><button type="button" data-step="5" aria-label="Plus 5">+</button></div></label>
     </div>
-    <label class="f">Lisätietoja<input type="text" data-k="info" list="dlInfo" value="${esc(l.info)}" placeholder="esim. SRA, PRS, IPSC, Toimitsija"></label>
+    <label class="f">Notes<input type="text" data-k="info" list="dlInfo" value="${esc(l.info)}" placeholder="e.g. SRA, PRS, IPSC, Toimitsija"></label>
   </div>`;
 }
 function renderLines(){
   const f=S.form;
-  $("lines").innerHTML=f.lines.length?f.lines.map(lineHTML).join(""):'<div class="empty" style="padding:16px">Lisää ammuntarivi yllä olevista napeista. Teoriakoe tai toimitsijatehtävä: valitse “Muu rivi” ja kirjoita lisätietoihin.</div>';
+  $("lines").innerHTML=f.lines.length?f.lines.map(lineHTML).join(""):'<div class="empty" style="padding:16px">Add a row with the buttons above. For a theory test or a range-officer duty, choose “Other row” and write it in the notes.</div>';
   updTotal();
 }
-function updTotal(){const t=S.form.lines.reduce((a,l)=>a+(+l.rounds||0),0);$("fTotal").textContent=t?("Yhteensä "+fmt(t)+" laukausta"):""}
+function updTotal(){const t=S.form.lines.reduce((a,l)=>a+(+l.rounds||0),0);$("fTotal").textContent=t?("In total "+fmt(t)+" shots"):""}
 let dT;function saveDraft(){if(S.editId)return;clearTimeout(dT);dT=setTimeout(()=>lsSet(DRAFT_KEY,S.form),300)}
 
 $("form").addEventListener("input",e=>{
@@ -661,23 +670,23 @@ $("form").addEventListener("click",e=>{
 });
 $("form").addEventListener("submit",async e=>{
   e.preventDefault();const f=S.form;const msg=m=>{$("fMsg").textContent=m;$("fMsg").hidden=false};
-  if(!f.date)return msg("Anna päivämäärä.");
-  if(!f.place.trim())return msg("Anna paikka.");
-  const lines=f.lines.map(l=>{const o={mode:(l.mode||"").trim(),type:l.type||"",cal:(l.cal||"").trim(),rounds:+l.rounds||0,info:(l.info||"").trim()};
+  if(!f.date)return msg("Enter a date.");
+  if(!f.place.trim())return msg("Enter a place.");
+  const lines=f.lines.map(l=>{const o={mode:mFi(l.mode),type:l.type||"",cal:(l.cal||"").trim(),rounds:+l.rounds||0,info:(l.info||"").trim()};
     const g=l.gunId&&S.guns.find(x=>x.id===l.gunId);if(g){o.gunId=g.id;o.gun=g.name}else if(l.gunId){o.gunId=l.gunId;o.gun=l.gun||""}return o}).filter(l=>l.type||l.cal||l.rounds||l.info);
-  if(!lines.length)return msg("Lisää vähintään yksi rivi.");
+  if(!lines.length)return msg("Add at least one row.");
   const klo=f.start?(fromTime(f.start)+(f.end?"-"+fromTime(f.end):"")):"";
   const now=new Date().toISOString();
   const old=S.editId&&S.sessions.find(x=>x.id===S.editId);
   const doc={date:f.date,klo,place:f.place.trim(),org:f.org.trim(),lines,createdAt:old&&old.createdAt||now,updatedAt:now};
   $("saveBtn").disabled=true;
-  try{await S.store.saveSession(S.editId||newId(),doc);if(!S.editId)lsDel(DRAFT_KEY);S.year=f.date.slice(0,4);closeSheets();toast("Tallennettu")}
-  catch(err){msg(err&&err.code==="invalid_argument"?"Sinulla ei ole oikeutta tallentaa tähän päiväkirjaan.":"Tallennus epäonnistui ("+(err&&err.code||"virhe")+"). Luonnos on tallessa, yritä uudelleen.")}
+  try{await S.store.saveSession(S.editId||newId(),doc);if(!S.editId)lsDel(DRAFT_KEY);S.year=f.date.slice(0,4);closeSheets();toast("Saved")}
+  catch(err){msg(err&&err.code==="invalid_argument"?"You are not allowed to save to this diary.":"Saving failed ("+(err&&err.code||"error")+"). The draft is kept, try again.")}
   finally{$("saveBtn").disabled=false}
 });
 $("delBtn").addEventListener("click",async()=>{
-  if(!S.delArm){S.delArm=true;$("delBtn").textContent="Vahvista poisto";return}
-  try{await S.store.delSession(S.editId);closeSheets();toast("Poistettu")}catch(e){$("fMsg").textContent="Poisto epäonnistui.";$("fMsg").hidden=false}
+  if(!S.delArm){S.delArm=true;$("delBtn").textContent="Confirm delete";return}
+  try{await S.store.delSession(S.editId);closeSheets();toast("Deleted")}catch(e){$("fMsg").textContent="Delete failed.";$("fMsg").hidden=false}
 });
 $("closeBtn").addEventListener("click",closeSheets);$("pClose").addEventListener("click",closeSheets);
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeSheets()});
@@ -687,35 +696,35 @@ $("log").addEventListener("click",e=>{const b=e.target.closest(".entry");if(b)op
 /* ---------- guns ---------- */
 function openGun(id){
   const g=id?S.guns.find(x=>x.id===id):null;S.editGun=id||null;S.gDelArm=false;
-  $("gTitle").textContent=g?"Muokkaa asetta":"Uusi ase";
-  $("gName").value=g?g.name:"";$("gCal").value=g&&g.cal||"";$("gMode").value=g&&g.mode||"";
-  $("gType").innerHTML=`<option value="">—</option>`+TYPES.map(t=>`<option ${g&&g.type===t?"selected":""}>${t}</option>`).join("");
+  $("gTitle").textContent=g?"Edit gun":"New gun";
+  $("gName").value=g?g.name:"";$("gCal").value=g&&g.cal||"";$("gMode").value=mEn(g&&g.mode||"");
+  $("gType").innerHTML=`<option value="">—</option>`+TYPES.map(t=>`<option value="${t}" ${g&&g.type===t?"selected":""}>${tEn(t)}</option>`).join("");
   $("gStart").value=g&&g.startCount?g.startCount:"";$("gAcq").value=g&&g.acquired||"";$("gArch").checked=!!(g&&g.archived);
   const t=g&&gunTotals()[g.id];
-  $("gStats").innerHTML=t?`Päiväkirjassa <b>${fmt(t.r)}</b> laukausta · <b>${t.d.size}</b> käyntiä`:"";
-  $("gDel").hidden=!g||!!t;$("gDel").textContent="Poista";$("gMsg").hidden=true;
+  $("gStats").innerHTML=t?`In the diary: <b>${fmt(t.r)}</b> shots · <b>${t.d.size}</b> visits`:"";
+  $("gDel").hidden=!g||!!t;$("gDel").textContent="Delete";$("gMsg").hidden=true;
   $("gSheet").hidden=false;document.body.style.overflow="hidden";$("gName").focus();
 }
 $("addGunBtn").addEventListener("click",()=>openGun(null));
 $("guns").addEventListener("click",e=>{const b=e.target.closest("[data-gun]");if(b)openGun(b.dataset.gun)});
 $("gClose").addEventListener("click",closeSheets);
 $("gForm").addEventListener("submit",async e=>{e.preventDefault();
-  const name=$("gName").value.trim();if(!name){$("gMsg").textContent="Anna aseelle nimi.";$("gMsg").hidden=false;return}
+  const name=$("gName").value.trim();if(!name){$("gMsg").textContent="Give the gun a name.";$("gMsg").hidden=false;return}
   const old=S.editGun&&S.guns.find(x=>x.id===S.editGun);
-  const d={name,type:$("gType").value,cal:$("gCal").value.trim(),mode:$("gMode").value.trim(),
+  const d={name,type:$("gType").value,cal:$("gCal").value.trim(),mode:mFi($("gMode").value),
     startCount:Math.max(0,parseInt($("gStart").value)||0),acquired:$("gAcq").value||"",archived:$("gArch").checked,order:old?(old.order??99):S.guns.length+1};
-  await S.store.saveGun(S.editGun||newGunId(),d);closeSheets();toast("Ase tallennettu");
+  await S.store.saveGun(S.editGun||newGunId(),d);closeSheets();toast("Gun saved");
 });
 $("gDel").addEventListener("click",async()=>{
-  if(!S.gDelArm){S.gDelArm=true;$("gDel").textContent="Vahvista poisto";return}
-  await S.store.delGun(S.editGun);closeSheets();toast("Ase poistettu");
+  if(!S.gDelArm){S.gDelArm=true;$("gDel").textContent="Confirm delete";return}
+  await S.store.delGun(S.editGun);closeSheets();toast("Gun deleted");
 });
 
 /* ---------- profile ---------- */
 $("profBtn").addEventListener("click",()=>{const p=S.profile||{};$("iName").value=p.name||"";$("iSra").value=p.sra||"";$("iIpsc").value=p.ipsc||"";$("iHunt").value=p.hunterNo||"";$("pSheet").hidden=false;document.body.style.overflow="hidden"});
 $("pForm").addEventListener("submit",async e=>{e.preventDefault();
   const d={name:$("iName").value.trim(),sra:$("iSra").value.trim(),ipsc:$("iIpsc").value.trim(),hunterNo:$("iHunt").value.trim()};
-  try{await S.store.saveProfile(d);closeSheets();toast("Tiedot tallennettu")}catch(err){toast("Tallennus epäonnistui")}});
+  try{await S.store.saveProfile(d);closeSheets();toast("Details saved")}catch(err){toast("Saving failed")}});
 
 /* ---------- export (same columns as the Excel sheet) ---------- */
 $("exportBtn").addEventListener("click",async()=>{
@@ -746,7 +755,7 @@ function updHint(){
   const days=new Set(list.map(s=>s.date)).size;
   const daysWith=types=>new Set(list.filter(s=>(s.lines||[]).some(l=>types.includes(l.type))).map(s=>s.date)).size;
   const pd=daysWith(["Pistooli","Revolveri"]),sd=daysWith(["Pienoispistooli","Pienoisrevolveri"]);
-  $("x2yHint").innerHTML=document.querySelector('input[name="xr"]:checked').value==="2y"?`${esc(r.span)}<br>Harrastuskerrat <b>${days}</b><br>Pistooli/revolveri <b>${pd}</b> · pienoispistooli/-revolveri <b>${sd}</b>`:"";
+  $("x2yHint").innerHTML=document.querySelector('input[name="xr"]:checked').value==="2y"?`${esc(r.span)}<br>Shooting days <b>${days}</b><br>Pistol/revolver <b>${pd}</b> · small-bore pistol/revolver <b>${sd}</b>`:"";
 }
 $("pdfBtn").addEventListener("click",()=>{
   if(!$("xEnd").value)$("xEnd").value=todayStr();
@@ -759,7 +768,7 @@ $("xClose").addEventListener("click",closeSheets);
 $("xForm").addEventListener("input",e=>{if(e.target.id==="xYear")$("xrYear").checked=true;if(e.target.id==="xEnd")$("xr2y").checked=true;updHint()});
 $("xForm").addEventListener("change",updHint);
 $("xForm").addEventListener("submit",async e=>{e.preventDefault();
-  const btn=$("pdfGo"),label=btn.textContent;btn.disabled=true;btn.textContent="Luodaan PDF…";
+  const btn=$("pdfGo"),label=btn.textContent;btn.disabled=true;btn.textContent="Creating PDF…";
   try{
     await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
     await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js");
@@ -795,7 +804,7 @@ $("xForm").addEventListener("submit",async e=>{e.preventDefault();
       didDrawPage:d=>{doc.setFontSize(7);doc.setTextColor(120);doc.text((p.name?p.name+" · ":"")+"Ampumapäiväkirja",M,doc.internal.pageSize.getHeight()-20);doc.text("Sivu "+d.pageNumber,W-M,doc.internal.pageSize.getHeight()-20,{align:"right"});doc.setTextColor(0)}});
     closeSheets();
     saveFile("ampumapaivakirja-"+R.slug+".pdf",doc.output("arraybuffer"),"application/pdf");
-  }catch(e){toast(e&&e.message==="load"?"PDF-kirjaston lataus epäonnistui, tarkista yhteys":"PDF-vienti epäonnistui")}
+  }catch(e){toast(e&&e.message==="load"?"Could not load the PDF library, check the connection":"PDF export failed")}
   finally{btn.disabled=false;btn.textContent=label}
 });
 
@@ -805,7 +814,7 @@ if("serviceWorker" in navigator){
 }
 let installEvt=null;
 window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();installEvt=e;$("installBtn").hidden=false});
-window.addEventListener("appinstalled",()=>{installEvt=null;$("installBtn").hidden=true;toast("Sovellus asennettu")});
+window.addEventListener("appinstalled",()=>{installEvt=null;$("installBtn").hidden=true;toast("App installed")});
 $("installBtn").addEventListener("click",async()=>{if(!installEvt)return;installEvt.prompt();await installEvt.userChoice;installEvt=null;$("installBtn").hidden=true});
 
 /* ---------- boot ---------- */

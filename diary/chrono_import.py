@@ -100,8 +100,8 @@ def weather_warnings(shots):
         swapped = (s["rh"] is not None and s["hpa"] is not None
                    and 850 <= s["rh"] <= 1100 and 0 <= s["hpa"] <= 100)
         out.append({"code": "weather_range", "swap": swapped,
-                    "text": f"{len(bad)} laukauksella kosteus {s['rh']} % / paine {s['hpa']} hPa ei ole mahdollinen"
-                            + (" – kosteus ja paine näyttävät vaihtaneen paikkaa" if swapped else "")})
+                    "text": f"{len(bad)} shot{'s' if len(bad) > 1 else ''} with humidity {s['rh']} % / pressure {s['hpa']} hPa, which is not possible"
+                            + (" – humidity and pressure look swapped" if swapped else "")})
     return out
 
 
@@ -181,7 +181,7 @@ def _sheets_xls(data):
     try:
         book = xlrd.open_workbook(file_contents=data, on_demand=True)
     except Exception as e:
-        raise ParseError(f"ei luettava .xls-tiedosto ({e})")
+        raise ParseError(f"not a readable .xls file ({e})")
     for sh in book.sheets():
         rows = [[sh.cell_value(r, c) for c in range(min(sh.ncols, 40))] for r in range(min(sh.nrows, 3000))]
         yield sh.name, rows
@@ -192,7 +192,7 @@ def _sheets_xlsx(data):
     try:
         wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     except Exception as e:
-        raise ParseError(f"ei luettava .xlsx-tiedosto ({e})")
+        raise ParseError(f"not a readable .xlsx file ({e})")
     for ws in wb.worksheets:
         rows = [list(r) for r in ws.iter_rows(max_row=3000, max_col=40, values_only=True)]
         yield ws.title, rows
@@ -282,7 +282,7 @@ def parse_shotview_sheet(sheet_name, rows, filename=""):
     warnings = [] if check.get("ok", True) else [
         {"code": "check_mismatch", "text": "laskettu keskiarvo/SD/hajonta poikkeaa ShotView'n yhteenvedosta"}]
     if not date:
-        warnings.append({"code": "no_date", "text": "päivämäärää ei löytynyt"})
+        warnings.append({"code": "no_date", "text": "no date found"})
     return {"source": "shotview", "file": filename, "sheet": sheet_name, "date": date,
             "started_at": started, "name": title or sheet_name, "unit_in": unit,
             "bullet_gr": bullet_gr, "charge_gr": None, "hints": {"gun_text": title or None},
@@ -328,7 +328,7 @@ def parse_log_sheet(sheet_name, rows, filename="", hints=None):
     if m:
         name_date = f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
         if date and date != name_date:
-            warnings.append({"code": "date_mismatch", "text": f"välilehden nimi {name_date}, solussa {date}"})
+            warnings.append({"code": "date_mismatch", "text": f"sheet name says {name_date}, the date cell {date}"})
         date = date or name_date
     if started:
         started = started[:5]
@@ -370,7 +370,7 @@ def _drop_superseded(strings):
             a = {fingerprint(s["date"], x["t"], x["v_ms"]) for x in s["shots"]}
             b = {fingerprint(twin["date"], x["t"], x["v_ms"]) for x in twin["shots"]}
             if a and len(a & b) >= len(a) / 2:
-                notes.append({"code": "superseded", "text": f"välilehti {s['sheet']} ohitettu: {twin['sheet']} sisältää samat laukaukset"})
+                notes.append({"code": "superseded", "text": f"sheet {s['sheet']} skipped: {twin['sheet']} has the same shots"})
                 continue
         keep.append(s)
     return keep, notes
@@ -401,8 +401,8 @@ def _date_outliers(strings):
             alt = _shift_year(d, years)
             if min(abs((alt - o).days) for o in others) <= 31:
                 s["warnings"].append({"code": "date_outlier", "suggest": alt.isoformat(),
-                                      "text": f"{s['date']} on vuoden päässä taulukon muista päivistä – "
-                                              f"pitäisikö olla {alt.isoformat()}?"})
+                                      "text": f"{s['date']} is a year away from the workbook's other days – "
+                                              f"should it be {alt.isoformat()}?"})
                 break
 
 
@@ -413,7 +413,7 @@ def parse_kestrel(data):
     rows = list(csv.reader(io.StringIO(text)))
     hdr_i = next((i for i, r in enumerate(rows[:20]) if r and r[0].strip() == "FORMATTED DATE_TIME"), None)
     if hdr_i is None:
-        raise ParseError("Kestrel-CSV:n otsikkoriviä ei löytynyt")
+        raise ParseError("Kestrel CSV header row not found")
     hdr = [label(c) for c in rows[hdr_i]]
     ci = lambda name: hdr.index(name) if name in hdr else None
     c_t, c_rh, c_p = ci("temperature"), ci("relative humidity"), ci("station pressure")
@@ -469,7 +469,7 @@ def parse_file(filename, data, relpath=None, known_powders=()):
     if kind == "kestrel":
         return {"strings": [], "weather": parse_kestrel(data), "notes": []}
     if kind not in ("xls", "xlsx"):
-        raise ParseError(f"{filename}: ei ShotView-vienti, nopeustaulukko eikä Kestrel-CSV")
+        raise ParseError(f"{filename}: not a ShotView export, a velocity workbook or a Kestrel CSV")
     sheets = list((_sheets_xls if kind == "xls" else _sheets_xlsx)(data))
     stem = file_stem(filename)
     ph = path_hints(relpath or filename, known_powders)
@@ -481,7 +481,7 @@ def parse_file(filename, data, relpath=None, known_powders=()):
             strings.append(parse_shotview_sheet(name, rows, filename))
         elif _is_log_sheet(rows):
             if not SHEET_DATE_RE.match(name.strip()):
-                notes.append({"code": "skipped_sheet", "text": f"välilehti {name} ohitettu (ei päivätty välilehti)"})
+                notes.append({"code": "skipped_sheet", "text": f"sheet {name} skipped (not a dated sheet)"})
                 continue
             if log_hints is None:
                 log_hints = parse_load_name(stem)
@@ -496,7 +496,7 @@ def parse_file(filename, data, relpath=None, known_powders=()):
             if s["source"] == "workbook" and s["bullet_gr"] is None:
                 s["bullet_gr"] = log_hints.get("bullet_gr")
     if not strings and not notes:
-        notes.append({"code": "empty", "text": f"{filename}: ei laukauksia"})
+        notes.append({"code": "empty", "text": f"{filename}: no shots"})
     for i, s in enumerate(strings):
         s["key"] = f"{stem}#{s['sheet']}#{s.get('charge_gr') or ''}#{i}"
     return {"strings": strings, "weather": [], "notes": notes}

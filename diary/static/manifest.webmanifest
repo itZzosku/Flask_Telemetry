@@ -1,9 +1,9 @@
 {
   "id": "/diary/",
-  "name": "Ampumapäiväkirja",
-  "short_name": "Ampumapäiväkirja",
-  "description": "Ampumaharrastuksen päiväkirja: käynnit, laukaukset aseittain ja PDF-vienti.",
-  "lang": "fi",
+  "name": "Shooting Diary",
+  "short_name": "Shooting Diary",
+  "description": "Shooting diary: range visits, shots per gun, muzzle velocities and PDF export.",
+  "lang": "en",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
