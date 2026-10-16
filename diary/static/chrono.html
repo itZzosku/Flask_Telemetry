@@ -260,6 +260,7 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
     <p class="sumline" id="kpiNote"></p>
     <div class="chart" id="trendBox"></div>
     <div class="chart" id="sdBox" style="margin-top:12px"></div>
+    <div class="chart" id="tempBox" style="margin-top:12px"></div>
   </section>
 
   <section id="ladderView" hidden>
@@ -447,6 +448,35 @@ function sdChart(pts){
     return`<line class="wh" x1="${x}" x2="${x}" y1="${ys.y(0)}" y2="${y}" style="opacity:.9"/><circle class="mk" cx="${x}" cy="${y}" r="4"/><circle class="hit" cx="${x}" cy="${y}" r="14" data-tip="${esc(`<b>${fiDate(p.date)}</b><br>SD ${f2(p.sd)} m/s · n ${p.n}`)}"/>`}).join("");
   return`<h3>Hajonta (SD) päivittäin</h3><p class="sub">Otoskeskihajonta, m/s</p><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Keskihajonta päivittäin">${frame(H,ys,"SD")}${marks}</svg>`;
 }
+// Day average against that day's temperature, with the least-squares line when the days span ≥ 10 °C
+function tempChart(all,sens){
+  const pts=all.filter(p=>p.temp_c!=null&&p.avg!=null);
+  if(pts.length<2)return"";
+  const H=230,L=PL+8,R=W-20;
+  const t=pts.map(p=>p.temp_c),t0=Math.min(...t),t1=Math.max(...t),span=Math.max(t1-t0,1);
+  const xt=niceTicks(t0-span*.05,t1+span*.05,6),xa=Math.min(t0,xt[0]),xb=Math.max(t1,xt[xt.length-1]);
+  const x=v=>L+(R-L)*(v-xa)/((xb-xa)||1);
+  const lo=Math.min(...pts.map(p=>p.ci_low??p.min??p.avg)),hi=Math.max(...pts.map(p=>p.ci_high??p.max??p.avg));
+  const ys=yScale(lo,hi,H,18,30);
+  let fit="";
+  if(sens!=null){
+    const mx=t.reduce((a,b)=>a+b,0)/t.length,my=pts.reduce((a,p)=>a+p.avg,0)/pts.length;
+    const yAt=v=>my+sens*(v-mx);
+    fit=`<line class="avgline" x1="${x(t0)}" x2="${x(t1)}" y1="${ys.y(yAt(t0))}" y2="${ys.y(yAt(t1))}" style="stroke-dasharray:none;opacity:.8"/>`
+      +`<text class="lab" x="${x(t1)}" y="${ys.y(yAt(t1))+(sens>0?-10:18)}" text-anchor="end">${sens>0?"+":""}${f2(sens)} m/s/°C</text>`;
+  }
+  const marks=pts.map(p=>{const X=x(p.temp_c),Y=ys.y(p.avg);
+    const tip=`<b>${f1(p.temp_c)} °C</b> · ${fiDate(p.date)}<br>⌀ ${f1(p.avg)} m/s · n ${p.n}<br>SD ${f2(p.sd)}`;
+    return(p.ci_low!=null?`<line class="wh" x1="${X}" x2="${X}" y1="${ys.y(p.ci_low)}" y2="${ys.y(p.ci_high)}"/>`:"")
+      +`<circle class="mk" cx="${X}" cy="${Y}" r="5"/><circle class="hit" cx="${X}" cy="${Y}" r="14" data-tip="${esc(tip)}"/>`}).join("");
+  const xl=xt.filter(v=>v>=xa-1e-9&&v<=xb+1e-9).map(v=>`<text class="ax" x="${x(v)}" y="${H-8}" text-anchor="middle">${Number.isInteger(v)?v:f1(v)}</text>`).join("");
+  const missing=all.length-pts.length;
+  const sub=(sens!=null?"Viiva: pienimmän neliösumman sovite päivien keskinopeuksista":"Sovite näytetään, kun päivät kattavat vähintään 10 °C")
+    +(missing?` · ${missing} päivää ilman lämpötilaa`:"");
+  return`<h3>Nopeus lämpötilan mukaan</h3><p class="sub">${sub} · viiksi 95 % luottamusväli · x: °C</p>`
+    +`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Keskinopeus lämpötilan mukaan">${frame(H,ys,"m/s")}${fit}${marks}${xl}</svg>`
+    +table(["°C","Päivä","n","⌀ m/s","SD"],pts.slice().sort((a,b)=>a.temp_c-b.temp_c).map(p=>[f1(p.temp_c),fiDate(p.date),p.n,f1(p.avg),f2(p.sd)]));
+}
 function ladderChart(group,pts){
   const H=220,L=PL+16,R=W-28;
   const lo=Math.min(...pts.map(p=>p.ci_low??p.min)),hi=Math.max(...pts.map(p=>p.ci_high??p.max));
@@ -507,6 +537,7 @@ async function renderLoad(){
   $("trendBox").innerHTML=trendChart(pts,"Keskinopeus päivittäin",`${esc(loadName(S.load))}${S.gun&&S.gun!=="-"?" · "+esc(gunName(S.gun)):""} · viiksi 95 % luottamusväli`);
   $("trendBox").hidden=!$("trendBox").innerHTML;
   $("sdBox").innerHTML=sdChart(pts);$("sdBox").hidden=!$("sdBox").innerHTML;
+  $("tempBox").innerHTML=tempChart(pts,tr.temp_sensitivity);$("tempBox").hidden=!$("tempBox").innerHTML;
   bindTips(box);
 }
 
