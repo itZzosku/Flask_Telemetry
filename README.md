@@ -86,7 +86,8 @@ Restore: `python -m diary import diary_backups/diary-YYYY-MM-DD.json --replace`
 
 The pages, the command line and the backup e-mail are in English. Firearm types and firing modes are stored
 in the Finnish legal wording (Ampuma-aselaki: *Kivääri*, *2 - lippaallinen kertatuli* …) and shown in English;
-the PDF and CSV exports stay in Finnish, as the shooting-activity record for a licence application.
+*Export* writes a PDF or a CSV in Finnish (the shooting-activity record for a licence application) or in
+English, for the last 2 years, a year or the whole diary; the last choice is remembered.
 
 ## Muzzle velocity (`/diary/chrono`)
 
