@@ -108,6 +108,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS guns (id TEXT PRIMARY KEY, data TEXT NOT NULL);
         """
     )
+    from .chrono import init_chrono
+    init_chrono(conn)
     conn.commit()
     conn.close()
 
@@ -345,3 +347,7 @@ def delete_gun(gid):
     db().execute("DELETE FROM guns WHERE id=?", (gid,))
     db().commit()
     return jsonify(ok=True)
+
+
+# Velocity data (Garmin Xero / own logs / Kestrel): routes register on the same blueprint.
+from . import chrono  # noqa: E402,F401

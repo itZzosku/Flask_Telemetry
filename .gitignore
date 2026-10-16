@@ -169,3 +169,7 @@ cython_debug/
 diary_data/
 diary_seed*.json
 diary_backups/
+
+# Velocity data files (ShotView exports, logs, Kestrel CSVs) never go in the public repo
+*.xls
+*.xlsx
