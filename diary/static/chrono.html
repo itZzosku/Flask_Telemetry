@@ -339,7 +339,7 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
       <button type="button" class="chip" data-kind="handload">Oma lataus</button>
       <button type="button" class="chip" data-kind="factory">Tehdaspatruuna</button>
     </div>
-    <label class="f">Kaliiperi<input type="text" data-k="cal" list="dlLCal" placeholder="esim. 6.5 CM"></label>
+    <label class="f">Kaliiperi<input type="text" data-k="cal" list="dlLCal" placeholder="esim. 6.5 CM" required></label>
     <div data-for="handload" class="egroup">
       <div class="lbl">Luoti</div>
       <div class="grid3">
@@ -636,9 +636,19 @@ function closeSheets(){["iSheet","dSheet","lSheet"].forEach(s=>$(s).hidden=true)
 document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",closeSheets));
 document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("eSheet").hidden)closeEditor();else closeSheets()});
 const gunOpts=sel=>`<option value="">— ei asetta —</option>`+S.guns.slice().sort((a,b)=>String(a.name).localeCompare(b.name)).map(g=>`<option value="${esc(g.id)}" ${g.id===sel?"selected":""}>${esc(g.name)}</option>`).join("");
-const loadOpts=(sel,spec)=>`<option value="">— ei latausta —</option>`+(spec?`<option value="new" ${sel==="new"?"selected":""}>Uusi: ${esc(spec.name)}</option>`:"")
-  +`<option value="custom">+ Uusi lataus…</option>`
-  +S.loads.filter(l=>!l.archived||l.id===sel).sort((a,b)=>a.name.localeCompare(b.name,"fi",{numeric:true})).map(l=>`<option value="${esc(l.id)}" ${l.id===sel?"selected":""}>${esc(l.name)}</option>`).join("");
+const calKey=c=>String(c||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+const gunCal=id=>(S.guns.find(g=>g.id===id)||{}).cal||"";
+function loadOpts(sel,spec,gunId){
+  const gc=calKey(gunCal(gunId)),opt=l=>`<option value="${esc(l.id)}" ${l.id===sel?"selected":""}>${esc(l.name)}</option>`;
+  const list=S.loads.filter(l=>!l.archived||l.id===sel).sort((a,b)=>a.name.localeCompare(b.name,"fi",{numeric:true}));
+  const mine=gc?list.filter(l=>!l.cal||calKey(l.cal)===gc):list,other=gc?list.filter(l=>l.cal&&calKey(l.cal)!==gc):[];
+  return`<option value="">— ei latausta —</option>`+(spec?`<option value="new" ${sel==="new"?"selected":""}>Uusi: ${esc(spec.name)}</option>`:"")
+    +`<option value="custom">+ Uusi lataus…</option>`+mine.map(opt).join("")
+    +(other.length?`<optgroup label="Muut kaliiperit">${other.map(opt).join("")}</optgroup>`:"");
+}
+// A gun and a load of different calibres on one session is almost always a wrong pick.
+function calClash(gunId,loadId){const g=gunCal(gunId),l=(loadOf(loadId)||{}).cal;
+  return g&&l&&calKey(g)!==calKey(l)?`Aseen kaliiperi ${g}, latauksen ${l}`:""}
 
 /* ---------- import ---------- */
 $("importBtn").addEventListener("click",()=>{S.preview=null;$("iList").innerHTML="";$("iSum").hidden=true;$("iActions").hidden=true;$("iMsg").hidden=true;openSheet("iSheet")});
@@ -669,7 +679,8 @@ function renderPreview(){
     +(p.notes.length?`<br>${p.notes.map(n=>esc(n.text)).join("<br>")}`:"");
   $("iList").innerHTML=p.strings.map((s,i)=>{
     const st=s.stats,c=s.check;
-    const w=s.warnings.filter(x=>x.code!=="no_load"||!s.ui.load).map(x=>{
+    const clash=s.ui.load&&s.ui.load!=="new"?calClash(s.ui.gun,s.ui.load):"";
+    const w=(clash?`<div>${esc(clash)}</div>`:"")+s.warnings.filter(x=>x.code!=="no_load"||!s.ui.load).map(x=>{
       if(x.code==="date_outlier"&&x.suggest)return`<div>${esc(x.text)} <button type="button" class="ghost" data-fixdate="${i}" data-v="${x.suggest}">Käytä ${fiDate(x.suggest)}</button></div>`;
       if(x.code==="weather_range")return`<div>${esc(x.text)}${x.swap?` <label class="check" style="display:inline-flex"><input type="checkbox" data-swap="${i}" ${s.ui.swap?"checked":""}>Vaihda</label>`:""}</div>`;
       if(x.code==="date_corrected")return`<div class="info">${esc(x.text)}</div>`;
@@ -684,7 +695,7 @@ function renderPreview(){
         ${c?(c.ok?' <span class="badge ok">✓ ShotView täsmää</span>':c.ok===false?' <span class="badge warn">≠ ShotView</span>':""):""}</div>
       ${done?`<div class="hint">${done}</div>`:""}
       <div class="grid2"><label class="f">Ase<select data-gun="${i}">${gunOpts(s.ui.gun)}</select></label>
-        <label class="f">Lataus<select data-load="${i}">${loadOpts(s.ui.load,s.suggest.load)}</select></label></div>
+        <label class="f">Lataus<select data-load="${i}">${loadOpts(s.ui.load,s.suggest.load,s.ui.gun)}</select></label></div>
       ${w?`<div class="warns">${w}</div>`:""}
     </div>`}).join("")||'<div class="empty">Tiedostoista ei löytynyt laukauksia.</div>';
   $("iActions").hidden=!on.length;
@@ -692,7 +703,8 @@ function renderPreview(){
 $("iList").addEventListener("change",e=>{
   const t=e.target,S2=S.preview.strings;
   if(t.dataset.on!=null){S2[t.dataset.on].ui.on=t.checked}
-  else if(t.dataset.gun!=null){S2[t.dataset.gun].ui.gun=t.value;return}
+  else if(t.dataset.gun!=null){const s=S2[t.dataset.gun];s.ui.gun=t.value;
+    if(s.suggest.load&&gunCal(t.value)){s.suggest.load.cal=gunCal(t.value);s.suggest.load.name=genName(s.suggest.load)}}
   else if(t.dataset.load!=null){
     const s=S2[t.dataset.load];
     if(t.value==="custom"){
@@ -741,11 +753,12 @@ function renderDay(){
     const w=temps.length?temps[0]:{};
     return`<div class="chart" data-card="${esc(s.id)}" style="scroll-margin-top:70px">
       <h3>Sessio ${i+1}/${list.length} · ${esc(s.started_at||"–")} · ${esc(loadName(s.load_id))}</h3>
+      ${calClash(s.gun_id,s.load_id)?`<div class="msg" style="margin:2px 0 6px">${esc(calClash(s.gun_id,s.load_id))}</div>`:""}
       <p class="sub">⌀ <b>${f1(st.avg)}</b> m/s · n ${st.n}/${s.shots.length} · SD ${f2(st.sd)} (Garmin ${f2(st.sd_garmin)}) · ES ${f1(st.es)}${st.ke_j?` · ${st.ke_j} J`:""}${w.temp_c!=null?` · ${f1(w.temp_c)} °C ${w.rh!=null?f1(w.rh)+" %":""} ${w.hpa!=null?Math.round(w.hpa)+" hPa":""}`:""}</p>
       ${dotPlot(s.shots,st.avg)}
       <div class="shots" style="margin:8px 0 12px">${s.shots.map(x=>`<button type="button" class="shot" data-ex="${i}" data-n="${x.n}" aria-pressed="${!!x.excluded}" title="Poista tilastoista / palauta"><small>#${x.n}</small>${f1(x.v_ms)}</button>`).join("")}</div>
       <div class="grid2"><label class="f">Ase<select data-sgun="${i}">${gunOpts(s.gun_id)}</select></label>
-        <label class="f">Lataus<select data-sload="${i}">${loadOpts(s.load_id)}</select></label></div>
+        <label class="f">Lataus<select data-sload="${i}">${loadOpts(s.load_id,null,s.gun_id)}</select></label></div>
       <details style="margin-top:10px"><summary>Sää tälle sessiolle</summary>
         <div class="grid3" style="margin-top:8px"><label class="f">°C<input type="number" step="0.1" data-wt="${i}" value="${w.temp_c??""}"></label>
           <label class="f">RH %<input type="number" step="1" data-wr="${i}" value="${w.rh??""}"></label>
@@ -779,8 +792,9 @@ $("dBody").addEventListener("change",e=>{const t=e.target;
 const numFi=(v,d)=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)?(d==null?(Number.isInteger(n)?String(n):String(n).replace(".",",")):n.toFixed(d).replace(".",",")):""};
 function genName(f){
   const w=f.bullet_gr!==""&&f.bullet_gr!=null&&numFi(f.bullet_gr)?numFi(f.bullet_gr)+" gr":"";
-  if(f.kind==="factory")return[f.maker,f.product,w].filter(Boolean).join(" ")||"Tehdaspatruuna";
-  const out=[[f.bullet_maker,f.bullet_model,w].filter(Boolean).join(" ")||"Lataus"];
+  const cal=f.cal?[f.cal]:[];
+  if(f.kind==="factory")return cal.concat([[f.maker,f.product,w].filter(Boolean).join(" ")||"Tehdaspatruuna"]).join(" · ");
+  const out=cal.concat([[f.bullet_maker,f.bullet_model,w].filter(Boolean).join(" ")||"Lataus"]);
   if(f.brass)out.push("hylsy "+f.brass);
   const pw=[f.powder,numFi(f.charge_gr,1)?numFi(f.charge_gr,1)+" gr":""].filter(Boolean).join(" ");
   if(pw)out.push(pw);
@@ -789,7 +803,7 @@ function genName(f){
 const dl=(id,vals)=>{$(id).innerHTML=[...new Set(vals.filter(Boolean))].sort((a,b)=>a.localeCompare(b,"fi")).map(v=>`<option value="${esc(v)}">`).join("")};
 function fillLoadLists(){
   const L=S.loads;
-  dl("dlLCal",L.map(l=>l.cal).concat(S.guns.map(g=>g.cal)));
+  dl("dlLCal",L.map(l=>l.cal).concat(S.guns.map(g=>g.cal),[".22 LR",".223 Rem","6.5 CM","6.5x55 SE",".308 Win","7.62x53R","7.62x54R",".30-06 Spring","9 mm Luger","12/70"]));
   dl("dlBMaker",L.map(l=>l.bullet_maker).concat(["Lapua","Sako","Hornady","Sierra","Berger","Nosler","Norma"]));
   dl("dlBModel",L.map(l=>l.bullet_model).concat(["Scenar","Scenar-L","Naturalis","Mega","FMJ","HPCE","Blade","ELD-M","ELD-X","A-Tip","MatchKing","Hybrid Target"]));
   dl("dlBrass",L.map(l=>l.brass).concat(["Lapua","Sako","Norma","Peterson","Starline","Hornady"]));
@@ -801,15 +815,17 @@ $("loadsBtn").addEventListener("click",()=>{renderLoads();openSheet("lSheet")});
 $("addLoadBtn").addEventListener("click",()=>{const g=S.guns.find(x=>x.id===S.gun)||{};editLoad(null,{kind:"handload",cal:g.cal||""})});
 function renderLoads(){
   const row=l=>{const u=l.use||{};const guns=(u.guns||[]).map(gunName).join(", ");
-    const parts=[l.cal,guns,u.last?"viimeksi "+fiDate(u.last):""].filter(Boolean);
+    const parts=[l.kind==="factory"?"tehdas":"oma lataus",guns,u.last?"viimeksi "+fiDate(u.last):""].filter(Boolean);
+    const nm=l.cal&&l.name.startsWith(l.cal+" · ")?l.name.slice(l.cal.length+3):l.name;
     return`<button type="button" class="lrow${l.archived?" archived":""}" data-lid="${esc(l.id)}">
-      <b>${esc(l.name)}</b><span class="fig"><span class="num">${u.shots||0}</span><small>laukausta</small></span>
+      <b>${esc(nm)}</b><span class="fig"><span class="num">${u.shots||0}</span><small>laukausta</small></span>
       <span class="meta">${esc(parts.join(" · "))||"ei vielä nopeuksia"}</span></button>`};
-  const sorted=S.loads.slice().sort((a,b)=>(a.archived-b.archived)||a.name.localeCompare(b.name,"fi",{numeric:true}));
-  const own=sorted.filter(l=>l.kind!=="factory"),fac=sorted.filter(l=>l.kind==="factory");
+  const byCal=new Map();
+  S.loads.forEach(l=>{const k=l.cal||"";if(!byCal.has(k))byCal.set(k,[]);byCal.get(k).push(l)});
+  const cals=[...byCal.keys()].sort((a,b)=>(!a)-(!b)||a.localeCompare(b,"fi",{numeric:true}));
   $("lBody").innerHTML=!S.loads.length?'<div class="empty">Ei vielä latauksia. Lisää uusi tai tuo nopeudet – tiedostojen nimistä syntyy lataukset.</div>'
-    :(own.length?`<div class="lsec">Omat lataukset · ${own.length}</div>`+own.map(row).join(""):"")
-    +(fac.length?`<div class="lsec">Tehdaspatruunat · ${fac.length}</div>`+fac.map(row).join(""):"");
+    :cals.map(c=>{const ls=byCal.get(c).sort((a,b)=>(a.archived-b.archived)||(a.kind==="factory")-(b.kind==="factory")||a.name.localeCompare(b.name,"fi",{numeric:true}));
+      return`<div class="lsec">${esc(c||"Kaliiperi puuttuu")} · ${ls.length}</div>`+ls.map(row).join("")}).join("");
 }
 $("lBody").addEventListener("click",e=>{const b=e.target.closest("[data-lid]");if(b)editLoad(b.dataset.lid)});
 

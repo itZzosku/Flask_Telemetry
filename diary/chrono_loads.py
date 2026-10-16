@@ -1,9 +1,12 @@
 """Loads as structured fields with one uniform, generated name.
 
-Handload:  <bullet maker> <bullet> <weight> gr · hylsy <brass> · <powder> <charge> gr
-           e.g. "Lapua Scenar 139 gr · hylsy Lapua · N555 44,0 gr"
-Factory:   <maker> <product> <weight> gr
-           e.g. "SK Long Range Match 40 gr"
+Handload:  <calibre> · <bullet maker> <bullet> <weight> gr · hylsy <brass> · <powder> <charge> gr
+           e.g. "6.5 CM · Lapua Scenar 139 gr · hylsy Lapua · N555 44,0 gr"
+Factory:   <calibre> · <maker> <product> <weight> gr
+           e.g. ".22 LR · SK Long Range Match 40 gr"
+
+The calibre is part of the identity: the same 123 gr FMJ over the same charge in .308 Win and in
+7.62x53R are two loads.
 
 The name is never typed: it is rebuilt from the fields on every save, so two loads with the same
 fields get the same name and the importer matches loads by it.
@@ -46,12 +49,13 @@ def bullet_label(f):
 
 
 def load_name(f):
+    cal = [f["cal"]] if f.get("cal") else []
     if f.get("kind") == "factory":
         parts = [f.get("maker"), f.get("product")]
         if f.get("bullet_gr"):
             parts.append(_weight(f["bullet_gr"]) + " gr")
-        return " ".join(p for p in parts if p) or "Tehdaspatruuna"
-    out = [bullet_label(f) or "Lataus"]
+        return " · ".join(cal + [" ".join(p for p in parts if p) or "Tehdaspatruuna"])
+    out = cal + [bullet_label(f) or "Lataus"]
     if f.get("brass"):
         out.append("hylsy " + f["brass"])
     pw = " ".join(p for p in [f.get("powder"), _num(f["charge_gr"]) + " gr" if f.get("charge_gr") is not None else None] if p)
@@ -62,7 +66,7 @@ def load_name(f):
 
 def ladder_group(f):
     """Everything but the charge: the line a charge ladder is drawn along."""
-    out = [bullet_label(f) or "Lataus"]
+    out = ([f["cal"]] if f.get("cal") else []) + [bullet_label(f) or "Lataus"]
     if f.get("brass"):
         out.append("hylsy " + f["brass"])
     if f.get("powder"):
@@ -197,4 +201,34 @@ def migrate(conn):
         vals = from_legacy(row)
         conn.execute("UPDATE loads SET " + ",".join(f"{k}=?" for k in vals) + " WHERE id=?",
                      (*vals.values(), row["id"]))
+    backfill_calibres(conn)
     return len(rows)
+
+
+def backfill_calibres(conn):
+    """Loads without a calibre take it from the guns that fired them, when they all agree; then every
+    name is regenerated so it carries the calibre. Returns the number of renamed loads."""
+    import json
+    gun_cal = {}
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if not {"guns", "chrono_strings"} <= tables:
+        return 0
+    for gid, data in conn.execute("SELECT id, data FROM guns"):
+        cal = (json.loads(data) or {}).get("cal")
+        if cal:
+            gun_cal[gid] = " ".join(str(cal).split())
+    for (lid,) in conn.execute("SELECT id FROM loads WHERE cal IS NULL OR cal=''").fetchall():
+        cals = {gun_cal.get(g) for (g,) in conn.execute(
+            "SELECT DISTINCT gun_id FROM chrono_strings WHERE load_id=? AND gun_id IS NOT NULL", (lid,))}
+        cals.discard(None)
+        if len(cals) == 1:
+            conn.execute("UPDATE loads SET cal=? WHERE id=?", (cals.pop(), lid))
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(loads)")]
+    renamed = 0
+    for r in conn.execute("SELECT * FROM loads").fetchall():
+        row = dict(zip(cols, r))
+        name = load_name(row)
+        if name != row["name"]:
+            conn.execute("UPDATE loads SET name=? WHERE id=?", (name, row["id"]))
+            renamed += 1
+    return renamed

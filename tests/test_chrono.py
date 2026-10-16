@@ -228,7 +228,7 @@ def test_api_parse_commit_idempotent(client):
     p = r.get_json()
     s = p["strings"][0]
     assert s["suggest"]["gun_id"] == "g-t3x"
-    assert s["suggest"]["load"]["name"] == "Lapua Scenar 139 gr · hylsy Lapua · N555 44,0 gr"
+    assert s["suggest"]["load"]["name"] == "6.5 CM · Lapua Scenar 139 gr · hylsy Lapua · N555 44,0 gr"
     item = dict(s, gun_id=s["suggest"]["gun_id"], load=s["suggest"]["load"])
     r = client.post("/diary/api/chrono/commit", json={"strings": [item]})
     assert r.status_code == 200 and len(r.get_json()["created"]) == 1
@@ -338,3 +338,28 @@ def test_api_load_duplicate_and_merge(client):
     f = client.put("/diary/api/chrono/loads/l-f", json={"kind": "factory", "maker": "SK", "product": "Long Range Match",
                                                          "bullet_gr": "40", "brass": "ignored"}).get_json()
     assert f["name"] == "SK Long Range Match 40 gr" and f["brass"] is None
+
+
+def test_calibre_is_part_of_the_load(client):
+    fmj = {"kind": "handload", "bullet_maker": "Lapua", "bullet_model": "FMJ", "bullet_gr": "123", "brass": "Lapua",
+           "powder": "N133", "charge_gr": "43"}
+    a = client.put("/diary/api/chrono/loads/l-308", json=dict(fmj, cal=".308 Win"))
+    b = client.put("/diary/api/chrono/loads/l-53r", json=dict(fmj, cal="7.62x53R"))
+    assert a.status_code == b.status_code == 200                      # not duplicates
+    assert a.get_json()["name"] == ".308 Win · Lapua FMJ 123 gr · hylsy Lapua · N133 43,0 gr"
+    assert b.get_json()["name"].startswith("7.62x53R · ")
+    assert client.put("/diary/api/chrono/loads/l-x", json=dict(fmj, cal=".308 Win")).status_code == 409
+
+
+def test_calibre_backfilled_from_gun():
+    conn = diary.connect()
+    conn.executescript("DELETE FROM chrono_shots; DELETE FROM chrono_strings; DELETE FROM loads;")
+    diary.upsert_gun(conn, "g-m39", {"name": "Sako M39", "cal": "7.62x53R"})
+    conn.execute("INSERT INTO loads(id,name,kind,bullet_model,bullet_gr,brass,powder,charge_gr) "
+                 "VALUES('l-1','x','handload','FMJ',123,'Lapua','N133',43)")
+    conn.execute("INSERT INTO chrono_strings(id,date,gun_id,load_id,source,created_at) "
+                 "VALUES('c-1','2025-01-09','g-m39','l-1','workbook','now')")
+    assert chrono_loads.backfill_calibres(conn) == 1
+    r = conn.execute("SELECT cal, name FROM loads WHERE id='l-1'").fetchone()
+    assert r["cal"] == "7.62x53R" and r["name"] == "7.62x53R · FMJ 123 gr · hylsy Lapua · N133 43,0 gr"
+    conn.close()
