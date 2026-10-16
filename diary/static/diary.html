@@ -184,8 +184,7 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
       <button class="ghost" id="installBtn" type="button" hidden>Install app</button>
       <a class="ghost" href="chrono" style="text-decoration:none">Velocity</a>
       <button class="ghost" id="profBtn" type="button">My details</button>
-      <button class="ghost" id="pdfBtn" type="button" hidden>Export PDF</button>
-      <button class="ghost" id="exportBtn" type="button" hidden>Export CSV</button>
+      <button class="ghost" id="pdfBtn" type="button" hidden>Export</button>
       <form method="post" action="logout" style="display:contents"><button class="ghost" type="submit">Log out</button></form>
     </div>
   </header>
@@ -299,7 +298,14 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
 
 <div class="sheet" id="xSheet" hidden role="dialog" aria-modal="true" aria-labelledby="xTitle">
   <form class="sheet-in" id="xForm">
-    <div class="sheet-bar"><h2 id="xTitle">Export PDF</h2><button class="ghost" type="button" id="xClose">Close</button></div>
+    <div class="sheet-bar"><h2 id="xTitle">Export</h2><button class="ghost" type="button" id="xClose">Close</button></div>
+    <div class="grid2">
+      <div class="field"><span class="lbl">Format</span><div class="chips" role="radiogroup" aria-label="Format">
+        <button type="button" class="chip" data-xfmt="pdf">PDF</button><button type="button" class="chip" data-xfmt="csv">CSV</button></div></div>
+      <div class="field"><span class="lbl">Language</span><div class="chips" role="radiogroup" aria-label="Language">
+        <button type="button" class="chip" data-xlang="fi">Suomi</button><button type="button" class="chip" data-xlang="en">English</button></div></div>
+    </div>
+    <div class="hint" id="xLangHint"></div>
     <div class="opt">
       <label class="r"><input type="radio" name="xr" value="2y" id="xr2y" checked>Last 2 years</label>
       <div class="sub">
@@ -477,7 +483,7 @@ function render(){
   $("s24").textContent=fmt(days24.size);
   const tc=typeCounts(S.sessions);
   $("types").innerHTML=TYPES.filter(t=>tc[t]).map(t=>`<span>${tEn(t)} <b>${tc[t]}</b></span>`).join("");
-  $("exportBtn").hidden=!S.sessions.length;$("pdfBtn").hidden=!S.sessions.length;
+  $("pdfBtn").hidden=!S.sessions.length;
   renderYears();renderLog();renderGuns();fillLists();
 }
 const GUNS_KEY="ampumapk-guns-open";
@@ -726,29 +732,47 @@ $("pForm").addEventListener("submit",async e=>{e.preventDefault();
   const d={name:$("iName").value.trim(),sra:$("iSra").value.trim(),ipsc:$("iIpsc").value.trim(),hunterNo:$("iHunt").value.trim()};
   try{await S.store.saveProfile(d);closeSheets();toast("Details saved")}catch(err){toast("Saving failed")}});
 
-/* ---------- export (same columns as the Excel sheet) ---------- */
-$("exportBtn").addEventListener("click",async()=>{
+/* ---------- export: PDF or CSV, Finnish or English ---------- */
+// Finnish is the format of the official shooting-activity record; English translates labels, types and modes.
+const XL={
+  fi:{title:"Ampumapäiväkirja",name:"Nimi:",sra:"SRA Lisenssi:",ipsc:"IPSC Lisenssi:",hunter:"Metsästäjänumero:",days:"Harrastuskerrat:",
+      types:"Asetyypit:",total:"Yhteenlasketut laukaukset:",page:"Sivu",y2:" – 2 vuotta",file:"ampumapaivakirja",all:"kaikki",y2slug:"2v",
+      cols:["Päivämäärä","klo","Paikka","Järjestäjä","Toimintatapa","Tyyppi","Kaliiperi","Laukaukset","Lisätietoja"],type:t=>t,mode:m=>m},
+  en:{title:"Shooting diary",name:"Name:",sra:"SRA licence:",ipsc:"IPSC licence:",hunter:"Hunter number:",days:"Shooting days:",
+      types:"Firearm types:",total:"Total shots:",page:"Page",y2:" – 2 years",file:"shooting-diary",all:"all",y2slug:"2y",
+      cols:["Date","Time","Place","Organiser","Firing mode","Type","Calibre","Shots","Notes"],type:tEn,mode:mEn}};
+const XPREF="ampumapk-export";
+const X=Object.assign({fmt:"pdf",lang:"fi"},lsGet(XPREF)||{});
+function xRender(){
+  $("xForm").querySelectorAll("[data-xfmt]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.xfmt===X.fmt));
+  $("xForm").querySelectorAll("[data-xlang]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.xlang===X.lang));
+  $("pdfGo").textContent=X.fmt==="pdf"?"Create PDF":"Create CSV";
+  $("xLangHint").textContent=X.lang==="fi"?"Finnish: the format of the shooting-activity record for a licence application.":"English: labels, firearm types and firing modes translated.";
+}
+$("xForm").addEventListener("click",e=>{const b=e.target.closest("[data-xfmt],[data-xlang]");if(!b)return;
+  if(b.dataset.xfmt)X.fmt=b.dataset.xfmt;else X.lang=b.dataset.xlang;lsSet(XPREF,{fmt:X.fmt,lang:X.lang});xRender()});
+function exportCsv(R,L){
   const q=v=>{v=String(v??"");return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
-  const p=S.profile||{};
-  const tc=typeCounts(S.sessions),tot=S.sessions.reduce((a,s)=>a+sRounds(s),0);
-  const rows=[["Nimi:","SRA Lisenssi:","IPSC Lisenssi:","Metsästäjänumero:","Harrastuskerrat:","Yhteenlasketut laukaukset:"],
-    [p.name,p.sra,p.ipsc,p.hunterNo,new Set(S.sessions.map(s=>s.date)).size,tot],
-    ["Asetyypit:"].concat(TYPES.filter(t=>tc[t]).map(t=>t+": "+tc[t])),[],
-    ["Päivämäärä","klo","Paikka","Järjestäjä","Toimintatapa","Tyyppi","Kaliiperi","Laukaukset","Lisätietoja"]];
-  sortSessions(S.sessions.slice()).reverse().forEach(s=>{const ls=exportLines(s);(ls.length?ls:[{}]).forEach(l=>rows.push([fiDate(s.date),s.klo,s.place,s.org,l.mode,l.type,l.cal,l.rounds||"",l.info]))});
-  const csv="﻿"+rows.map(r=>r.map(q).join(";")).join("\r\n");
-  saveFile("ampumapaivakirja-"+todayStr()+".csv",csv,"text/csv;charset=utf-8");
-});
+  const p=S.profile||{},list=sortSessions(S.sessions.filter(R.filter)).reverse();     // oldest first
+  const tc=typeCounts(list),tot=list.reduce((a,s)=>a+sRounds(s),0);
+  const rows=[[L.name,L.sra,L.ipsc,L.hunter,L.days,L.total],
+    [p.name,p.sra,p.ipsc,p.hunterNo,new Set(list.map(s=>s.date)).size,tot],
+    [L.types].concat(TYPES.filter(t=>tc[t]).map(t=>L.type(t)+": "+tc[t])),[],L.cols];
+  list.forEach(s=>{const ls=exportLines(s);(ls.length?ls:[{}]).forEach(l=>rows.push([fiDate(s.date),s.klo,s.place,s.org,L.mode(l.mode),L.type(l.type),l.cal,l.rounds||"",l.info]))});
+  const csv="\ufeff"+rows.map(r=>r.map(q).join(";")).join("\r\n");
+  saveFile(L.file+"-"+R.slug+".csv",csv,"text/csv;charset=utf-8");
+}
 
 /* ---------- PDF export (layout follows the Excel printout) ---------- */
 function loadScript(src){return new Promise((ok,no)=>{if(document.querySelector('script[src="'+src+'"]'))return ok();const s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=()=>no(new Error("load"));document.head.appendChild(s)})}
 function minus2y(s){const[y,m,d]=s.split("-").map(Number);const t=new Date(y-2,m-1,d);t.setDate(t.getDate()+1);return t.getFullYear()+"-"+pad(t.getMonth()+1)+"-"+pad(t.getDate())}
-function getRange(){
+function getRange(L){
+  L=L||XL[X.lang];
   const v=document.querySelector('input[name="xr"]:checked').value;
   if(v==="2y"){const end=$("xEnd").value||todayStr(),start=minus2y(end);
-    return{filter:s=>s.date>=start&&s.date<=end,title:" – 2 vuotta",span:fiDate(start)+" – "+fiDate(end),slug:"2v-"+end}}
+    return{filter:s=>s.date>=start&&s.date<=end,title:L.y2,span:fiDate(start)+" – "+fiDate(end),slug:L.y2slug+"-"+end}}
   if(v==="year"){const y=$("xYear").value;return{filter:s=>s.date.startsWith(y),title:" "+y,slug:y}}
-  return{filter:()=>true,title:"",slug:"kaikki"}
+  return{filter:()=>true,title:"",slug:L.all}
 }
 function updHint(){
   const r=getRange(),list=S.sessions.filter(r.filter);
@@ -762,48 +786,50 @@ $("pdfBtn").addEventListener("click",()=>{
   const ys=[...new Set(S.sessions.map(s=>s.date.slice(0,4)))].sort().reverse();
   const cur=$("xYear").value||(S.year&&S.year!=="all"?S.year:ys[0]);
   $("xYear").innerHTML=ys.map(y=>`<option ${y===cur?"selected":""}>${y}</option>`).join("");
-  updHint();$("xSheet").hidden=false;document.body.style.overflow="hidden";
+  xRender();updHint();$("xSheet").hidden=false;document.body.style.overflow="hidden";
 });
 $("xClose").addEventListener("click",closeSheets);
 $("xForm").addEventListener("input",e=>{if(e.target.id==="xYear")$("xrYear").checked=true;if(e.target.id==="xEnd")$("xr2y").checked=true;updHint()});
 $("xForm").addEventListener("change",updHint);
 $("xForm").addEventListener("submit",async e=>{e.preventDefault();
+  const L=XL[X.lang];
+  if(X.fmt==="csv"){exportCsv(getRange(L),L);closeSheets();return}
   const btn=$("pdfGo"),label=btn.textContent;btn.disabled=true;btn.textContent="Creating PDF…";
   try{
     await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
     await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js");
-    const R=getRange();
+    const R=getRange(L);
     const list=sortSessions(S.sessions.filter(R.filter));   // newest first
     const p=S.profile||{};
     const tc=typeCounts(list),tot=list.reduce((a,s)=>a+sRounds(s),0);
     const days=new Set(list.map(s=>s.date)).size;
     const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"pt",format:"a4"});
     const W=doc.internal.pageSize.getWidth(),M=36;
-    doc.setFont("helvetica","bold");doc.setFontSize(14);doc.text("Ampumapäiväkirja"+R.title,M,M+4);
+    doc.setFont("helvetica","bold");doc.setFontSize(14);doc.text(L.title+R.title,M,M+4);
     doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(90);
     const span=R.span?R.span:list.length?fiDate(list[list.length-1].date)+" – "+fiDate(list[0].date):"";
     doc.text(span,W-M,M+4,{align:"right"});doc.setTextColor(0);
     const y0=M+24,cols=[M,M+110,M+190,M+270,M+355,M+450];
     const lab=(t,x,y)=>{doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.text(t,x,y)};
     const val=(t,x,y)=>{doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text(String(t||""),x,y)};
-    lab("Nimi:",cols[0],y0);val(p.name,cols[0],y0+12);
-    lab("SRA Lisenssi:",cols[1],y0);val(p.sra,cols[1],y0+12);
-    lab("Metsästäjänumero:",cols[1],y0+28);val(p.hunterNo,cols[1],y0+40);
-    lab("IPSC Lisenssi:",cols[2],y0);val(p.ipsc,cols[2],y0+12);
-    lab("Harrastuskerrat:",cols[3],y0);val(days,cols[3],y0+12);
-    lab("Asetyypit:",cols[4],y0);
-    TYPES.filter(t=>tc[t]).forEach((t,i)=>val(t+": "+tc[t],cols[4],y0+12+i*11));
-    lab("Yhteenlasketut laukaukset:",cols[5],y0);val(tot,cols[5],y0+12);
+    lab(L.name,cols[0],y0);val(p.name,cols[0],y0+12);
+    lab(L.sra,cols[1],y0);val(p.sra,cols[1],y0+12);
+    lab(L.hunter,cols[1],y0+28);val(p.hunterNo,cols[1],y0+40);
+    lab(L.ipsc,cols[2],y0);val(p.ipsc,cols[2],y0+12);
+    lab(L.days,cols[3],y0);val(days,cols[3],y0+12);
+    lab(L.types,cols[4],y0);
+    TYPES.filter(t=>tc[t]).forEach((t,i)=>val(L.type(t)+": "+tc[t],cols[4],y0+12+i*11));
+    lab(L.total,cols[5],y0);val(tot,cols[5],y0+12);
     const startY=y0+Math.max(48,18+Object.keys(tc).length*11);
-    const body=[];list.forEach(s=>{const ls=exportLines(s);(ls.length?ls:[{}]).forEach(l=>body.push([fiDate(s.date),s.klo||"",s.place||"",s.org||"",l.mode||"",l.type||"",l.cal||"",l.rounds?String(l.rounds):"",l.info||""]))});
+    const body=[];list.forEach(s=>{const ls=exportLines(s);(ls.length?ls:[{}]).forEach(l=>body.push([fiDate(s.date),s.klo||"",s.place||"",s.org||"",L.mode(l.mode||""),L.type(l.type||""),l.cal||"",l.rounds?String(l.rounds):"",l.info||""]))});
     doc.autoTable({startY,margin:{left:M,right:M,bottom:40},theme:"grid",rowPageBreak:"avoid",
-      head:[["Päivämäärä","klo","Paikka","Järjestäjä","Toimintatapa","Tyyppi","Kaliiperi","Laukaukset","Lisätietoja"]],body,
+      head:[L.cols],body,
       styles:{font:"helvetica",fontSize:6.5,cellPadding:2,lineColor:[180,180,180],lineWidth:.4,textColor:20,overflow:"linebreak"},
       headStyles:{fillColor:[225,228,222],textColor:20,fontStyle:"bold"},
       columnStyles:{0:{cellWidth:44},1:{cellWidth:46},7:{halign:"right",cellWidth:40}},
-      didDrawPage:d=>{doc.setFontSize(7);doc.setTextColor(120);doc.text((p.name?p.name+" · ":"")+"Ampumapäiväkirja",M,doc.internal.pageSize.getHeight()-20);doc.text("Sivu "+d.pageNumber,W-M,doc.internal.pageSize.getHeight()-20,{align:"right"});doc.setTextColor(0)}});
+      didDrawPage:d=>{doc.setFontSize(7);doc.setTextColor(120);doc.text((p.name?p.name+" · ":"")+L.title,M,doc.internal.pageSize.getHeight()-20);doc.text(L.page+" "+d.pageNumber,W-M,doc.internal.pageSize.getHeight()-20,{align:"right"});doc.setTextColor(0)}});
     closeSheets();
-    saveFile("ampumapaivakirja-"+R.slug+".pdf",doc.output("arraybuffer"),"application/pdf");
+    saveFile(L.file+"-"+R.slug+".pdf",doc.output("arraybuffer"),"application/pdf");
   }catch(e){toast(e&&e.message==="load"?"Could not load the PDF library, check the connection":"PDF export failed")}
   finally{btn.disabled=false;btn.textContent=label}
 });
