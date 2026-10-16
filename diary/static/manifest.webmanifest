@@ -1,17 +1,57 @@
 {
   "id": "/diary/",
-  "name": "Ampumapäiväkirja",
-  "short_name": "Ampumapäiväkirja",
-  "description": "Ampumaharrastuksen päiväkirja: käynnit, laukaukset aseittain ja PDF-vienti.",
-  "lang": "fi",
+  "name": "Shooting Diary",
+  "short_name": "Shooting Diary",
+  "description": "Shooting diary: range visits, shots per gun, muzzle velocities and PDF export.",
+  "lang": "en",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#eef0ec",
   "theme_color": "#eef0ec",
   "icons": [
-    {"src": "static/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
-    {"src": "static/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
-    {"src": "static/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
-  ]
+    {
+      "src": "static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "static/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "share_target": {
+    "action": "chrono/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "files": [
+        {
+          "name": "files",
+          "accept": [
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "text/csv",
+            "text/comma-separated-values",
+            "text/plain",
+            "application/octet-stream",
+            ".xls",
+            ".xlsx",
+            ".csv"
+          ]
+        }
+      ]
+    }
+  }
 }

@@ -10,6 +10,11 @@
   python -m diary assign-gun GUN_ID --cal ".223 Rem" [--type Kivääri] [--from 2024-04-17] [--to 2026-07-10]
                                           tie existing rows without a gun to GUN_ID (dates inclusive);
                                           --dry-run shows what would change, --list-guns shows ids
+  python -m diary chrono-alias [NAME GUN_ID]   map a folder/file name (e.g. "KP-15") to a diary gun; no args lists
+  python -m diary chrono-import PATH... [--gun ID] [--dry-run] [--keep-swaps] [--fix-dates]
+                                          import ShotView exports, velocity workbooks and Kestrel CSVs
+                                          (files or folders, searched recursively)
+  python -m diary chrono-stats [--gun ID] [--load ID]   per-day velocity table
 """
 import argparse
 import glob
@@ -25,18 +30,19 @@ from getpass import getpass
 from werkzeug.security import generate_password_hash
 
 from . import DATA_DIR, DB_PATH, connect, init_db, kv_get, kv_set, upsert_gun, upsert_session
+from . import chrono
 
 
 def set_password():
-    pw = getpass("Uusi salasana: ")
+    pw = getpass("New password: ")
     if len(pw) < 10:
-        sys.exit("Käytä vähintään 10 merkkiä.")
-    if pw != getpass("Uudestaan: "):
-        sys.exit("Salasanat eivät täsmää.")
+        sys.exit("Use at least 10 characters.")
+    if pw != getpass("Again: "):
+        sys.exit("The passwords do not match.")
     conn = connect()
     kv_set("password_hash", generate_password_hash(pw), conn)
     conn.close()
-    print("Salasana asetettu. Kaikki vanhat kirjautumiset on kirjattu ulos.")
+    print("Password set. Every existing login has been logged out.")
 
 
 def import_json(path, replace):
@@ -58,9 +64,11 @@ def import_json(path, replace):
         g += 1
     if data.get("profile"):
         kv_set("profile", json.dumps(data["profile"], ensure_ascii=False), conn)
+    c = chrono.import_rows(conn, data, replace)
     conn.commit()
     conn.close()
-    print(f"Tuotu {n} käyntiä ja {g} asetta → {DATA_DIR}")
+    extra = f", {c['chrono_strings']} strings / {c['chrono_shots']} velocities" if c["chrono_shots"] else ""
+    print(f"Imported {n} visits and {g} guns{extra} → {DATA_DIR}")
 
 
 def export_json(path):
@@ -70,11 +78,12 @@ def export_json(path):
     guns = [dict(json.loads(r["data"]), id=r["id"])
             for r in conn.execute("SELECT id, data FROM guns ORDER BY id")]
     profile = json.loads(kv_get("profile", conn) or "{}")
+    velocity = chrono.export_rows(conn)
     conn.close()
     with open(path, "w", encoding="utf-8") as f:
-        json.dump({"profile": profile, "guns": guns, "sessions": sessions}, f,
+        json.dump({"profile": profile, "guns": guns, "sessions": sessions, **velocity}, f,
                   ensure_ascii=False, indent=1)
-    print(f"Viety {len(sessions)} käyntiä → {path}")
+    print(f"Exported {len(sessions)} visits → {path}")
 
 
 def backup(directory, keep):
@@ -93,7 +102,7 @@ def backup(directory, keep):
         old = sorted(glob.glob(os.path.join(directory, "diary-*" + ext)))[:-keep]
         for path in old:
             os.remove(path)
-    print(f"Varmuuskopio: {base}.json + .db (säilytetään {keep} uusinta)")
+    print(f"Backup: {base}.json + .db (keeping the newest {keep})")
     return base + ".json"
 
 
@@ -119,20 +128,21 @@ def mail_backup(json_path):
     name = os.path.basename(json_path)
 
     msg = EmailMessage()
-    msg["Subject"] = f"Ampumapäiväkirja varmuuskopio {time.strftime('%Y-%m-%d')}"
+    msg["Subject"] = f"Shooting diary backup {time.strftime('%Y-%m-%d')}"
     msg["From"] = user
     msg["To"] = to
     msg.set_content(
-        f"Viikoittainen varmuuskopio ampumapäiväkirjasta.\n\n"
-        f"Käyntejä: {len(sessions)}\nHarrastuskertoja: {days}\nLaukauksia: {rounds}\n"
-        f"Aseita: {len(data.get('guns', []))}\nViimeisin käynti: {last}\n\n"
-        f"Palautus palvelimella:\n  ./venv/bin/python -m diary import {name} --replace\n")
+        f"Weekly backup of the shooting diary.\n\n"
+        f"Visits: {len(sessions)}\nShooting days: {days}\nShots: {rounds}\n"
+        f"Guns: {len(data.get('guns', []))}\nLast visit: {last}\n"
+        f"Velocity strings: {len(data.get('chrono_strings', []))}, shots {len(data.get('chrono_shots', []))}\n\n"
+        f"Restore on the server:\n  ./venv/bin/python -m diary import {name} --replace\n")
     msg.add_attachment(payload, maintype="application", subtype="json", filename=name)
 
     if not password.isascii() or ("gmail" in host and len(password) != 16):
-        sys.exit(f"DIARY_SMTP_PASSWORD näyttää väärältä: {len(password)} merkkiä"
-                 f"{'' if password.isascii() else ', sisältää erikoismerkkejä'}. "
-                 "Gmailin sovellussalasana on 16 kirjainta – kirjoita se .env-tiedostoon käsin.")
+        sys.exit(f"DIARY_SMTP_PASSWORD looks wrong: {len(password)} characters"
+                 f"{'' if password.isascii() else ', contains special characters'}. "
+                 "A Gmail app password is 16 letters – type it into .env by hand.")
     try:
         with smtplib.SMTP(host, port, timeout=30) as smtp:
             if os.getenv("DIARY_SMTP_STARTTLS", "1") != "0":
@@ -140,11 +150,11 @@ def mail_backup(json_path):
             smtp.login(user, password)
             smtp.send_message(msg)
     except smtplib.SMTPAuthenticationError as e:
-        sys.exit(f"Kirjautuminen hylättiin ({e.smtp_code}). Tarkista, että DIARY_SMTP_USER on sama "
-                 "Google-tili, jolle sovellussalasana tehtiin, ja että salasana on oikein.")
+        sys.exit(f"Login rejected ({e.smtp_code}). Check that DIARY_SMTP_USER is the same "
+                 "Google account the app password was made for, and that the password is right.")
     except (smtplib.SMTPException, OSError) as e:
-        sys.exit(f"Sähköpostin lähetys epäonnistui: {type(e).__name__}: {e}")
-    print(f"Lähetetty: {name} → {to}")
+        sys.exit(f"Sending the e-mail failed: {type(e).__name__}: {e}")
+    print(f"Sent: {name} → {to}")
 
 
 def _norm(v):
@@ -163,7 +173,7 @@ def assign_gun(gun_id, cal, typ, date_from, date_to, dry_run):
     conn = connect()
     row = conn.execute("SELECT data FROM guns WHERE id=?", (gun_id,)).fetchone()
     if not row:
-        sys.exit(f"Asetta {gun_id!r} ei löydy. Katso tunnukset: python -m diary assign-gun --list-guns")
+        sys.exit(f"No gun {gun_id!r}. See the ids: python -m diary assign-gun --list-guns")
     gun = json.loads(row["data"])
     lines = visits = rounds = skipped = 0
     first = last = None
@@ -191,8 +201,118 @@ def assign_gun(gun_id, cal, typ, date_from, date_to, dry_run):
         conn.commit()
     conn.close()
     span = f", {first} – {last}" if first else ""
-    print(f"{'[KOE] ' if dry_run else ''}{gun.get('name', gun_id)}: {lines} riviä / {visits} käyntiä / "
-          f"{rounds} laukausta{span}" + (f" (ohitettu {skipped} riviä, joilla on jo ase)" if skipped else ""))
+    print(f"{'[DRY RUN] ' if dry_run else ''}{gun.get('name', gun_id)}: {lines} rows / {visits} visits / "
+          f"{rounds} shots{span}" + (f" (skipped {skipped} rows that already have a gun)" if skipped else ""))
+
+
+# ------------------------------------------------------------------ velocity data
+VEL_EXT = (".xls", ".xlsx", ".csv", "")
+MAX_FILE = 5 * 1024 * 1024
+
+
+def _collect(paths):
+    """Files under the given paths; relpath keeps the folder names (powder / rifle) for hints."""
+    out = []
+    for p in paths:
+        p = os.path.abspath(p)
+        if os.path.isfile(p):
+            out.append((p, os.path.basename(os.path.dirname(p)) + "/" + os.path.basename(p)))
+            continue
+        base = os.path.dirname(p)
+        for root, _dirs, files in os.walk(p):
+            for name in sorted(files):
+                full = os.path.join(root, name)
+                ext = os.path.splitext(name)[1].lower()
+                if ext in VEL_EXT and os.path.getsize(full) <= MAX_FILE and not name.startswith("~$"):
+                    out.append((full, os.path.relpath(full, base)))
+    return out
+
+
+def chrono_alias(name, gun_id):
+    conn = connect()
+    al = chrono.aliases(conn)
+    if name:
+        if gun_id not in chrono.guns(conn):
+            sys.exit(f"No gun {gun_id!r}. See the ids: python -m diary assign-gun --list-guns")
+        al[name] = gun_id
+        kv_set(chrono.ALIAS_KEY, json.dumps(al, ensure_ascii=False), conn)
+    names = {gid: g.get("name", "") for gid, g in chrono.guns(conn).items()}
+    for a, gid in sorted(al.items()):
+        print(f"{a:<28} → {gid} ({names.get(gid, '?')})")
+    if not al:
+        print("No aliases. E.g.: python -m diary chrono-alias \"KP-15\" g-wwsd")
+    conn.close()
+
+
+def _fmt(v, nd=1):
+    return "–" if v is None else f"{v:.{nd}f}"
+
+
+def chrono_import(paths, gun, dry_run, keep_swaps, fix_dates):
+    from .chrono_import import fingerprint, parse_many, swap_rh_hpa
+    conn = connect()
+    files = _collect(paths)
+    items = []
+    for full, rel in files:
+        with open(full, "rb") as f:
+            items.append((os.path.basename(full), f.read(), rel))
+    parsed = chrono.preview(conn, parse_many(items, chrono.known_powders(conn)))
+    unknown = [e for e in parsed["errors"]]
+    lnames = {r["id"]: r["name"] for r in chrono.load_rows(conn)}
+    gnames = {gid: g.get("name", gid) for gid, g in chrono.guns(conn).items()}
+    # Workbooks first: they carry loads and weather; raw exports then only add what is missing.
+    strings = sorted(parsed["strings"], key=lambda s: (s["source"] != "workbook", s["date"] or "", s["started_at"] or ""))
+    batch, shots, seen = [], 0, set()
+    for s in strings:
+        sug = s["suggest"]
+        w = s["warnings"]
+        if not keep_swaps and any(x["code"] == "weather_range" and x.get("swap") for x in w):
+            swap_rh_hpa(s)
+        if fix_dates:
+            for x in w:
+                if x["code"] == "date_outlier" and x.get("suggest"):
+                    s["date"] = x["suggest"]
+        gid = gun or sug["gun_id"]
+        load = sug["load_id"] and lnames.get(sug["load_id"]) or (sug["load"] or {}).get("name") or "–"
+        flags = "".join({"weather_range": " ⇄weather", "date_outlier": " ?year", "date_corrected": " ✓date",
+                         "check_mismatch": " ≠garmin", "no_load": ""}.get(x["code"], "") for x in w)
+        st = s["stats"]
+        fps = {fingerprint(s["date"], x["t"], x["v_ms"]) for x in s["shots"]} - {None}
+        in_batch = bool(fps & seen)
+        seen |= fps
+        done = " (already imported)" if s["already_imported"] or s["existing_shots"] else (" (same as above)" if in_batch else "")
+        print(f"{s['date']} {s['started_at'] or '     '}  {gnames.get(gid, gid or '?'):<20.20} {load:<52.52} "
+              f"n={st['n']:<3} {_fmt(st['avg'])} SD {_fmt(st['sd'], 2)}{flags}{done}")
+        if not (s["already_imported"] or s["existing_shots"] or in_batch):
+            shots += st["n"]
+            batch.append(dict(s, gun_id=gid, load_id=sug["load_id"], load=sug["load"], visit_id=sug["visit_id"]))
+    for n in parsed["notes"]:
+        if n["code"] not in ("empty",):
+            print("  · " + n["text"])
+    print(f"\n{len(files)} files, {len(strings)} strings, {shots} new shots"
+          f", {parsed['weather_records']} Kestrel rows (weather on {parsed['weather_filled']} shots)"
+          + (f", {len(unknown)} files skipped" if unknown else ""))
+    if dry_run:
+        print("[DRY RUN] nothing saved. Run without --dry-run to save.")
+        conn.close()
+        return
+    res = chrono.commit_strings(conn, batch)
+    conn.commit()
+    conn.close()
+    print(f"Saved {len(res['created'])} strings, {sum(c['shots'] for c in res['created'])} shots; "
+          f"weather added to {res['merged_shots']} existing shots; skipped {len(res['skipped'])}.")
+
+
+def chrono_print_stats(gun, load):
+    conn = connect()
+    lnames = {r["id"]: r["name"] for r in chrono.load_rows(conn)}
+    gnames = {gid: g.get("name", gid) for gid, g in chrono.guns(conn).items()}
+    for d in chrono.days(conn, gun, load):
+        st = d["stats"]
+        print(f"{d['date']}  {gnames.get(d['gun_id'], d['gun_id'] or '–'):<20.20} "
+              f"{lnames.get(d["load_id"], d["load_id"] or "–"):<52.52} n={st['n']:<3} {_fmt(st['avg'])} "
+              f"SD {_fmt(st['sd'], 2)} ES {_fmt(st['es'])}  {_fmt(d['temp_c'])} °C")
+    conn.close()
 
 
 def main():
@@ -216,6 +336,18 @@ def main():
     g.add_argument("--to", dest="date_to", help="YYYY-MM-DD, inclusive")
     g.add_argument("--dry-run", action="store_true")
     g.add_argument("--list-guns", action="store_true")
+    ca = sub.add_parser("chrono-alias")
+    ca.add_argument("name", nargs="?")
+    ca.add_argument("gun_id", nargs="?")
+    ci = sub.add_parser("chrono-import")
+    ci.add_argument("paths", nargs="+")
+    ci.add_argument("--gun", help="gun id for every string (overrides folder/file names)")
+    ci.add_argument("--dry-run", action="store_true")
+    ci.add_argument("--keep-swaps", action="store_true", help="don't swap RH/pressure that look swapped")
+    ci.add_argument("--fix-dates", action="store_true", help="apply suggested year fixes")
+    cs = sub.add_parser("chrono-stats")
+    cs.add_argument("--gun")
+    cs.add_argument("--load")
     a = p.parse_args()
     init_db()
     if a.cmd == "set-password":
@@ -226,9 +358,17 @@ def main():
         if a.list_guns or not a.gun_id:
             list_guns()
         elif not a.cal:
-            sys.exit("Anna --cal, esim. --cal \".223 Rem\"")
+            sys.exit("Give --cal, e.g. --cal \".223 Rem\"")
         else:
             assign_gun(a.gun_id, a.cal, a.typ, a.date_from, a.date_to, a.dry_run)
+    elif a.cmd == "chrono-alias":
+        if a.name and not a.gun_id:
+            sys.exit("Give the gun id too, e.g.: python -m diary chrono-alias \"KP-15\" g-wwsd")
+        chrono_alias(a.name, a.gun_id)
+    elif a.cmd == "chrono-import":
+        chrono_import(a.paths, a.gun, a.dry_run, a.keep_swaps, a.fix_dates)
+    elif a.cmd == "chrono-stats":
+        chrono_print_stats(a.gun, a.load)
     elif a.cmd == "backup":
         json_path = backup(a.directory, max(1, a.keep))
         if a.mail:

@@ -1,0 +1,982 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Muzzle velocity</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#eef0ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141714" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="static/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="static/icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: single-column range log; licence strip + totals up top, entries by month, entry sheet over the log. */
+:root{
+  --bg:#eef0ec; --surface:#ffffff; --surface-2:#e3e6e0; --line:#c9cec4;
+  --fg:#1c211c; --muted:#5b6359; --accent:#e2590f; --accent-ink:#ffffff; --accent-soft:#fbe3d4;
+  --danger:#b3261e;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141714; --surface:#1d211d; --surface-2:#272c27; --line:#363d36;
+  --fg:#e8ebe6; --muted:#9aa398; --accent:#ff7a33; --accent-ink:#1a0d05; --accent-soft:#3a2416;
+  --danger:#ff8a80; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#141714; --surface:#1d211d; --surface-2:#272c27; --line:#363d36;
+  --fg:#e8ebe6; --muted:#9aa398; --accent:#ff7a33; --accent-ink:#1a0d05; --accent-soft:#3a2416;
+  --danger:#ff8a80; color-scheme:dark }
+
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg)}
+[hidden]{display:none!important}
+body{font-family:var(--f-body);font-size:16px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:env(safe-area-inset-top,0px) calc(120px + env(safe-area-inset-bottom,0px))}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+header.top{padding-top:20px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--f-display);font-weight:700;font-size:min(2.4rem,7.6vw);line-height:1;margin:0;letter-spacing:.01em;text-transform:uppercase}
+h1 span{color:var(--accent)}
+.hbtns{display:flex;gap:8px;flex-wrap:wrap}
+.ghost{background:none;border:1px solid var(--line);border-radius:999px;padding:8px 14px;font-size:.85rem;color:var(--fg)}
+.ghost:hover{border-color:var(--fg)}
+.banner{background:var(--accent-soft);border-radius:var(--r);padding:10px 14px;font-size:.9rem}
+
+/* Licence strip */
+.ids{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px 16px;padding:12px 0;border-top:2px solid var(--fg)}
+.ids div{min-width:0}
+.ids small,.lbl{display:block;color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+.ids b{font-weight:600;overflow-wrap:anywhere}
+.ids .num{font-weight:600}
+
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.stat{padding:12px 4px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.stat+.stat{border-left:1px solid var(--line);padding-left:12px}
+.stat b{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:1.7rem;font-weight:600;line-height:1.1}
+.stat small{color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em}
+.types{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.9rem;padding-top:10px}
+.types span{color:var(--muted)}
+.types b{font-family:var(--f-mono);font-weight:600;color:var(--fg)}
+
+h2{font-family:var(--f-display);font-weight:700;font-size:1.35rem;text-transform:uppercase;letter-spacing:.04em;margin:0}
+.loghead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.yrs{display:flex;gap:6px;flex-wrap:wrap}
+.search{position:relative;margin-bottom:12px}
+.search input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:11px 40px 11px 16px;font-size:1rem;color:var(--fg)}
+.search input::-webkit-search-cancel-button{-webkit-appearance:none;display:none}
+.search button{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:32px;height:32px;border:0;border-radius:50%;background:var(--surface-2);color:var(--muted);font-size:1rem;line-height:1}
+.found{font-size:.85rem;color:var(--muted);margin:-4px 0 12px}
+.found b{color:var(--fg);font-family:var(--f-mono)}
+.yr{background:none;border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:.82rem;font-family:var(--f-mono)}
+.yr[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.month{font-family:var(--f-display);font-weight:600;font-size:1rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px;display:flex;justify-content:space-between}
+.month:first-child{margin-top:0}
+
+.entry{display:grid;grid-template-columns:84px minmax(0,1fr);gap:12px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:8px}
+.entry:hover{border-color:var(--muted)}
+.day{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-right:1px solid var(--line);padding-right:10px}
+.day b{font-family:var(--f-mono);font-size:.92rem;font-weight:600;line-height:1.1;white-space:nowrap;font-variant-numeric:tabular-nums}
+.day small{font-size:.72rem;color:var(--muted)}
+.e-head{display:flex;gap:4px 10px;align-items:baseline;flex-wrap:wrap}
+.e-place{font-weight:600}
+.e-meta{color:var(--muted);font-size:.85rem}
+.e-lines{display:flex;flex-direction:column;gap:2px;margin-top:6px;font-size:.88rem}
+.e-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}
+.e-line .what{min-width:0;overflow-wrap:anywhere}
+.e-line .what span{color:var(--muted)}
+.e-line .num{font-weight:600}
+.tm{display:inline-block;font-family:var(--f-mono);font-size:.72rem;border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-right:4px;color:var(--muted)}
+
+.empty{border:1.5px dashed var(--line);border-radius:var(--r);padding:24px;text-align:center;color:var(--muted)}
+
+.fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));
+  background:var(--accent);color:var(--accent-ink);border:0;border-radius:999px;padding:16px 28px;
+  font-family:var(--f-display);font-weight:700;font-size:1.25rem;letter-spacing:.06em;text-transform:uppercase;
+  box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:5;white-space:nowrap}
+
+/* Sheets */
+.sheet{position:fixed;inset:0;z-index:10;background:var(--bg);overflow-y:auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+.sheet-in{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.sheet-bar{display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--bg);padding-block:12px;z-index:1;border-bottom:1px solid var(--line)}
+label.f{display:flex;flex-direction:column;gap:6px;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;min-width:0}
+.field{display:flex;flex-direction:column;gap:6px}
+input[type=text],input[type=date],input[type=time],input[type=number],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:11px;font-size:1rem;color:var(--fg);font-weight:400;text-transform:none;letter-spacing:0;min-width:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px 13px;font-size:.9rem}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.chip.add{border-style:dashed}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.grid3{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr);gap:12px}
+
+.line{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:10px;box-shadow:inset 4px 0 0 var(--accent)}
+.line-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.line-top .lbl{font-size:.75rem}
+.rm{background:none;border:0;color:var(--muted);font-size:.85rem;padding:4px 6px}
+.lgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.step{display:flex;align-items:center;gap:4px}
+.step button{width:44px;height:44px;flex:0 0 44px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);font-size:1.3rem;line-height:1}
+.step input{text-align:center;font-family:var(--f-mono);font-weight:600}
+.total{font-family:var(--f-mono);font-size:.9rem;color:var(--muted);text-align:right}
+
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.primary{background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:14px 22px;font-weight:600;font-size:1rem;flex:1 1 auto}
+.danger{background:none;border:1px solid var(--danger);color:var(--danger);border-radius:8px;padding:13px 16px}
+.msg{font-size:.88rem;color:var(--danger)}
+.opt{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.opt>label.r{display:flex;gap:10px;align-items:center;font-weight:600;cursor:pointer}
+.opt input[type=radio]{width:20px;height:20px;accent-color:var(--accent)}
+.opt .sub{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding-left:30px}
+.hint{font-size:.85rem;color:var(--muted)}
+.hint b{color:var(--fg);font-family:var(--f-mono)}
+/* Guns */
+.guns{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.gunrow{display:grid;grid-template-columns:36px minmax(0,1fr);align-items:stretch;border-top:1px solid var(--line);background:var(--surface)}
+.gunrow:first-child{border-top:0;border-radius:var(--r) var(--r) 0 0}
+.gunrow:last-child{border-radius:0 0 var(--r) var(--r)}
+.grip{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:1.1rem;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.gunrow.dragging{position:relative;z-index:2;box-shadow:0 6px 18px rgba(0,0,0,.18);background:var(--surface-2)}
+.gunrow.dragging .grip{cursor:grabbing;color:var(--accent)}
+.gun{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center;width:100%;text-align:left;background:none;border:0;padding:12px 14px 12px 0}
+.gun:hover{background:var(--surface-2)}
+.gun b{font-weight:600}
+.gun .g-sub{color:var(--muted);font-size:.82rem;grid-column:1}
+.gun .g-r{grid-row:1/3;grid-column:2;text-align:right}
+.gun .g-r .num{font-size:1.3rem;font-weight:600;display:block;line-height:1.1}
+.gun .g-r small{color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.06em}
+.gun.archived{opacity:.55}
+.sechead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.toggle{display:flex;align-items:baseline;gap:10px;background:none;border:0;padding:4px 0;color:var(--fg);text-align:left}
+.toggle .cnt{font-size:.85rem;color:var(--muted)}
+.toggle .chev{display:inline-block;color:var(--muted);transition:transform .15s}
+.toggle[aria-expanded="true"] .chev{transform:rotate(90deg)}
+.check{display:flex;gap:10px;align-items:center;font-size:.95rem;cursor:pointer}
+.check input{width:20px;height:20px;accent-color:var(--accent)}
+.e-line .gname{color:var(--fg);font-weight:500}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(90px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:20}
+
+@media (max-width:560px){ .ids{grid-template-columns:repeat(2,minmax(0,1fr))} .grid3{grid-template-columns:1fr 1fr} .grid3>:first-child{grid-column:1/-1} }
+@media (max-width:420px){ .stat b{font-size:1.35rem} .lgrid{grid-template-columns:1fr} }
+@media (prefers-reduced-motion:no-preference){ .toast{animation:up .2s ease-out} @keyframes up{from{opacity:0;transform:translate(-50%,8px)}} }
+/* ---- velocity page additions ---- */
+.filters{display:flex;flex-direction:column;gap:10px}
+.filters select{max-width:100%}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.kpis .stat b{font-size:1.45rem}
+.kpis .stat small b{font-size:inherit;font-family:inherit;font-weight:600}
+.chart{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 12px 6px;position:relative}
+.chart h3{font-family:var(--f-body);font-size:.85rem;font-weight:600;margin:0 0 2px}
+.chart .sub{font-size:.78rem;color:var(--muted);margin:0 0 6px}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart .ax{font-family:var(--f-mono);font-size:11px;fill:var(--muted)}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .mk{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.chart .mk.hollow{fill:var(--surface);stroke:var(--muted);stroke-width:1.5}
+.chart .wh{stroke:var(--accent);stroke-width:2;stroke-linecap:round;opacity:.55}
+.chart .ln{fill:none;stroke:var(--accent);stroke-width:2;opacity:.35}
+.chart .avgline{stroke:var(--fg);stroke-width:1;stroke-dasharray:3 3;opacity:.6}
+.chart .lab{font-family:var(--f-mono);font-size:10.5px;fill:var(--fg)}
+.chart .hit{fill:transparent;cursor:pointer}
+.chart details{margin-top:4px;font-size:.82rem}
+.chart summary{color:var(--muted);cursor:pointer;padding:4px 0}
+.tbl{width:100%;border-collapse:collapse;font-size:.82rem;font-variant-numeric:tabular-nums}
+.tbl th,.tbl td{text-align:right;padding:4px 6px;border-top:1px solid var(--line)}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl th{color:var(--muted);font-weight:600}
+#tip{position:fixed;z-index:30;pointer-events:none;background:var(--fg);color:var(--bg);font-size:.8rem;line-height:1.35;
+  padding:7px 10px;border-radius:8px;max-width:260px;font-family:var(--f-body)}
+#tip b{font-family:var(--f-mono)}
+.dcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);margin-bottom:8px;overflow:hidden}
+.dcard .dh{display:flex;justify-content:space-between;gap:10px;padding:10px 12px 4px;font-family:var(--f-mono);font-weight:600;font-size:.92rem}
+.dcard .dh small{font-family:var(--f-body);color:var(--muted);font-weight:400}
+.drow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:9px 12px}
+.drow:first-of-type{border-top:0}
+.drow:hover{background:var(--surface-2)}
+.drow .nm{min-width:0;overflow-wrap:anywhere;font-size:.9rem}
+.drow .nm span{color:var(--muted)}
+.drow .fig{font-family:var(--f-mono);font-size:.88rem;text-align:right;white-space:nowrap}
+.drow .fig b{font-weight:600}
+.drow .meta{grid-column:1/-1;color:var(--muted);font-size:.78rem;font-family:var(--f-mono)}
+.pos{color:var(--accent)}
+.badge{display:inline-block;font-size:.7rem;font-weight:600;border-radius:4px;padding:1px 6px;border:1px solid var(--line);color:var(--muted);margin-right:4px;font-family:var(--f-body)}
+.badge.ok{border-color:var(--muted)}
+.badge.warn{border-color:var(--danger);color:var(--danger)}
+.pcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:10px}
+.pcard.off{opacity:.55}
+.pcard .ph{display:flex;gap:10px;align-items:flex-start}
+.pcard .ph input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent);flex:0 0 auto;margin-top:2px}
+.pcard .pt{min-width:0;flex:1}
+.pcard .pt b{font-family:var(--f-mono)}
+.pcard .pt .src{color:var(--muted);font-size:.78rem;overflow-wrap:anywhere}
+.pcard .fig{font-family:var(--f-mono);font-size:.88rem}
+.warns{display:flex;flex-direction:column;gap:4px;font-size:.84rem}
+.warns div{color:var(--danger)}
+.warns div.info{color:var(--muted)}
+.shots{display:flex;flex-wrap:wrap;gap:6px}
+.shot{font-family:var(--f-mono);font-size:.82rem;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+.shot small{color:var(--muted);margin-right:4px}
+.shot[aria-pressed="true"]{text-decoration:line-through;opacity:.5;border-style:dashed}
+.drop{border:1.5px dashed var(--line);border-radius:var(--r);padding:18px;display:flex;flex-direction:column;gap:10px;align-items:stretch;text-align:center}
+.drop .ghost{align-self:center}
+.sumline{font-size:.88rem;color:var(--muted)}
+.sumline b{color:var(--fg);font-family:var(--f-mono)}
+.lrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;margin-bottom:6px}
+.lrow .meta{grid-column:1/-1;color:var(--muted);font-size:.8rem}
+.wbox{display:flex;flex-direction:column;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.namebox{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;box-shadow:inset 4px 0 0 var(--accent)}
+.namebox small{display:block;color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+.namebox b{font-family:var(--f-mono);font-weight:600;font-size:1rem;overflow-wrap:anywhere}
+.egroup{display:flex;flex-direction:column;gap:10px}
+.egroup .lbl{margin-top:2px}
+.lsec{font-family:var(--f-display);font-weight:600;font-size:1rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px}
+.lrow b{font-family:var(--f-mono);font-weight:600;font-size:.9rem;overflow-wrap:anywhere}
+.lrow .fig{text-align:right}
+.lrow .fig small{display:block;color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.06em}
+.lrow.archived{opacity:.55}
+.pg{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;border-top:1px solid var(--line);padding:8px 0;font-size:.88rem}
+.pg .fig{font-family:var(--f-mono);text-align:right}
+.pg .meta{grid-column:1/-1;color:var(--muted);font-size:.78rem;font-family:var(--f-mono)}
+@media (max-width:560px){ .kpis{grid-template-columns:repeat(2,minmax(0,1fr))} .kpis .stat:nth-child(3){border-left:0;padding-left:4px} .kpis .stat:nth-child(n+3){border-top:1px solid var(--line)} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Muzzle <span>velocity</span></h1>
+    <div class="hbtns">
+      <a class="ghost" href="./" style="text-decoration:none">← Diary</a>
+      <button class="ghost" id="loadsBtn" type="button">Loads</button>
+      <form method="post" action="logout" style="display:contents"><button class="ghost" type="submit">Log out</button></form>
+    </div>
+  </header>
+
+  <div class="banner" id="offNote" hidden></div>
+
+  <section class="filters" aria-label="Filter">
+    <div class="chips" id="gunChips"></div>
+    <label class="f">Load<select id="loadSel"></select></label>
+  </section>
+
+  <section id="loadView" hidden>
+    <div class="kpis" id="kpis"></div>
+    <p class="sumline" id="kpiNote"></p>
+    <div class="chart" id="trendBox"></div>
+    <div class="chart" id="sdBox" style="margin-top:12px"></div>
+    <div class="chart" id="tempBox" style="margin-top:12px"></div>
+  </section>
+
+  <section id="ladderView" hidden>
+    <div class="sechead"><h2>Charge ladders</h2></div>
+    <div id="ladders" style="display:flex;flex-direction:column;gap:12px"></div>
+  </section>
+
+  <section>
+    <div class="loghead"><h2>Strings</h2><span class="sumline" id="dayCount"></span></div>
+    <div id="days"><div class="empty">Loading…</div></div>
+  </section>
+</div>
+
+<button class="fab" id="importBtn" type="button">+ Import velocities</button>
+<div id="tip" hidden></div>
+<div class="toast" id="toast" hidden></div>
+
+<!-- Import -->
+<div class="sheet" id="iSheet" hidden role="dialog" aria-modal="true" aria-labelledby="iTitle">
+  <div class="sheet-in">
+    <div class="sheet-bar"><h2 id="iTitle">Import velocities</h2><button class="ghost" type="button" data-close>Close</button></div>
+    <div class="drop">
+      <div class="hint">A ShotView export (.xls/.xlsx), your own velocity workbook (.xlsx) or a Kestrel log (CSV). In a folder, the powder and gun folder names are used to recognise the load and the gun.</div>
+      <input type="file" id="iFiles" multiple hidden>
+      <input type="file" id="iDir" webkitdirectory multiple hidden>
+      <div class="actions" style="justify-content:center">
+        <button class="ghost" type="button" id="pickFiles">Choose files</button>
+        <button class="ghost" type="button" id="pickDir">Choose folder</button>
+      </div>
+    </div>
+    <div class="sumline" id="iSum" hidden></div>
+    <div class="wbox" id="iWeather" hidden style="margin-top:0;padding-top:0;border-top:0"></div>
+    <div id="iList" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div class="actions" id="iActions" hidden>
+      <button class="primary" type="button" id="iSave">Save selected</button>
+    </div>
+    <div class="msg" id="iMsg" hidden></div>
+  </div>
+</div>
+
+<!-- Day -->
+<div class="sheet" id="dSheet" hidden role="dialog" aria-modal="true" aria-labelledby="dTitle">
+  <div class="sheet-in">
+    <div class="sheet-bar"><h2 id="dTitle">Day</h2><button class="ghost" type="button" data-close>Close</button></div>
+    <div id="dBody" style="display:flex;flex-direction:column;gap:14px"></div>
+  </div>
+</div>
+
+<!-- Loads -->
+<div class="sheet" id="lSheet" hidden role="dialog" aria-modal="true" aria-labelledby="lTitle">
+  <div class="sheet-in">
+    <div class="sheet-bar"><h2 id="lTitle">Loads</h2><button class="ghost" type="button" data-close>Close</button></div>
+    <div class="actions"><button class="ghost" type="button" id="addLoadBtn">+ New load</button></div>
+    <div id="lBody"></div>
+  </div>
+</div>
+
+<!-- Load editor (opens over the list or the import preview) -->
+<div class="sheet" id="eSheet" hidden role="dialog" aria-modal="true" aria-labelledby="eTitle" style="z-index:12">
+  <form class="sheet-in" id="eForm" autocomplete="off">
+    <div class="sheet-bar"><h2 id="eTitle">Load</h2><button class="ghost" type="button" id="eClose">Close</button></div>
+    <div class="namebox"><small>Name</small><b id="eName">–</b></div>
+    <div class="chips" role="radiogroup" aria-label="Type">
+      <button type="button" class="chip" data-kind="handload">Handload</button>
+      <button type="button" class="chip" data-kind="factory">Factory ammo</button>
+    </div>
+    <label class="f">Calibre<input type="text" data-k="cal" list="dlLCal" placeholder="e.g. 6.5 CM" required></label>
+    <div data-for="handload" class="egroup">
+      <div class="lbl">Bullet</div>
+      <div class="grid3">
+        <label class="f">Maker<input type="text" data-k="bullet_maker" list="dlBMaker" placeholder="Lapua"></label>
+        <label class="f">Model<input type="text" data-k="bullet_model" list="dlBModel" placeholder="Scenar"></label>
+        <label class="f">Weight gr<input type="text" inputmode="decimal" data-k="bullet_gr" placeholder="139"></label>
+      </div>
+      <div class="lbl">Brass, powder and primer</div>
+      <div class="grid3">
+        <label class="f">Brass<input type="text" data-k="brass" list="dlBrass" placeholder="Lapua"></label>
+        <label class="f">Powder<input type="text" data-k="powder" list="dlPowder" placeholder="N555"></label>
+        <label class="f">Charge gr<input type="text" inputmode="decimal" data-k="charge_gr" placeholder="44.0"></label>
+      </div>
+      <div class="grid2">
+        <label class="f">Primer<input type="text" data-k="primer" list="dlPrimer" placeholder="e.g. CCI BR-2"></label>
+        <label class="f">COAL mm<input type="text" inputmode="decimal" data-k="coal_mm" placeholder="72.4"></label>
+      </div>
+    </div>
+    <div data-for="factory" class="egroup">
+      <div class="grid3">
+        <label class="f">Maker<input type="text" data-k="maker" list="dlFMaker" placeholder="SK"></label>
+        <label class="f">Product<input type="text" data-k="product" placeholder="Long Range Match"></label>
+        <label class="f">Bullet gr<input type="text" inputmode="decimal" data-k="bullet_gr" data-fk="1" placeholder="40"></label>
+      </div>
+    </div>
+    <label class="f">Notes<input type="text" data-k="notes" placeholder="lot, where bought, observations"></label>
+    <label class="check"><input type="checkbox" data-k="archived">Hide from pickers (used up or not in use)</label>
+    <div class="hint" id="eStats"></div>
+    <div id="ePerGun"></div>
+    <div class="banner" id="eDup" hidden></div>
+    <div class="msg" id="eMsg" hidden></div>
+    <div class="actions">
+      <button class="primary" type="submit" id="eSave">Save load</button>
+      <button class="danger" type="button" id="eDel" hidden>Delete</button>
+    </div>
+  </form>
+</div>
+<datalist id="dlLCal"></datalist><datalist id="dlBMaker"></datalist><datalist id="dlBModel"></datalist><datalist id="dlBrass"></datalist>
+<datalist id="dlPowder"></datalist><datalist id="dlPrimer"></datalist><datalist id="dlFMaker"></datalist>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pad=n=>String(n).padStart(2,"0");
+const fiDate=s=>{const[y,m,d]=s.split("-").map(Number);return d+"/"+m+"/"+y};
+const WD=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const wd=s=>{const[y,m,d]=s.split("-").map(Number);return WD[new Date(y,m-1,d).getDay()]};
+const f1=v=>v==null?"–":(+v).toFixed(1);
+const f2=v=>v==null?"–":(+v).toFixed(2);
+const LS="chrono-filter";
+function lsGet(){try{return JSON.parse(localStorage.getItem(LS)||"{}")}catch(e){return{}}}
+function lsSet(v){try{localStorage.setItem(LS,JSON.stringify(v))}catch(e){}}
+function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>el.hidden=true,2600)}
+
+const S={guns:[],loads:[],days:[],gun:"",load:"",preview:null};
+const gunName=id=>(S.guns.find(g=>g.id===id)||{}).name||"No gun";
+const loadOf=id=>S.loads.find(l=>l.id===id);
+const loadName=id=>(loadOf(id)||{}).name||"No load";
+
+async function api(method,path,body,form){
+  const opt={method,credentials:"same-origin",headers:{"X-Requested-With":"fetch"}};
+  if(form)opt.body=form;
+  else if(body!==undefined){opt.headers["Content-Type"]="application/json";opt.body=JSON.stringify(body)}
+  const r=await fetch("api/"+path,opt);
+  if(r.status===401){location.href="login";throw new Error("auth")}
+  if(method==="GET")$("offNote").hidden=!r.headers.get("X-Offline"),$("offNote").textContent="Offline – showing the last data fetched.";
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw Object.assign(new Error(j.error||("HTTP "+r.status)),{status:r.status,body:j});
+  return j;
+}
+
+/* ---------- data ---------- */
+async function loadAll(){
+  try{
+    const[g,l,d,st]=await Promise.all([api("GET","guns"),api("GET","chrono/loads"),api("GET","chrono/days"),api("GET","chrono/strings")]);
+    S.guns=g;S.loads=l;S.days=d;S.strings=st;
+  }catch(e){if(e.message!=="auth"){$("days").innerHTML='<div class="empty">Could not load the data.</div>'}return}
+  render();
+}
+
+/* ---------- filters ---------- */
+function render(){
+  const used=new Set(S.strings.map(x=>x.gun_id||""));
+  if(S.gun&&!used.has(S.gun))S.gun="";
+  const guns=S.guns.filter(g=>used.has(g.id)).sort((a,b)=>String(a.name).localeCompare(b.name));
+  $("gunChips").innerHTML=`<button type="button" class="chip" data-gun="" aria-pressed="${!S.gun}">All guns</button>`
+    +guns.map(g=>`<button type="button" class="chip" data-gun="${esc(g.id)}" aria-pressed="${S.gun===g.id}">${esc(g.name)}</button>`).join("")
+    +(used.has("")?`<button type="button" class="chip" data-gun="-" aria-pressed="${S.gun==="-"}">No gun</button>`:"");
+  const inGun=S.strings.filter(d=>!S.gun||(S.gun==="-"?!d.gun_id:d.gun_id===S.gun));
+  const counts={};inGun.forEach(d=>{const k=d.load_id||"";counts[k]=(counts[k]||0)+1});
+  if(S.load&&!(S.load in counts))S.load="";
+  const ids=Object.keys(counts).filter(Boolean).sort((a,b)=>loadName(a).localeCompare(loadName(b),"fi",{numeric:true}));
+  $("loadSel").innerHTML=`<option value="">All loads (${inGun.length} strings)</option>`
+    +ids.map(id=>`<option value="${esc(id)}" ${S.load===id?"selected":""}>${esc(loadName(id))} · ${counts[id]} strings</option>`).join("")
+    +(counts[""]?`<option value="-" ${S.load==="-"?"selected":""}>No load · ${counts[""]} strings</option>`:"");
+  lsSet({gun:S.gun,load:S.load});
+  renderDays(inGun.filter(d=>!S.load||(S.load==="-"?!d.load_id:d.load_id===S.load)));
+  renderLoad();renderLadder();
+}
+$("gunChips").addEventListener("click",e=>{const b=e.target.closest("[data-gun]");if(!b)return;S.gun=b.dataset.gun;S.load="";render()});
+$("loadSel").addEventListener("change",e=>{S.load=e.target.value;render()});
+
+/* ---------- session list ---------- */
+// One row per chrono session (string), grouped under its date; several sessions a day are the norm.
+function loadMeans(){
+  const m={};S.days.forEach(d=>{if(d.stats.avg==null)return;const k=(d.gun_id||"")+"|"+(d.load_id||"");
+    const e=m[k]=m[k]||{s:0,n:0};e.s+=d.stats.avg*d.stats.n;e.n+=d.stats.n});
+  return Object.fromEntries(Object.entries(m).map(([k,e])=>[k,e.s/e.n]));
+}
+function renderDays(list){
+  const shots=list.reduce((a,x)=>a+x.stats.n,0),dates=new Set(list.map(x=>x.date)).size;
+  $("dayCount").textContent=list.length?`${list.length} string${list.length>1?"s":""} · ${dates} day${dates>1?"s":""} · ${shots} shots`:"";
+  if(!list.length){$("days").innerHTML=S.strings.length?'<div class="empty">No strings match this filter.</div>':'<div class="empty">No velocities yet. Import a ShotView export or your own workbook below.</div>';return}
+  const means=S.load?loadMeans():{};
+  const byDate=new Map();list.forEach(x=>{if(!byDate.has(x.date))byDate.set(x.date,[]);byDate.get(x.date).push(x)});
+  $("days").innerHTML=[...byDate.entries()].sort((a,b)=>b[0].localeCompare(a[0])).map(([date,rows])=>{
+    const chg=x=>(loadOf(x.load_id)||{}).charge_gr??0;
+    rows.sort((a,b)=>String(a.started_at||"").localeCompare(String(b.started_at||""))||chg(a)-chg(b));
+    const temps=rows.map(r=>r.temp_c).filter(t=>t!=null);
+    return`<div class="dcard"><div class="dh"><span>${fiDate(date)} <small>${wd(date)}${rows.length>1?" · "+rows.length+" strings":""}</small></span><small>${temps.length?f1(temps.reduce((a,b)=>a+b,0)/temps.length)+" °C":""}</small></div>`
+    +rows.map(x=>{const st=x.stats,mean=means[(x.gun_id||"")+"|"+(x.load_id||"")];
+      const delta=mean!=null&&st.avg!=null?st.avg-mean:null;
+      return`<button type="button" class="drow" data-day="${date}" data-sid="${esc(x.id)}">
+      <span class="nm"><span class="tm">${esc(x.started_at||"–")}</span>${esc(loadName(x.load_id))}${S.gun?"":` <span>· ${esc(gunName(x.gun_id))}</span>`}</span>
+      <span class="fig">⌀ <b>${f1(st.avg)}</b> m/s</span>
+      <span class="meta">n ${st.n}${x.shot_count>st.n?"/"+x.shot_count:""} · SD ${f2(st.sd)} · ES ${f1(st.es)}${delta!=null?` · Δ ${delta>0?"+":""}${f1(delta)}`:""}</span></button>`}).join("")+`</div>`}).join("");
+}
+$("days").addEventListener("click",e=>{const b=e.target.closest("[data-day]");if(b)openDay(b.dataset.day,b.dataset.sid)});
+
+/* ---------- charts ---------- */
+const tip=$("tip");
+function bindTips(root){
+  root.querySelectorAll("[data-tip]").forEach(el=>{
+    const show=ev=>{tip.innerHTML=el.dataset.tip;tip.hidden=false;const r=tip.getBoundingClientRect();
+      const x=Math.min(window.innerWidth-r.width-8,Math.max(8,ev.clientX-r.width/2)),y=ev.clientY-r.height-14;
+      tip.style.left=x+"px";tip.style.top=(y<8?ev.clientY+18:y)+"px"};
+    el.addEventListener("pointerenter",show);el.addEventListener("pointermove",show);
+    el.addEventListener("pointerleave",()=>tip.hidden=true);
+  });
+}
+document.addEventListener("scroll",()=>tip.hidden=true,{passive:true});
+function niceTicks(lo,hi,n){const span=hi-lo||1,step0=span/n,mag=Math.pow(10,Math.floor(Math.log10(step0)));
+  const step=[1,2,2.5,5,10].map(m=>m*mag).find(s=>s>=step0)||10*mag;const out=[];
+  for(let v=Math.ceil(lo/step)*step;v<=hi+1e-9;v+=step)out.push(+v.toFixed(6));return out}
+function yScale(lo,hi,H,top,bot){
+  if(hi-lo<1e-9){lo-=1;hi+=1}
+  const t0=niceTicks(lo,hi,4),step=t0.length>1?t0[1]-t0[0]:1;
+  const a=Math.floor(lo/step+1e-9)*step,b=Math.ceil(hi/step-1e-9)*step,ticks=[];
+  for(let v=a;v<=b+1e-9;v+=step)ticks.push(+v.toFixed(6));
+  return{ticks,step,y:v=>top+(H-top-bot)*(1-(v-a)/((b-a)||1))}}
+// Charts are drawn at the column's real width so text stays readable on a phone
+let W=700;
+const fitW=()=>{W=Math.round(Math.max(300,Math.min(760,(document.querySelector(".wrap").clientWidth||700)-26)))};
+const PL=64;                                   // plot starts right of the tick labels
+const tickFmt=ys=>Number.isInteger(+ys.step.toFixed(6))?(v=>String(Math.round(v))):f1;
+function frame(H,ys,unit){
+  const fmtT=tickFmt(ys);
+  return ys.ticks.map(t=>`<line class="grid" x1="${PL-12}" x2="${W-8}" y1="${ys.y(t)}" y2="${ys.y(t)}"/><text class="ax" x="${PL-16}" y="${ys.y(t)+4}" text-anchor="end">${fmtT(t)}</text>`).join("")
+    +`<text class="ax" x="${PL-12}" y="10">${unit}</text>`;
+}
+function dateX(points,L,R){
+  const t=s=>Date.parse(s+"T12:00:00Z")/864e5;const lo=t(points[0].date),hi=t(points[points.length-1].date);
+  return{x:s=>hi===lo?(L+R)/2:L+(R-L)*(t(s)-lo)/(hi-lo),lo:points[0].date,hi:points[points.length-1].date};
+}
+function trendChart(pts,title,sub){
+  if(pts.length<2)return"";
+  const H=230,L=PL+8,R=W-20;
+  const lo=Math.min(...pts.map(p=>p.ci_low??p.min??p.avg)),hi=Math.max(...pts.map(p=>p.ci_high??p.max??p.avg));
+  const ys=yScale(lo,hi,H,18,30),dx=dateX(pts,L,R);
+  const marks=pts.map(p=>{const x=dx.x(p.date),y=ys.y(p.avg);
+    const wh=p.ci_low!=null?`<line class="wh" x1="${x}" x2="${x}" y1="${ys.y(p.ci_low)}" y2="${ys.y(p.ci_high)}"/>`:"";
+    const t=`<b>${fiDate(p.date)}</b><br>⌀ ${f1(p.avg)} m/s · n ${p.n}<br>SD ${f2(p.sd)} · ES ${f1(p.es)}${p.ci_low!=null?`<br>95 % ${f1(p.ci_low)}–${f1(p.ci_high)}`:""}${p.temp_c!=null?`<br>${f1(p.temp_c)} °C`:""}`;
+    return wh+`<circle class="mk" cx="${x}" cy="${y}" r="5"/><circle class="hit" cx="${x}" cy="${y}" r="14" data-tip="${esc(t)}"/>`}).join("");
+  const path=pts.length>1?`<polyline class="ln" points="${pts.map(p=>dx.x(p.date)+","+ys.y(p.avg)).join(" ")}"/>`:"";
+  const xl=`<text class="ax" x="${L}" y="${H-8}">${fiDate(dx.lo)}</text>`+(dx.hi!==dx.lo?`<text class="ax" x="${R}" y="${H-8}" text-anchor="end">${fiDate(dx.hi)}</text>`:"");
+  return`<h3>${title}</h3><p class="sub">${sub}</p><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}">${frame(H,ys,"m/s")}${path}${marks}${xl}</svg>`
+    +table(["Day","n","⌀ m/s","SD","ES","°C"],pts.map(p=>[fiDate(p.date),p.n,f1(p.avg),f2(p.sd),f1(p.es),f1(p.temp_c)]));
+}
+function sdChart(pts){
+  const q=pts.filter(p=>p.sd!=null);if(q.length<2)return"";
+  const H=150,L=PL+8,R=W-20,ys=yScale(0,Math.max(...q.map(p=>p.sd)),H,18,26),dx=dateX(pts,L,R);
+  const marks=q.map(p=>{const x=dx.x(p.date),y=ys.y(p.sd);
+    return`<line class="wh" x1="${x}" x2="${x}" y1="${ys.y(0)}" y2="${y}" style="opacity:.9"/><circle class="mk" cx="${x}" cy="${y}" r="4"/><circle class="hit" cx="${x}" cy="${y}" r="14" data-tip="${esc(`<b>${fiDate(p.date)}</b><br>SD ${f2(p.sd)} m/s · n ${p.n}`)}"/>`}).join("");
+  return`<h3>Spread (SD) per day</h3><p class="sub">Sample standard deviation, m/s</p><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Standard deviation per day">${frame(H,ys,"SD")}${marks}</svg>`;
+}
+// Day average against that day's temperature, with the least-squares line when the days span ≥ 10 °C
+function tempChart(all,sens){
+  const pts=all.filter(p=>p.temp_c!=null&&p.avg!=null);
+  if(pts.length<2)return"";
+  const H=230,L=PL+8,R=W-20;
+  const t=pts.map(p=>p.temp_c),t0=Math.min(...t),t1=Math.max(...t),span=Math.max(t1-t0,1);
+  const xt=niceTicks(t0-span*.05,t1+span*.05,6),xa=Math.min(t0,xt[0]),xb=Math.max(t1,xt[xt.length-1]);
+  const x=v=>L+(R-L)*(v-xa)/((xb-xa)||1);
+  const lo=Math.min(...pts.map(p=>p.ci_low??p.min??p.avg)),hi=Math.max(...pts.map(p=>p.ci_high??p.max??p.avg));
+  const ys=yScale(lo,hi,H,18,30);
+  let fit="";
+  if(sens!=null){
+    const mx=t.reduce((a,b)=>a+b,0)/t.length,my=pts.reduce((a,p)=>a+p.avg,0)/pts.length;
+    const yAt=v=>my+sens*(v-mx);
+    fit=`<line class="avgline" x1="${x(t0)}" x2="${x(t1)}" y1="${ys.y(yAt(t0))}" y2="${ys.y(yAt(t1))}" style="stroke-dasharray:none;opacity:.8"/>`
+      +`<text class="lab" x="${x(t1)}" y="${ys.y(yAt(t1))+(sens>0?-10:18)}" text-anchor="end">${sens>0?"+":""}${f2(sens)} m/s/°C</text>`;
+  }
+  const marks=pts.map(p=>{const X=x(p.temp_c),Y=ys.y(p.avg);
+    const tip=`<b>${f1(p.temp_c)} °C</b> · ${fiDate(p.date)}<br>⌀ ${f1(p.avg)} m/s · n ${p.n}<br>SD ${f2(p.sd)}`;
+    return(p.ci_low!=null?`<line class="wh" x1="${X}" x2="${X}" y1="${ys.y(p.ci_low)}" y2="${ys.y(p.ci_high)}"/>`:"")
+      +`<circle class="mk" cx="${X}" cy="${Y}" r="5"/><circle class="hit" cx="${X}" cy="${Y}" r="14" data-tip="${esc(tip)}"/>`}).join("");
+  const xl=xt.filter(v=>v>=xa-1e-9&&v<=xb+1e-9).map(v=>`<text class="ax" x="${x(v)}" y="${H-8}" text-anchor="middle">${Number.isInteger(v)?v:f1(v)}</text>`).join("");
+  const missing=all.length-pts.length;
+  const sub=(sens!=null?"Line: least-squares fit to the daily averages":"The fit is shown once the days span at least 10 °C")
+    +(missing?` · ${missing} day${missing>1?"s":""} without temperature`:"");
+  return`<h3>Velocity vs temperature</h3><p class="sub">${sub} · whiskers: 95 % confidence interval · x: °C</p>`
+    +`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average velocity vs temperature">${frame(H,ys,"m/s")}${fit}${marks}${xl}</svg>`
+    +table(["°C","Day","n","⌀ m/s","SD"],pts.slice().sort((a,b)=>a.temp_c-b.temp_c).map(p=>[f1(p.temp_c),fiDate(p.date),p.n,f1(p.avg),f2(p.sd)]));
+}
+function ladderChart(group,pts){
+  const H=220,L=PL+16,R=W-28;
+  const lo=Math.min(...pts.map(p=>p.ci_low??p.min)),hi=Math.max(...pts.map(p=>p.ci_high??p.max));
+  const ys=yScale(lo,hi,H,26,30),cs=pts.map(p=>p.charge_gr),c0=Math.min(...cs),c1=Math.max(...cs);
+  const x=c=>c1===c0?(L+R)/2:L+(R-L)*(c-c0)/(c1-c0);
+  const xt=niceTicks(c0,c1,6).filter(t=>t>=c0-1e-9&&t<=c1+1e-9);
+  // Selective labels: a point whose neighbour is closer than a label's width alternates above/below on a
+  // wide screen; on a phone the crowded ones go unlabelled (tooltip and table carry the figure).
+  const xs=pts.map(p=>x(p.charge_gr));let flip=false;
+  const marks=pts.map((p,i)=>{const X=xs[i],Y=ys.y(p.avg);
+    const crowded=(i>0&&X-xs[i-1]<48)||(i<xs.length-1&&xs[i+1]-X<48);
+    const below=crowded&&W>=500&&(flip=!flip),skip=crowded&&W<500;
+    const t=`<b>${p.charge_gr} gr</b><br>⌀ ${f1(p.avg)} m/s · n ${p.n}<br>SD ${f2(p.sd)} · ${p.days.length} days`;
+    return(p.ci_low!=null?`<line class="wh" x1="${X}" x2="${X}" y1="${ys.y(p.ci_low)}" y2="${ys.y(p.ci_high)}"/>`:"")
+      +`<circle class="mk" cx="${X}" cy="${Y}" r="5"/>${skip?"":`<text class="lab" x="${X}" y="${below?Y+20:Y-12}" text-anchor="middle">${p.sd!=null?"SD "+f1(p.sd):"n "+p.n}</text>`}<circle class="hit" cx="${X}" cy="${Y}" r="14" data-tip="${esc(t)}"/>`}).join("");
+  const path=pts.length>1?`<polyline class="ln" points="${pts.map(p=>x(p.charge_gr)+","+ys.y(p.avg)).join(" ")}"/>`:"";
+  const xl=xt.map(t=>`<text class="ax" x="${x(t)}" y="${H-8}" text-anchor="middle">${String(t).replace(".",",")}</text>`).join("");
+  return`<div class="chart"><h3>${esc(group)}</h3><p class="sub">Average velocity by charge (gr), all days pooled · whiskers: 95 % confidence interval</p><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(group)}">${frame(H,ys,"m/s")}${path}${marks}${xl}</svg>`
+    +table(["Charge gr","n","⌀ m/s","SD","Days"],pts.map(p=>[p.charge_gr,p.n,f1(p.avg),f2(p.sd),p.days.length]))+`</div>`;
+}
+function dotPlot(shots,avg){
+  const inc=shots.filter(s=>!s.excluded);if(!shots.length)return"";
+  const H=86,L=20,R=W-20,v=shots.map(s=>s.v_ms),lo=Math.min(...v),hi=Math.max(...v),pad=Math.max(1,(hi-lo)*.08);
+  const x=u=>L+(R-L)*(u-(lo-pad))/((hi+pad)-(lo-pad));
+  const ticks=niceTicks(lo-pad,hi+pad,5);
+  // stack identical-ish values so every shot stays visible
+  const lanes=[];const y=s=>{const X=x(s.v_ms);let k=0;while(lanes[k]&&lanes[k].some(p=>Math.abs(p-X)<10))k++;(lanes[k]=lanes[k]||[]).push(X);return 50-k*11};
+  const dots=shots.map(s=>{const Y=y(s),X=x(s.v_ms);return`<circle class="mk${s.excluded?" hollow":""}" cx="${X}" cy="${Y}" r="5"/><circle class="hit" cx="${X}" cy="${Y}" r="10" data-tip="${esc(`#${s.n} · <b>${f1(s.v_ms)}</b> m/s${s.t?"<br>"+s.t:""}${s.excluded?"<br>poissuljettu":""}`)}"/>`}).join("");
+  const a=avg!=null?`<line class="avgline" x1="${x(avg)}" x2="${x(avg)}" y1="4" y2="60"/>`:"";
+  return`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Shot velocities">${ticks.map(t=>`<text class="ax" x="${x(t)}" y="${H-6}" text-anchor="middle">${f1(t)}</text><line class="grid" x1="${x(t)}" x2="${x(t)}" y1="62" y2="66"/>`).join("")}<line class="grid" x1="${L}" x2="${R}" y1="62" y2="62"/>${a}${dots}</svg>`;
+}
+function table(head,rows){
+  return`<details><summary>Table</summary><table class="tbl"><thead><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></details>`;
+}
+
+/* ---------- load view ---------- */
+async function renderLoad(){
+  fitW();
+  const box=$("loadView");
+  if(!S.load||S.load==="-"){box.hidden=true;return}
+  box.hidden=false;
+  const gq=S.gun&&S.gun!=="-"?"&gun="+encodeURIComponent(S.gun):"";
+  let tr,info;
+  try{[tr,info]=await Promise.all([api("GET","chrono/trend?load="+encodeURIComponent(S.load)+gq),api("GET","chrono/loads/"+encodeURIComponent(S.load))])}catch(e){return}
+  const pg=(info.per_gun||[]).filter(p=>!S.gun||S.gun==="-"||p.gun_id===S.gun);
+  const one=pg.length===1?pg[0]:null;
+  const a=one?one.all:null,l=one?one.last10:null;
+  $("kpis").innerHTML=a?[
+    ["⌀ m/s",f1(a.avg),l&&one.days>10?`last 10 days: <b>${f1(l.avg)}</b>`:`${one.days} days`],
+    ["SD m/s",f2(a.sd),l&&one.days>10?`last 10 days: <b>${f2(l.sd)}</b>`:"sample"],
+    ["ES m/s",f1(a.es),`${f1(a.min)}–${f1(a.max)}`],
+    ["Shots",a.n,a.ke_j?`${a.ke_j} J`:""]].map(k=>`<div class="stat"><b class="num">${k[1]}</b><small>${k[0]}${k[2]?" · "+k[2]:""}</small></div>`).join(""):"";
+  $("kpis").hidden=!a;
+  const ts=one&&one.temp_sensitivity;
+  $("kpiNote").innerHTML=(one?"":pg.length>1?"This load is used in several guns – pick a gun above to see its figures. ":"")
+    +(ts!=null?`Temperature sensitivity <b>${ts>0?"+":""}${f2(ts)} m/s per °C</b> (${one.days} days).`:"");
+  const pts=tr.points||[];
+  $("trendBox").innerHTML=trendChart(pts,"Average velocity per day",`${esc(loadName(S.load))}${S.gun&&S.gun!=="-"?" · "+esc(gunName(S.gun)):""} · whiskers: 95 % confidence interval`);
+  $("trendBox").hidden=!$("trendBox").innerHTML;
+  $("sdBox").innerHTML=sdChart(pts);$("sdBox").hidden=!$("sdBox").innerHTML;
+  $("tempBox").innerHTML=tempChart(pts,tr.temp_sensitivity);$("tempBox").hidden=!$("tempBox").innerHTML;
+  bindTips(box);
+}
+
+/* ---------- ladder ---------- */
+async function renderLadder(){
+  fitW();
+  const box=$("ladderView");
+  if(!S.gun||S.gun==="-"||S.load){box.hidden=true;return}
+  let pts;try{pts=await api("GET","chrono/ladder?gun="+encodeURIComponent(S.gun))}catch(e){box.hidden=true;return}
+  const groups=new Map();pts.forEach(p=>{const k=p.group;if(!groups.has(k))groups.set(k,[]);groups.get(k).push(p)});
+  const html=[...groups.entries()].filter(([,g])=>g.length>=2).map(([k,g])=>ladderChart(k,g)).join("");
+  box.hidden=!html;$("ladders").innerHTML=html;bindTips(box);
+}
+
+/* ---------- sheets ---------- */
+function openSheet(id){["iSheet","dSheet","lSheet"].forEach(s=>$(s).hidden=s!==id);document.body.style.overflow="hidden"}
+function closeSheets(){["iSheet","dSheet","lSheet"].forEach(s=>$(s).hidden=true);document.body.style.overflow="";tip.hidden=true}
+document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",closeSheets));
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("eSheet").hidden)closeEditor();else closeSheets()});
+const gunOpts=sel=>`<option value="">— no gun —</option>`+S.guns.slice().sort((a,b)=>String(a.name).localeCompare(b.name)).map(g=>`<option value="${esc(g.id)}" ${g.id===sel?"selected":""}>${esc(g.name)}</option>`).join("");
+const calKey=c=>String(c||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+const gunCal=id=>(S.guns.find(g=>g.id===id)||{}).cal||"";
+function loadOpts(sel,spec,gunId){
+  const gc=calKey(gunCal(gunId)),opt=l=>`<option value="${esc(l.id)}" ${l.id===sel?"selected":""}>${esc(l.name)}</option>`;
+  const list=S.loads.filter(l=>!l.archived||l.id===sel).sort((a,b)=>a.name.localeCompare(b.name,"fi",{numeric:true}));
+  const mine=gc?list.filter(l=>!l.cal||calKey(l.cal)===gc):list,other=gc?list.filter(l=>l.cal&&calKey(l.cal)!==gc):[];
+  return`<option value="">— no load —</option>`+(spec?`<option value="new" ${sel==="new"?"selected":""}>New: ${esc(spec.name)}</option>`:"")
+    +`<option value="custom">+ New load…</option>`+mine.map(opt).join("")
+    +(other.length?`<optgroup label="Other calibres">${other.map(opt).join("")}</optgroup>`:"");
+}
+// A gun and a load of different calibres on one session is almost always a wrong pick.
+function calClash(gunId,loadId){const g=gunCal(gunId),l=(loadOf(loadId)||{}).cal;
+  return g&&l&&calKey(g)!==calKey(l)?`Gun calibre ${g}, load calibre ${l}`:""}
+
+/* ---------- import ---------- */
+$("importBtn").addEventListener("click",()=>{S.preview=null;$("iList").innerHTML="";$("iSum").hidden=true;$("iWeather").hidden=true;$("iActions").hidden=true;$("iMsg").hidden=true;openSheet("iSheet")});
+$("pickFiles").addEventListener("click",()=>$("iFiles").click());
+$("pickDir").addEventListener("click",()=>$("iDir").click());
+$("iFiles").addEventListener("change",e=>upload(e.target.files));
+$("iDir").addEventListener("change",e=>upload(e.target.files));
+async function upload(files){
+  const list=[...files].filter(f=>!/\.(jpe?g|png|pdf|heic)$/i.test(f.name)&&f.size<=5*1024*1024).slice(0,100);
+  if(!list.length){toast("No files to import");return}
+  const fd=new FormData();list.forEach(f=>{fd.append("files",f,f.name);fd.append("paths",f.webkitRelativePath||f.name)});
+  $("iSum").hidden=false;$("iSum").textContent="Reading "+list.length+" file"+(list.length>1?"s":"")+"…";$("iList").innerHTML="";$("iActions").hidden=true;
+  try{S.preview=await api("POST","chrono/parse",undefined,fd)}catch(e){$("iSum").textContent="Reading failed: "+e.message;return}
+  $("iFiles").value="";$("iDir").value="";
+  const p=S.preview;
+  p.strings.forEach(s=>{
+    s.ui={on:!s.already_imported&&!s.existing_shots,gun:s.suggest.gun_id||"",load:s.suggest.load_id||(s.suggest.load?"new":""),
+      swap:s.warnings.some(w=>w.code==="weather_range"&&w.swap),date:s.date};
+  });
+  p.strings.sort((a,b)=>(a.date||"").localeCompare(b.date||"")||(a.started_at||"").localeCompare(b.started_at||""));
+  p.weather={};p.wOverwrite=false;
+  renderPreview();
+}
+// Weather typed once in the preview, per day, for every selected sarja of that day.
+function fileWeather(s){
+  const t=wStat(s.shots,"temp_c"),r=wStat(s.shots,"rh"),p=wStat(s.shots,"hpa");
+  if(!t&&!r&&!p)return null;
+  return{text:[t?f1(t.avg)+" °C":"",r?Math.round(r.avg)+" %":"",p?Math.round(p.avg)+" hPa":""].filter(Boolean).join(" · "),
+    complete:[t,r,p].every(x=>x&&x.all)};
+}
+function renderWeatherBox(){
+  const p=S.preview,on=p.strings.filter(s=>s.ui.on);
+  const dates=[...new Set(on.map(s=>s.ui.date).filter(Boolean))].sort();
+  const box=$("iWeather");
+  if(!dates.length){box.hidden=true;return}
+  const key=dates.join(",")+"|"+p.wOverwrite;
+  if(box.dataset.key===key)return;                       // don't redraw while typing
+  box.dataset.key=key;box.hidden=false;
+  box.innerHTML=`<div class="lbl">Weather ${dates.length>1?"per day":"for all strings"}</div>`
+    +dates.map(d=>{const w=p.weather[d]||{},n=on.filter(s=>s.ui.date===d).length;
+      return`${dates.length>1?`<div class="hint"><b>${fiDate(d)}</b> · ${n} string${n>1?"s":""}</div>`:""}
+      <div class="grid3"><label class="f">°C<input type="text" inputmode="decimal" data-iw="temp_c" data-d="${d}" value="${esc(w.temp_c??"")}" placeholder="–"></label>
+        <label class="f">Humidity %<input type="text" inputmode="decimal" data-iw="rh" data-d="${d}" value="${esc(w.rh??"")}" placeholder="–"></label>
+        <label class="f">Pressure hPa<input type="text" inputmode="decimal" data-iw="hpa" data-d="${d}" value="${esc(w.hpa??"")}" placeholder="–"></label></div>`}).join("")
+    +`<label class="check"><input type="checkbox" id="iWOver" ${p.wOverwrite?"checked":""}>Also replace weather that comes from the file or the Kestrel</label>
+    <div class="hint">An empty field changes nothing. Without the tick, weather is only filled in on shots that have none.</div>`;
+}
+$("iWeather").addEventListener("input",e=>{const t=e.target;if(!t.dataset.iw)return;
+  const w=S.preview.weather[t.dataset.d]=S.preview.weather[t.dataset.d]||{};w[t.dataset.iw]=t.value.trim();renderStatuses()});
+$("iWeather").addEventListener("change",e=>{if(e.target.id==="iWOver"){S.preview.wOverwrite=e.target.checked;renderWeatherBox();renderStatuses()}});
+function typedWeather(d){const w=S.preview.weather[d]||{},o={};
+  for(const k of["temp_c","rh","hpa"])if(w[k]){const v=parseFloat(String(w[k]).replace(",","."));if(isFinite(v))o[k]=v}
+  return o}
+function statusLine(s){
+  const fw=fileWeather(s),tw=typedWeather(s.ui.date),typed=Object.keys(tw).length;
+  if(typed&&(S.preview.wOverwrite||!fw))return`Weather: typed (${[tw.temp_c!=null?f1(tw.temp_c)+" °C":"",tw.rh!=null?Math.round(tw.rh)+" %":"",tw.hpa!=null?Math.round(tw.hpa)+" hPa":""].filter(Boolean).join(" · ")})`;
+  if(fw)return`Weather from the file: ${fw.text}${!fw.complete&&typed?" – gaps filled with the typed values":""}`;
+  return"No weather";
+}
+function renderStatuses(){S.preview.strings.forEach((s,i)=>{const el=$("iList").querySelector(`[data-wst="${i}"]`);if(el)el.textContent=statusLine(s)})}
+function renderPreview(){
+  const p=S.preview,on=p.strings.filter(s=>s.ui.on);
+  renderWeatherBox();
+  $("iSum").innerHTML=`<b>${p.strings.length}</b> strings, <b>${on.length}</b> selected (${on.reduce((a,s)=>a+s.stats.n,0)} shots)`
+    +(p.weather_records?` · Kestrel: <b>${p.weather_records}</b> rows, weather on ${p.weather_filled} shots`:"")
+    +(p.errors.length?`<br>Skipped: ${p.errors.map(esc).join("; ")}`:"")
+    +(p.notes.length?`<br>${p.notes.map(n=>esc(n.text)).join("<br>")}`:"");
+  $("iList").innerHTML=p.strings.map((s,i)=>{
+    const st=s.stats,c=s.check;
+    const clash=s.ui.load&&s.ui.load!=="new"?calClash(s.ui.gun,s.ui.load):"";
+    const w=(clash?`<div>${esc(clash)}</div>`:"")+s.warnings.filter(x=>x.code!=="no_load"||!s.ui.load).map(x=>{
+      if(x.code==="date_outlier"&&x.suggest)return`<div>${esc(x.text)} <button type="button" class="ghost" data-fixdate="${i}" data-v="${x.suggest}">Use ${fiDate(x.suggest)}</button></div>`;
+      if(x.code==="weather_range")return`<div>${esc(x.text)}${x.swap?` <label class="check" style="display:inline-flex"><input type="checkbox" data-swap="${i}" ${s.ui.swap?"checked":""}>Swap</label>`:""}</div>`;
+      if(x.code==="date_corrected")return`<div class="info">${esc(x.text)}</div>`;
+      return`<div>${esc(x.text)}</div>`}).join("");
+    const done=s.already_imported?"Already imported":s.existing_shots?`${s.existing_shots} shots are already stored – this string only adds missing weather`:"";
+    return`<div class="pcard${s.ui.on?"":" off"}">
+      <div class="ph"><input type="checkbox" data-on="${i}" ${s.ui.on?"checked":""} aria-label="Import this string">
+        <div class="pt"><b>${s.ui.date?fiDate(s.ui.date):"?"}</b> ${esc(s.started_at||"")} · ${esc(s.name)}
+          <div class="src">${esc(s.file)}${s.sheet&&s.sheet!==s.name?" · "+esc(s.sheet):""}</div></div>
+        <div class="fig">n ${st.n}<br>⌀ ${f1(st.avg)}</div></div>
+      <div class="sumline">SD <b>${f2(st.sd)}</b> (Garmin ${f2(st.sd_garmin)}) · ES <b>${f1(st.es)}</b> m/s
+        ${c?(c.ok?' <span class="badge ok">✓ matches ShotView</span>':c.ok===false?' <span class="badge warn">≠ ShotView</span>':""):""}</div>
+      ${done?`<div class="hint">${done}</div>`:""}
+      <div class="hint" data-wst="${i}">${esc(statusLine(s))}</div>
+      <div class="grid2"><label class="f">Gun<select data-gun="${i}">${gunOpts(s.ui.gun)}</select></label>
+        <label class="f">Load<select data-load="${i}">${loadOpts(s.ui.load,s.suggest.load,s.ui.gun)}</select></label></div>
+      ${w?`<div class="warns">${w}</div>`:""}
+    </div>`}).join("")||'<div class="empty">No shots found in the files.</div>';
+  $("iActions").hidden=!on.length;
+}
+$("iList").addEventListener("change",e=>{
+  const t=e.target,S2=S.preview.strings;
+  if(t.dataset.on!=null){S2[t.dataset.on].ui.on=t.checked}
+  else if(t.dataset.gun!=null){const s=S2[t.dataset.gun];s.ui.gun=t.value;
+    if(s.suggest.load&&gunCal(t.value)){s.suggest.load.cal=gunCal(t.value);s.suggest.load.name=genName(s.suggest.load)}}
+  else if(t.dataset.load!=null){
+    const s=S2[t.dataset.load];
+    if(t.value==="custom"){
+      const g=S.guns.find(x=>x.id===s.ui.gun)||{};
+      const pre=Object.assign({kind:"handload",cal:g.cal||"",bullet_gr:s.bullet_gr||""},s.suggest.load||{});
+      t.value=s.ui.load;
+      editLoad(null,pre,id=>{s.ui.load=id;renderPreview()});
+      return}
+    s.ui.load=t.value}
+  else if(t.dataset.swap!=null){S2[t.dataset.swap].ui.swap=t.checked;return}
+  renderPreview();
+});
+$("iList").addEventListener("click",e=>{const b=e.target.closest("[data-fixdate]");if(!b)return;const s=S.preview.strings[b.dataset.fixdate];s.ui.date=b.dataset.v;s.warnings=s.warnings.filter(w=>w.code!=="date_outlier");renderPreview()});
+$("iSave").addEventListener("click",async()=>{
+  const items=S.preview.strings.filter(s=>s.ui.on).map(s=>({key:s.key,date:s.ui.date,started_at:s.started_at,name:s.name,source:s.source,
+    unit_in:s.unit_in,bullet_gr:s.bullet_gr,gun_id:s.ui.gun||null,visit_id:s.suggest.visit_id,
+    load_id:s.ui.load&&s.ui.load!=="new"?s.ui.load:null,load:s.ui.load==="new"?s.suggest.load:null,
+    swap_rh_hpa:s.ui.swap,shots:s.shots}));
+  const bad=Object.keys(S.preview.weather).map(typedWeather).find(w=>w.rh!=null&&(w.rh<0||w.rh>100)||w.hpa!=null&&(w.hpa<850||w.hpa>1100));
+  if(bad){toast("Check humidity (0–100 %) and pressure (850–1100 hPa)");return}
+  items.forEach(it=>{const w=typedWeather(it.date);if(!Object.keys(w).length)return;
+    Object.assign(it,w);
+    if(S.preview.wOverwrite){it.shots=it.shots.map(x=>Object.assign({},x,w));
+      if(w.rh!=null||w.hpa!=null)it.swap_rh_hpa=false}});     // typed values are already the right way round
+  // Curated sources first: own workbooks carry loads and weather; raw exports then only fill gaps.
+  items.sort((a,b)=>(a.source!=="workbook")-(b.source!=="workbook"));
+  $("iSave").disabled=true;
+  try{
+    const r=await api("POST","chrono/commit",{strings:items});
+    const shots=r.created.reduce((a,c)=>a+c.shots,0);
+    toast(`Saved ${r.created.length} strings, ${shots} shots`+(r.merged_shots?`, weather on ${r.merged_shots} shots`:""));
+    closeSheets();await loadAll();
+  }catch(e){$("iMsg").hidden=false;$("iMsg").textContent="Saving failed: "+e.message}
+  finally{$("iSave").disabled=false}
+});
+
+/* ---------- day ---------- */
+async function openDay(date,focusId){
+  $("dTitle").textContent=fiDate(date)+" "+wd(date);$("dBody").innerHTML='<div class="empty">Loading…</div>';openSheet("dSheet");
+  let list;try{list=await api("GET","chrono/strings?date="+date)}catch(e){return}
+  const full=await Promise.all(list.map(s=>api("GET","chrono/strings/"+s.id)));
+  const chg=x=>(loadOf(x.load_id)||{}).charge_gr??0;
+  full.sort((a,b)=>String(a.started_at||"").localeCompare(String(b.started_at||""))||chg(a)-chg(b));
+  S.dayDate=date;S.dayStrings=full;renderDay();
+  const el=focusId&&$("dBody").querySelector(`[data-card="${CSS.escape(focusId)}"]`);
+  if(el)el.scrollIntoView({block:"start"});
+}
+// The sarja's weather: average of its shots, and the spread when shots differ (Kestrel per-shot values).
+function wStat(shots,k){const v=shots.map(x=>x[k]).filter(x=>x!=null);if(!v.length)return null;
+  const lo=Math.min(...v),hi=Math.max(...v);return{avg:v.reduce((a,b)=>a+b,0)/v.length,lo,hi,n:v.length,all:v.length===shots.length}}
+function weatherBlock(s,i){
+  const t=wStat(s.shots,"temp_c"),r=wStat(s.shots,"rh"),p=wStat(s.shots,"hpa");
+  const varied=[t&&t.hi-t.lo>=0.1?`${f1(t.lo)}–${f1(t.hi)} °C`:"",r&&r.hi-r.lo>=0.5?`${Math.round(r.lo)}–${Math.round(r.hi)} %`:"",
+    p&&p.hi-p.lo>=0.5?`${Math.round(p.lo)}–${Math.round(p.hi)} hPa`:""].filter(Boolean);
+  const partial=[t,r,p].some(x=>x&&!x.all);
+  const val=(x,d)=>x?(d?x.avg.toFixed(d):String(Math.round(x.avg))):"";
+  const others=S.dayStrings.length>1;
+  return`<div class="wbox"><div class="lbl">Weather</div>
+    <div class="grid3"><label class="f">°C<input type="text" inputmode="decimal" data-wt="${i}" value="${val(t,1)}" placeholder="–"></label>
+      <label class="f">Humidity %<input type="text" inputmode="decimal" data-wr="${i}" value="${val(r)}" placeholder="–"></label>
+      <label class="f">Pressure hPa<input type="text" inputmode="decimal" data-wp="${i}" value="${val(p)}" placeholder="–"></label></div>
+    <div class="hint">${!t&&!r&&!p?"No weather for this string.":varied.length?`Per-shot values vary (${varied.join(", ")}) – the fields show the average. Saving sets the same value on every shot.`
+      :partial?"Some shots have no weather – saving fills them all.":"Same weather on every shot."}</div>
+    <div class="actions"><button class="ghost" type="button" data-wsave="${i}">Save for this string</button>
+      ${others?`<button class="ghost" type="button" data-wday="${i}">Save for the whole day</button>`:""}
+      <button class="ghost" type="button" data-wswap="${i}" title="Humidity and pressure in the wrong fields">Swap humidity ↔ pressure</button></div></div>`;
+}
+function renderDay(){
+  fitW();
+  const list=S.dayStrings;
+  $("dBody").innerHTML=list.map((s,i)=>{const st=s.stats;const temps=s.shots.filter(x=>x.temp_c!=null);
+    const w=temps.length?temps[0]:{};
+    return`<div class="chart" data-card="${esc(s.id)}" style="scroll-margin-top:70px">
+      <h3>String ${i+1}/${list.length} · ${esc(s.started_at||"–")} · ${esc(loadName(s.load_id))}</h3>
+      ${calClash(s.gun_id,s.load_id)?`<div class="msg" style="margin:2px 0 6px">${esc(calClash(s.gun_id,s.load_id))}</div>`:""}
+      <p class="sub">⌀ <b>${f1(st.avg)}</b> m/s · n ${st.n}/${s.shots.length} · SD ${f2(st.sd)} (Garmin ${f2(st.sd_garmin)}) · ES ${f1(st.es)}${st.ke_j?` · ${st.ke_j} J`:""}${w.temp_c!=null?` · ${f1(w.temp_c)} °C ${w.rh!=null?f1(w.rh)+" %":""} ${w.hpa!=null?Math.round(w.hpa)+" hPa":""}`:""}</p>
+      ${dotPlot(s.shots,st.avg)}
+      <div class="shots" style="margin:8px 0 12px">${s.shots.map(x=>`<button type="button" class="shot" data-ex="${i}" data-n="${x.n}" aria-pressed="${!!x.excluded}" title="Exclude from / restore to the statistics"><small>#${x.n}</small>${f1(x.v_ms)}</button>`).join("")}</div>
+      <div class="grid2"><label class="f">Gun<select data-sgun="${i}">${gunOpts(s.gun_id)}</select></label>
+        <label class="f">Load<select data-sload="${i}">${loadOpts(s.load_id,null,s.gun_id)}</select></label></div>
+      ${weatherBlock(s,i)}
+      <div class="actions" style="margin-top:10px"><button class="danger" type="button" data-del="${i}">Delete string</button></div>
+    </div>`}).join("")||'<div class="empty">No strings.</div>';
+  bindTips($("dBody"));
+}
+async function patch(i,body){const s=S.dayStrings[i];try{S.dayStrings[i]=await api("PATCH","chrono/strings/"+s.id,body);renderDay();loadAll()}catch(e){toast("Saving failed: "+e.message)}}
+$("dBody").addEventListener("click",async e=>{
+  const t=e.target.closest("button");if(!t)return;
+  if(t.dataset.ex!=null){const on=t.getAttribute("aria-pressed")!=="true";patch(+t.dataset.ex,{shots:[{n:+t.dataset.n,excluded:on}]})}
+  else if(t.dataset.wsave!=null||t.dataset.wday!=null){
+    const i=t.dataset.wsave??t.dataset.wday,q=k=>$("dBody").querySelector(`[data-${k}="${i}"]`).value.trim().replace(",",".");
+    const w={temp_c:q("wt"),rh:q("wr"),hpa:q("wp")};
+    if(w.rh&&(+w.rh<0||+w.rh>100)||w.hpa&&(+w.hpa<850||+w.hpa>1100)){toast("Check humidity (0–100 %) and pressure (850–1100 hPa)");return}
+    if(t.dataset.wsave!=null)patch(+i,{weather:Object.assign(w,{overwrite:true})});
+    else{try{const r=await api("POST","chrono/weather",Object.assign(w,{date:S.dayDate,overwrite:true}));
+      toast(`Weather saved on ${r.shots_filled} shots`);openDay(S.dayDate,S.dayStrings[i].id);loadAll()}catch(e){toast("Saving failed: "+e.message)}}}
+  else if(t.dataset.wswap!=null){patch(+t.dataset.wswap,{weather:{swap_rh_hpa:true}})}
+  else if(t.dataset.del!=null){
+    if(!t.dataset.armed){t.dataset.armed=1;t.textContent="Confirm delete";return}
+    const s=S.dayStrings[t.dataset.del];
+    try{await api("DELETE","chrono/strings/"+s.id);S.dayStrings.splice(+t.dataset.del,1);renderDay();loadAll();toast("String deleted")}catch(e){toast("Delete failed")}
+  }
+});
+$("dBody").addEventListener("change",e=>{const t=e.target;
+  if(t.dataset.sgun!=null)patch(+t.dataset.sgun,{gun_id:t.value||null});
+  if(t.dataset.sload!=null)patch(+t.dataset.sload,{load_id:t.value||null});
+});
+
+/* ---------- loads ---------- */
+// Mirrors chrono_loads.load_name on the server: the name is always generated from the fields.
+const numFi=(v,d)=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)?(d==null?String(n):n.toFixed(d)):""};
+function genName(f){
+  const w=f.bullet_gr!==""&&f.bullet_gr!=null&&numFi(f.bullet_gr)?numFi(f.bullet_gr)+" gr":"";
+  const cal=f.cal?[f.cal]:[];
+  if(f.kind==="factory")return cal.concat([[f.maker,f.product,w].filter(Boolean).join(" ")||"Factory ammo"]).join(" · ");
+  const out=cal.concat([[f.bullet_maker,f.bullet_model,w].filter(Boolean).join(" ")||"Load"]);
+  if(f.brass)out.push(f.brass+" brass");
+  const pw=[f.powder,numFi(f.charge_gr,1)?numFi(f.charge_gr,1)+" gr":""].filter(Boolean).join(" ");
+  if(pw)out.push(pw);
+  return out.join(" · ");
+}
+const dl=(id,vals)=>{$(id).innerHTML=[...new Set(vals.filter(Boolean))].sort((a,b)=>a.localeCompare(b,"fi")).map(v=>`<option value="${esc(v)}">`).join("")};
+function fillLoadLists(){
+  const L=S.loads;
+  dl("dlLCal",L.map(l=>l.cal).concat(S.guns.map(g=>g.cal),[".22 LR",".223 Rem","6.5 CM","6.5x55 SE",".308 Win","7.62x53R","7.62x54R",".30-06 Spring","9 mm Luger","12/70"]));
+  dl("dlBMaker",L.map(l=>l.bullet_maker).concat(["Lapua","Sako","Hornady","Sierra","Berger","Nosler","Norma"]));
+  dl("dlBModel",L.map(l=>l.bullet_model).concat(["Scenar","Scenar-L","Naturalis","Mega","FMJ","HPCE","Blade","ELD-M","ELD-X","A-Tip","MatchKing","Hybrid Target"]));
+  dl("dlBrass",L.map(l=>l.brass).concat(["Lapua","Sako","Norma","Peterson","Starline","Hornady"]));
+  dl("dlPowder",L.map(l=>l.powder).concat(["N133","N140","N150","N160","N550","N555","N560","N565","N570"]));
+  dl("dlPrimer",L.map(l=>l.primer).concat(["CCI BR-2","CCI BR-4","CCI 200","Federal 210M","Federal 205M","Murom KVB-7"]));
+  dl("dlFMaker",L.map(l=>l.maker).concat(["Lapua","Sako","Norma","SK","Eley","RWS","Geco","Fiocchi","Sellier & Bellot","PPU"]));
+}
+$("loadsBtn").addEventListener("click",()=>{renderLoads();openSheet("lSheet")});
+$("addLoadBtn").addEventListener("click",()=>{const g=S.guns.find(x=>x.id===S.gun)||{};editLoad(null,{kind:"handload",cal:g.cal||""})});
+function renderLoads(){
+  const row=l=>{const u=l.use||{};const guns=(u.guns||[]).map(gunName).join(", ");
+    const parts=[l.kind==="factory"?"factory":"handload",guns,u.last?"last "+fiDate(u.last):""].filter(Boolean);
+    const nm=l.cal&&l.name.startsWith(l.cal+" · ")?l.name.slice(l.cal.length+3):l.name;
+    return`<button type="button" class="lrow${l.archived?" archived":""}" data-lid="${esc(l.id)}">
+      <b>${esc(nm)}</b><span class="fig"><span class="num">${u.shots||0}</span><small>shots</small></span>
+      <span class="meta">${esc(parts.join(" · "))||"no velocities yet"}</span></button>`};
+  const byCal=new Map();
+  S.loads.forEach(l=>{const k=l.cal||"";if(!byCal.has(k))byCal.set(k,[]);byCal.get(k).push(l)});
+  const cals=[...byCal.keys()].sort((a,b)=>(!a)-(!b)||a.localeCompare(b,"fi",{numeric:true}));
+  $("lBody").innerHTML=!S.loads.length?'<div class="empty">No loads yet. Add one, or import velocities – loads are created from the file names.</div>'
+    :cals.map(c=>{const ls=byCal.get(c).sort((a,b)=>(a.archived-b.archived)||(a.kind==="factory")-(b.kind==="factory")||a.name.localeCompare(b.name,"fi",{numeric:true}));
+      return`<div class="lsec">${esc(c||"No calibre")} · ${ls.length}</div>`+ls.map(row).join("")}).join("");
+}
+$("lBody").addEventListener("click",e=>{const b=e.target.closest("[data-lid]");if(b)editLoad(b.dataset.lid)});
+
+const E={id:null,kind:"handload",onSave:null,delArm:false,force:false};
+const eFields=()=>[...$("eForm").querySelectorAll("[data-k]")].filter(el=>!el.closest(".egroup")||el.closest(".egroup").dataset.for===E.kind);
+function eRead(){const f={kind:E.kind};eFields().forEach(el=>f[el.dataset.k]=el.type==="checkbox"?(el.checked?1:0):el.value.trim());return f}
+function eKind(k){E.kind=k;$("eForm").querySelectorAll("[data-kind]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.kind===k));
+  $("eForm").querySelectorAll(".egroup").forEach(g=>g.hidden=g.dataset.for!==k);eName()}
+function eName(){$("eName").textContent=genName(eRead());$("eDup").hidden=true;E.force=false}
+async function editLoad(id,pre,onSave){
+  fillLoadLists();
+  const l=id?loadOf(id):null;E.id=id;E.onSave=onSave||null;E.delArm=false;E.force=false;
+  const f=Object.assign({},l||pre||{kind:"handload"});
+  $("eTitle").textContent=l?"Edit load":"New load";
+  $("eForm").querySelectorAll("[data-k]").forEach(el=>{const v=f[el.dataset.k];
+    if(el.type==="checkbox")el.checked=!!v;
+    else el.value=v==null?"":(el.inputMode==="decimal"&&v!==""?String(v).replace(".",","):v)});
+  eKind(f.kind==="factory"?"factory":"handload");
+  const u=l&&l.use||{};
+  $("eStats").innerHTML=l&&u.shots?`<b>${u.shots}</b> shots · <b>${u.days}</b> days${u.last?" · last "+fiDate(u.last):""}`:(l?"No velocities with this load yet.":"");
+  $("eDel").hidden=!l||!!u.shots;$("eDel").textContent="Delete";$("eMsg").hidden=true;$("ePerGun").innerHTML="";
+  $("eSheet").hidden=false;document.body.style.overflow="hidden";
+  if(l&&u.shots){try{const info=await api("GET","chrono/loads/"+encodeURIComponent(id));
+    $("ePerGun").innerHTML=(info.per_gun||[]).map(p=>{const a=p.all;return`<div class="pg"><span>${esc(gunName(p.gun_id))}</span>
+      <span class="fig">⌀ <b>${f1(a.avg)}</b> m/s</span><span class="meta">n ${a.n} · SD ${f2(a.sd)} · ES ${f1(a.es)} · ${p.days} days${p.temp_sensitivity!=null?` · ${p.temp_sensitivity>0?"+":""}${f2(p.temp_sensitivity)} m/s/°C`:""}</span></div>`}).join("")}catch(e){}}
+}
+function closeEditor(){$("eSheet").hidden=true;if(["iSheet","dSheet","lSheet"].every(x=>$(x).hidden))document.body.style.overflow=""}
+$("eClose").addEventListener("click",closeEditor);
+$("eForm").addEventListener("click",e=>{const b=e.target.closest("[data-kind]");if(b)eKind(b.dataset.kind)});
+$("eForm").addEventListener("input",eName);
+$("eForm").addEventListener("submit",async ev=>{ev.preventDefault();
+  const f=eRead(),id=E.id||("l-"+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+  if(E.force)f.allow_duplicate=true;
+  $("eSave").disabled=true;
+  try{
+    const saved=await api("PUT","chrono/loads/"+encodeURIComponent(id),f);
+    await loadAll();toast("Load saved");closeEditor();
+    if(E.onSave)E.onSave(saved.id);else if(!$("lSheet").hidden)renderLoads();
+  }catch(e){
+    if(e.status===409&&e.body&&e.body.error==="duplicate"){
+      const o=e.body;$("eDup").hidden=false;
+      $("eDup").innerHTML=`A load with this name already exists: <b>${esc(o.name)}</b>.`+(E.id?` Merge this one into it, and all strings of this load move there.`:` Use the existing load.`)
+        +`<div class="actions" style="margin-top:8px">${E.id?`<button class="ghost" type="button" data-merge="${esc(o.other)}">Merge</button>`:`<button class="ghost" type="button" data-use="${esc(o.other)}">Use it</button>`}<button class="ghost" type="button" data-force>Save as a separate load anyway</button></div>`;
+    }else{$("eMsg").hidden=false;$("eMsg").textContent="Saving failed: "+e.message}
+  }finally{$("eSave").disabled=false}
+});
+$("eDup").addEventListener("click",async e=>{const b=e.target.closest("button");if(!b)return;
+  if(b.dataset.force!=null){E.force=true;$("eForm").requestSubmit();return}
+  if(b.dataset.use){closeEditor();await loadAll();if(E.onSave)E.onSave(b.dataset.use);return}
+  if(b.dataset.merge){try{const r=await api("POST","chrono/loads/"+encodeURIComponent(E.id)+"/merge",{into:b.dataset.merge});
+    toast(`Merged – ${r.moved} strings moved`);if(S.load===E.id)S.load=b.dataset.merge;closeEditor();await loadAll();renderLoads()}catch(err){toast("Merge failed")}}
+});
+$("eDel").addEventListener("click",async()=>{
+  if(!E.delArm){E.delArm=true;$("eDel").textContent="Confirm delete";return}
+  try{await api("DELETE","chrono/loads/"+encodeURIComponent(E.id));toast("Load deleted");closeEditor();await loadAll();renderLoads()}catch(e){toast("Delete failed")}
+});
+
+let rT;window.addEventListener("resize",()=>{clearTimeout(rT);rT=setTimeout(()=>{if(!$("dSheet").hidden)renderDay();else{renderLoad();renderLadder()}},200)});
+
+/* ---------- shared files (Android share sheet → installed app) ---------- */
+async function takeShared(){
+  const q=new URLSearchParams(location.search);
+  if(q.has("shared"))history.replaceState(null,"",location.pathname);
+  if(q.get("shared")==="error"||q.get("shared")==="nosw"){toast("The shared file could not be received – open the app once, then share again");return}
+  if(!("caches" in window))return;
+  let cache,keys;
+  try{cache=await caches.open("diary-share");keys=await cache.keys()}catch(e){return}
+  if(!keys.length)return;
+  const files=[];
+  for(const k of keys){const r=await cache.match(k);if(!r)continue;
+    files.push(new File([await r.blob()],decodeURIComponent(r.headers.get("X-Name")||"shared.xls"),{type:r.headers.get("Content-Type")||""}))}
+  await caches.delete("diary-share");
+  if(!files.length)return;
+  S.preview=null;$("iList").innerHTML="";$("iSum").hidden=true;$("iWeather").hidden=true;$("iActions").hidden=true;$("iMsg").hidden=true;
+  openSheet("iSheet");upload(files);
+}
+
+/* ---------- boot ---------- */
+const saved=lsGet();S.gun=saved.gun||"";S.load=saved.load||"";
+loadAll().then(takeShared);
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js",{scope:"./"}).catch(()=>{});
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&$("iSheet").hidden)loadAll()});
+})();
+</script>
+</body>
+</html>

@@ -1,17 +1,17 @@
 <!doctype html>
-<html lang="fi">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
-<title>Kirjaudu · Ampumapäiväkirja</title>
+<title>Log in · Shooting Diary</title>
 <link rel="manifest" href="{{ url_for('diary.page') }}manifest.webmanifest">
 <meta name="theme-color" content="#eef0ec" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#141714" media="(prefers-color-scheme: dark)">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Ampumapäiväkirja">
+<meta name="apple-mobile-web-app-title" content="Shooting Diary">
 <link rel="apple-touch-icon" href="{{ url_for('diary.page') }}static/icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('diary.page') }}static/icons/favicon-32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -37,11 +37,11 @@ button:disabled{opacity:.5;cursor:default}
 </head>
 <body>
 <form method="post" autocomplete="on">
-  <h1>Ampuma<span>päiväkirja</span></h1>
+  <h1>Shooting <span>diary</span></h1>
   {% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}
   <input type="text" name="username" value="osku" autocomplete="username" hidden>
-  <label>Salasana<input type="password" name="password" autocomplete="current-password" required autofocus {% if disabled %}disabled{% endif %}></label>
-  <button type="submit" {% if disabled %}disabled{% endif %}>Kirjaudu</button>
+  <label>Password<input type="password" name="password" autocomplete="current-password" required autofocus {% if disabled %}disabled{% endif %}></label>
+  <button type="submit" {% if disabled %}disabled{% endif %}>Log in</button>
 </form>
 </body>
 </html>

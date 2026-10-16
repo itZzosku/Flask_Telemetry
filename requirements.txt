@@ -3,3 +3,5 @@ influxdb_client
 python-dotenv
 waitress
 Markdown
+xlrd
+openpyxl

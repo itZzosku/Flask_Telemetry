@@ -1,4 +1,4 @@
-"""Ampumapäiväkirja (shooting diary) – password-protected blueprint at /diary.
+"""Shooting diary – password-protected blueprint at /diary.
 
 Data and secrets live in DIARY_DATA_DIR (default: <repo>/diary_data, git-ignored):
   diary.db     SQLite: sessions, profile, password hash
@@ -108,6 +108,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS guns (id TEXT PRIMARY KEY, data TEXT NOT NULL);
         """
     )
+    from .chrono import init_chrono
+    init_chrono(conn)
     conn.commit()
     conn.close()
 
@@ -182,12 +184,12 @@ def login():
     pw_hash = kv_get("password_hash")
     if not pw_hash:
         return render_template("diary_login.html", disabled=True,
-                               error="Salasanaa ei ole asetettu. Aja palvelimella: python -m diary set-password"), 503
+                               error="No password set. Run on the server: python -m diary set-password"), 503
     error = None
     if request.method == "POST":
         ip = request.remote_addr or "?"
         if _too_many(ip):
-            error = "Liian monta väärää yritystä. Odota 15 minuuttia."
+            error = "Too many wrong attempts. Wait 15 minutes."
         elif check_password_hash(pw_hash, request.form.get("password", "")):
             with _fails_lock:
                 _fails.pop(ip, None)
@@ -199,7 +201,7 @@ def login():
         else:
             _note_fail(ip)
             time.sleep(1)
-            error = "Väärä salasana."
+            error = "Wrong password."
     return render_template("diary_login.html", error=error, disabled=False)
 
 
@@ -220,8 +222,11 @@ def page():
 
 @bp.get("/manifest.webmanifest")
 def manifest():
-    return send_from_directory(os.path.join(HERE, "static"), "manifest.webmanifest",
-                               mimetype="application/manifest+json", max_age=3600)
+    # Always fresh: Android reads the share target from it when the app is installed.
+    resp = send_from_directory(os.path.join(HERE, "static"), "manifest.webmanifest",
+                               mimetype="application/manifest+json", max_age=0)
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
 
 
 @bp.get("/sw.js")
@@ -345,3 +350,7 @@ def delete_gun(gid):
     db().execute("DELETE FROM guns WHERE id=?", (gid,))
     db().commit()
     return jsonify(ok=True)
+
+
+# Velocity data (Garmin Xero / own logs / Kestrel): routes register on the same blueprint.
+from . import chrono  # noqa: E402,F401
