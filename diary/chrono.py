@@ -12,7 +12,7 @@ from collections import defaultdict
 
 import os
 
-from flask import abort, jsonify, request, send_from_directory
+from flask import abort, jsonify, redirect, request, send_from_directory, url_for
 
 from . import DATE_RE, HERE, ID_RE, bp, db, kv_get, kv_set, login_required
 from .chrono_import import (MAX_SHOTS_PER_STRING, fingerprint, parse_kestrel, parse_many, secs, sniff,
@@ -570,6 +570,12 @@ def page_chrono():
     resp = send_from_directory(os.path.join(HERE, "static"), "chrono.html", max_age=0)
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+@bp.post("/chrono/share")
+def share_fallback():
+    """Reached only when the service worker isn't running yet; the page explains what to do."""
+    return redirect(url_for("diary.page_chrono", shared="nosw"), code=303)
 
 
 def _fetch_only():

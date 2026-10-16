@@ -953,9 +953,28 @@ $("eDel").addEventListener("click",async()=>{
 
 let rT;window.addEventListener("resize",()=>{clearTimeout(rT);rT=setTimeout(()=>{if(!$("dSheet").hidden)renderDay();else{renderLoad();renderLadder()}},200)});
 
+/* ---------- shared files (Android share sheet → installed app) ---------- */
+async function takeShared(){
+  const q=new URLSearchParams(location.search);
+  if(q.has("shared"))history.replaceState(null,"",location.pathname);
+  if(q.get("shared")==="error"||q.get("shared")==="nosw"){toast("The shared file could not be received – open the app once, then share again");return}
+  if(!("caches" in window))return;
+  let cache,keys;
+  try{cache=await caches.open("diary-share");keys=await cache.keys()}catch(e){return}
+  if(!keys.length)return;
+  const files=[];
+  for(const k of keys){const r=await cache.match(k);if(!r)continue;
+    files.push(new File([await r.blob()],decodeURIComponent(r.headers.get("X-Name")||"shared.xls"),{type:r.headers.get("Content-Type")||""}))}
+  await caches.delete("diary-share");
+  if(!files.length)return;
+  S.preview=null;$("iList").innerHTML="";$("iSum").hidden=true;$("iWeather").hidden=true;$("iActions").hidden=true;$("iMsg").hidden=true;
+  openSheet("iSheet");upload(files);
+}
+
 /* ---------- boot ---------- */
 const saved=lsGet();S.gun=saved.gun||"";S.load=saved.load||"";
-loadAll();
+loadAll().then(takeShared);
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js",{scope:"./"}).catch(()=>{});
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&$("iSheet").hidden)loadAll()});
 })();
 </script>

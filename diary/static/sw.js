@@ -2,15 +2,17 @@
    - The page itself: network first, last good copy when offline (so the app opens at the range).
    - API reads: network first, last answer when offline, marked with X-Offline so the page can say so.
    - Icons, manifest, fonts and the PDF library: cache first.
-   - Logging out clears everything cached. Writes are never cached; the page queues them itself. */
-const VERSION = "v3";
-const PAGE = "diary-page-" + VERSION, DATA = "diary-data", ASSETS = "diary-assets-" + VERSION;
+   - Logging out clears everything cached. Writes are never cached; the page queues them itself.
+   - Share target: a file shared to the installed app (e.g. from ShotView) is POSTed to chrono/share;
+     it is kept in the SHARE cache and the velocity page opens and imports it. */
+const VERSION = "v4";
+const PAGE = "diary-page-" + VERSION, DATA = "diary-data", ASSETS = "diary-assets-" + VERSION, SHARE = "diary-share";
 const BASE = new URL("./", self.registration.scope).pathname;            // "/diary/"
 const ASSET_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com", "cdnjs.cloudflare.com"];
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil((async () => {
-  const keep = [PAGE, DATA, ASSETS];
+  const keep = [PAGE, DATA, ASSETS, SHARE];
   for (const k of await caches.keys()) if (k.startsWith("diary-") && !keep.includes(k)) await caches.delete(k);
   await self.clients.claim();
 })()));
@@ -41,7 +43,27 @@ self.addEventListener("fetch", e => {
   const local = url.origin === self.location.origin;
 
   if (local && req.method === "POST" && url.pathname === BASE + "logout") {
-    e.respondWith((async () => { await caches.delete(DATA); await caches.delete(PAGE); return fetch(req); })());
+    e.respondWith((async () => { await caches.delete(DATA); await caches.delete(PAGE); await caches.delete(SHARE); return fetch(req); })());
+    return;
+  }
+  if (local && req.method === "POST" && url.pathname === BASE + "chrono/share") {
+    e.respondWith((async () => {
+      try {
+        const form = await req.formData();
+        const files = form.getAll("files").filter(f => f && typeof f === "object" && f.size);
+        await caches.delete(SHARE);
+        const cache = await caches.open(SHARE);
+        let i = 0;
+        for (const f of files.slice(0, 20)) {
+          await cache.put(BASE + "__shared/" + (i++),
+            new Response(f, {headers: {"X-Name": encodeURIComponent(f.name || "shared.xls"),
+                                       "Content-Type": f.type || "application/octet-stream"}}));
+        }
+        return Response.redirect(BASE + "chrono?shared=" + i, 303);
+      } catch (err) {
+        return Response.redirect(BASE + "chrono?shared=error", 303);
+      }
+    })());
     return;
   }
   if (req.method !== "GET") return;

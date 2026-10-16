@@ -94,6 +94,9 @@ English, for the last 2 years, a year or the whole diary; the last choice is rem
 Muzzle-velocity data inside the diary (same login): Garmin Xero C1 ShotView exports, your own velocity
 workbooks and Kestrel DROP weather logs. Open it from the diary header (*Velocity*).
 
+- **Share from ShotView** (Android, installed app): ShotView → session → Share → *Shooting Diary* opens the
+  import preview with the file. After updating, remove and re-add the app to the home screen once so Android
+  learns the share target. Not available on iPhone (Safari has no share targets).
 - **Import** (*+ Import velocities*): pick files or a whole folder. ShotView `.xls`/`.xlsx`, velocity workbooks
   (`<gun>, <bullet>, <brass>, <charge> gr.xlsx`, one `DDMMYYYY` sheet per day) and Kestrel CSVs are
   recognised by content. Folder names give the powder (`N555`, `N133`, `N150` …) and the gun, in either
