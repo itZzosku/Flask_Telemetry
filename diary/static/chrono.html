@@ -282,7 +282,7 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
   </section>
 
   <section>
-    <div class="loghead"><h2>Päivät</h2><span class="sumline" id="dayCount"></span></div>
+    <div class="loghead"><h2>Sessiot</h2><span class="sumline" id="dayCount"></span></div>
     <div id="days"><div class="empty">Ladataan…</div></div>
   </section>
 </div>
@@ -415,27 +415,27 @@ async function api(method,path,body,form){
 /* ---------- data ---------- */
 async function loadAll(){
   try{
-    const[g,l,d]=await Promise.all([api("GET","guns"),api("GET","chrono/loads"),api("GET","chrono/days")]);
-    S.guns=g;S.loads=l;S.days=d;
+    const[g,l,d,st]=await Promise.all([api("GET","guns"),api("GET","chrono/loads"),api("GET","chrono/days"),api("GET","chrono/strings")]);
+    S.guns=g;S.loads=l;S.days=d;S.strings=st;
   }catch(e){if(e.message!=="auth"){$("days").innerHTML='<div class="empty">Tietoja ei saatu haettua.</div>'}return}
   render();
 }
 
 /* ---------- filters ---------- */
 function render(){
-  const used=new Set(S.days.map(d=>d.gun_id||""));
+  const used=new Set(S.strings.map(x=>x.gun_id||""));
   if(S.gun&&!used.has(S.gun))S.gun="";
   const guns=S.guns.filter(g=>used.has(g.id)).sort((a,b)=>String(a.name).localeCompare(b.name));
   $("gunChips").innerHTML=`<button type="button" class="chip" data-gun="" aria-pressed="${!S.gun}">Kaikki aseet</button>`
     +guns.map(g=>`<button type="button" class="chip" data-gun="${esc(g.id)}" aria-pressed="${S.gun===g.id}">${esc(g.name)}</button>`).join("")
     +(used.has("")?`<button type="button" class="chip" data-gun="-" aria-pressed="${S.gun==="-"}">Ei asetta</button>`:"");
-  const inGun=S.days.filter(d=>!S.gun||(S.gun==="-"?!d.gun_id:d.gun_id===S.gun));
+  const inGun=S.strings.filter(d=>!S.gun||(S.gun==="-"?!d.gun_id:d.gun_id===S.gun));
   const counts={};inGun.forEach(d=>{const k=d.load_id||"";counts[k]=(counts[k]||0)+1});
   if(S.load&&!(S.load in counts))S.load="";
   const ids=Object.keys(counts).filter(Boolean).sort((a,b)=>loadName(a).localeCompare(loadName(b),"fi",{numeric:true}));
-  $("loadSel").innerHTML=`<option value="">Kaikki lataukset (${inGun.length} päivää)</option>`
-    +ids.map(id=>`<option value="${esc(id)}" ${S.load===id?"selected":""}>${esc(loadName(id))} · ${counts[id]} pv</option>`).join("")
-    +(counts[""]?`<option value="-" ${S.load==="-"?"selected":""}>Ei latausta · ${counts[""]} pv</option>`:"");
+  $("loadSel").innerHTML=`<option value="">Kaikki lataukset (${inGun.length} sessiota)</option>`
+    +ids.map(id=>`<option value="${esc(id)}" ${S.load===id?"selected":""}>${esc(loadName(id))} · ${counts[id]} sess.</option>`).join("")
+    +(counts[""]?`<option value="-" ${S.load==="-"?"selected":""}>Ei latausta · ${counts[""]} sess.</option>`:"");
   lsSet({gun:S.gun,load:S.load});
   renderDays(inGun.filter(d=>!S.load||(S.load==="-"?!d.load_id:d.load_id===S.load)));
   renderLoad();renderLadder();
@@ -443,18 +443,32 @@ function render(){
 $("gunChips").addEventListener("click",e=>{const b=e.target.closest("[data-gun]");if(!b)return;S.gun=b.dataset.gun;S.load="";render()});
 $("loadSel").addEventListener("change",e=>{S.load=e.target.value;render()});
 
-/* ---------- day list ---------- */
-function renderDays(list){
-  $("dayCount").textContent=list.length?list.length+" päivä"+(list.length>1?"ä":"")+" · "+list.reduce((a,d)=>a+d.stats.n,0)+" laukausta":"";
-  if(!list.length){$("days").innerHTML=S.days.length?'<div class="empty">Ei päiviä tällä rajauksella.</div>':'<div class="empty">Ei vielä nopeuksia. Tuo ShotView-vienti tai oma taulukko alta.</div>';return}
-  const byDate=new Map();list.forEach(d=>{if(!byDate.has(d.date))byDate.set(d.date,[]);byDate.get(d.date).push(d)});
-  $("days").innerHTML=[...byDate.entries()].map(([date,rows])=>`<div class="dcard"><div class="dh"><span>${fiDate(date)} <small>${wd(date)}</small></span><small>${rows[0].temp_c!=null?f1(rows[0].temp_c)+" °C":""}</small></div>`
-    +rows.map(d=>{const s=d.stats;return`<button type="button" class="drow" data-day="${date}">
-      <span class="nm">${esc(loadName(d.load_id))}${S.gun?"":` <span>· ${esc(gunName(d.gun_id))}</span>`}</span>
-      <span class="fig">⌀ <b>${f1(s.avg)}</b> m/s</span>
-      <span class="meta">n ${s.n} · SD ${f2(s.sd)} · ES ${f1(s.es)}${d.delta!=null&&S.load?` · Δ ${d.delta>0?"+":""}${f1(d.delta)}`:""}${d.strings.length>1?` · ${d.strings.length} sarjaa`:""}</span></button>`}).join("")+`</div>`).join("");
+/* ---------- session list ---------- */
+// One row per chrono session (string), grouped under its date; several sessions a day are the norm.
+function loadMeans(){
+  const m={};S.days.forEach(d=>{if(d.stats.avg==null)return;const k=(d.gun_id||"")+"|"+(d.load_id||"");
+    const e=m[k]=m[k]||{s:0,n:0};e.s+=d.stats.avg*d.stats.n;e.n+=d.stats.n});
+  return Object.fromEntries(Object.entries(m).map(([k,e])=>[k,e.s/e.n]));
 }
-$("days").addEventListener("click",e=>{const b=e.target.closest("[data-day]");if(b)openDay(b.dataset.day)});
+function renderDays(list){
+  const shots=list.reduce((a,x)=>a+x.stats.n,0),dates=new Set(list.map(x=>x.date)).size;
+  $("dayCount").textContent=list.length?`${list.length} sessio${list.length>1?"ta":""} · ${dates} päivä${dates>1?"ä":""} · ${shots} laukausta`:"";
+  if(!list.length){$("days").innerHTML=S.strings.length?'<div class="empty">Ei sessioita tällä rajauksella.</div>':'<div class="empty">Ei vielä nopeuksia. Tuo ShotView-vienti tai oma taulukko alta.</div>';return}
+  const means=S.load?loadMeans():{};
+  const byDate=new Map();list.forEach(x=>{if(!byDate.has(x.date))byDate.set(x.date,[]);byDate.get(x.date).push(x)});
+  $("days").innerHTML=[...byDate.entries()].sort((a,b)=>b[0].localeCompare(a[0])).map(([date,rows])=>{
+    const chg=x=>(loadOf(x.load_id)||{}).charge_gr??0;
+    rows.sort((a,b)=>String(a.started_at||"").localeCompare(String(b.started_at||""))||chg(a)-chg(b));
+    const temps=rows.map(r=>r.temp_c).filter(t=>t!=null);
+    return`<div class="dcard"><div class="dh"><span>${fiDate(date)} <small>${wd(date)}${rows.length>1?" · "+rows.length+" sessiota":""}</small></span><small>${temps.length?f1(temps.reduce((a,b)=>a+b,0)/temps.length)+" °C":""}</small></div>`
+    +rows.map(x=>{const st=x.stats,mean=means[(x.gun_id||"")+"|"+(x.load_id||"")];
+      const delta=mean!=null&&st.avg!=null?st.avg-mean:null;
+      return`<button type="button" class="drow" data-day="${date}" data-sid="${esc(x.id)}">
+      <span class="nm"><span class="tm">${esc(x.started_at||"–")}</span>${esc(loadName(x.load_id))}${S.gun?"":` <span>· ${esc(gunName(x.gun_id))}</span>`}</span>
+      <span class="fig">⌀ <b>${f1(st.avg)}</b> m/s</span>
+      <span class="meta">n ${st.n}${x.shot_count>st.n?"/"+x.shot_count:""} · SD ${f2(st.sd)} · ES ${f1(st.es)}${delta!=null?` · Δ ${delta>0?"+":""}${f1(delta)}`:""}</span></button>`}).join("")+`</div>`}).join("");
+}
+$("days").addEventListener("click",e=>{const b=e.target.closest("[data-day]");if(b)openDay(b.dataset.day,b.dataset.sid)});
 
 /* ---------- charts ---------- */
 const tip=$("tip");
@@ -649,7 +663,7 @@ async function upload(files){
 }
 function renderPreview(){
   const p=S.preview,on=p.strings.filter(s=>s.ui.on);
-  $("iSum").innerHTML=`<b>${p.strings.length}</b> sarjaa, valittuna <b>${on.length}</b> (${on.reduce((a,s)=>a+s.stats.n,0)} laukausta)`
+  $("iSum").innerHTML=`<b>${p.strings.length}</b> sessiota, valittuna <b>${on.length}</b> (${on.reduce((a,s)=>a+s.stats.n,0)} laukausta)`
     +(p.weather_records?` · Kestrel: <b>${p.weather_records}</b> riviä, sää ${p.weather_filled} laukaukseen`:"")
     +(p.errors.length?`<br>Ohitettu: ${p.errors.map(esc).join("; ")}`:"")
     +(p.notes.length?`<br>${p.notes.map(n=>esc(n.text)).join("<br>")}`:"");
@@ -660,9 +674,9 @@ function renderPreview(){
       if(x.code==="weather_range")return`<div>${esc(x.text)}${x.swap?` <label class="check" style="display:inline-flex"><input type="checkbox" data-swap="${i}" ${s.ui.swap?"checked":""}>Vaihda</label>`:""}</div>`;
       if(x.code==="date_corrected")return`<div class="info">${esc(x.text)}</div>`;
       return`<div>${esc(x.text)}</div>`}).join("");
-    const done=s.already_imported?"Jo tuotu":s.existing_shots?`${s.existing_shots} laukausta on jo tallennettu – sarja lisää vain puuttuvan sään`:"";
+    const done=s.already_imported?"Jo tuotu":s.existing_shots?`${s.existing_shots} laukausta on jo tallennettu – sessio lisää vain puuttuvan sään`:"";
     return`<div class="pcard${s.ui.on?"":" off"}">
-      <div class="ph"><input type="checkbox" data-on="${i}" ${s.ui.on?"checked":""} aria-label="Tuo tämä sarja">
+      <div class="ph"><input type="checkbox" data-on="${i}" ${s.ui.on?"checked":""} aria-label="Tuo tämä sessio">
         <div class="pt"><b>${s.ui.date?fiDate(s.ui.date):"?"}</b> ${esc(s.started_at||"")} · ${esc(s.name)}
           <div class="src">${esc(s.file)}${s.sheet&&s.sheet!==s.name?" · "+esc(s.sheet):""}</div></div>
         <div class="fig">n ${st.n}<br>⌀ ${f1(st.avg)}</div></div>
@@ -703,39 +717,43 @@ $("iSave").addEventListener("click",async()=>{
   try{
     const r=await api("POST","chrono/commit",{strings:items});
     const shots=r.created.reduce((a,c)=>a+c.shots,0);
-    toast(`Tallennettu ${r.created.length} sarjaa, ${shots} laukausta`+(r.merged_shots?`, sää ${r.merged_shots} laukaukseen`:""));
+    toast(`Tallennettu ${r.created.length} sessiota, ${shots} laukausta`+(r.merged_shots?`, sää ${r.merged_shots} laukaukseen`:""));
     closeSheets();await loadAll();
   }catch(e){$("iMsg").hidden=false;$("iMsg").textContent="Tallennus epäonnistui: "+e.message}
   finally{$("iSave").disabled=false}
 });
 
 /* ---------- day ---------- */
-async function openDay(date){
+async function openDay(date,focusId){
   $("dTitle").textContent=fiDate(date)+" "+wd(date);$("dBody").innerHTML='<div class="empty">Ladataan…</div>';openSheet("dSheet");
   let list;try{list=await api("GET","chrono/strings?date="+date)}catch(e){return}
   const full=await Promise.all(list.map(s=>api("GET","chrono/strings/"+s.id)));
+  const chg=x=>(loadOf(x.load_id)||{}).charge_gr??0;
+  full.sort((a,b)=>String(a.started_at||"").localeCompare(String(b.started_at||""))||chg(a)-chg(b));
   S.dayDate=date;S.dayStrings=full;renderDay();
+  const el=focusId&&$("dBody").querySelector(`[data-card="${CSS.escape(focusId)}"]`);
+  if(el)el.scrollIntoView({block:"start"});
 }
 function renderDay(){
   fitW();
   const list=S.dayStrings;
   $("dBody").innerHTML=list.map((s,i)=>{const st=s.stats;const temps=s.shots.filter(x=>x.temp_c!=null);
     const w=temps.length?temps[0]:{};
-    return`<div class="chart">
-      <h3>${esc(s.started_at||"")} · ${esc(loadName(s.load_id))}</h3>
+    return`<div class="chart" data-card="${esc(s.id)}" style="scroll-margin-top:70px">
+      <h3>Sessio ${i+1}/${list.length} · ${esc(s.started_at||"–")} · ${esc(loadName(s.load_id))}</h3>
       <p class="sub">⌀ <b>${f1(st.avg)}</b> m/s · n ${st.n}/${s.shots.length} · SD ${f2(st.sd)} (Garmin ${f2(st.sd_garmin)}) · ES ${f1(st.es)}${st.ke_j?` · ${st.ke_j} J`:""}${w.temp_c!=null?` · ${f1(w.temp_c)} °C ${w.rh!=null?f1(w.rh)+" %":""} ${w.hpa!=null?Math.round(w.hpa)+" hPa":""}`:""}</p>
       ${dotPlot(s.shots,st.avg)}
       <div class="shots" style="margin:8px 0 12px">${s.shots.map(x=>`<button type="button" class="shot" data-ex="${i}" data-n="${x.n}" aria-pressed="${!!x.excluded}" title="Poista tilastoista / palauta"><small>#${x.n}</small>${f1(x.v_ms)}</button>`).join("")}</div>
       <div class="grid2"><label class="f">Ase<select data-sgun="${i}">${gunOpts(s.gun_id)}</select></label>
         <label class="f">Lataus<select data-sload="${i}">${loadOpts(s.load_id)}</select></label></div>
-      <details style="margin-top:10px"><summary>Sää tälle sarjalle</summary>
+      <details style="margin-top:10px"><summary>Sää tälle sessiolle</summary>
         <div class="grid3" style="margin-top:8px"><label class="f">°C<input type="number" step="0.1" data-wt="${i}" value="${w.temp_c??""}"></label>
           <label class="f">RH %<input type="number" step="1" data-wr="${i}" value="${w.rh??""}"></label>
           <label class="f">hPa<input type="number" step="0.1" data-wp="${i}" value="${w.hpa??""}"></label></div>
         <div class="actions" style="margin-top:8px"><button class="ghost" type="button" data-wsave="${i}">Tallenna sää kaikille laukauksille</button>
           <button class="ghost" type="button" data-wswap="${i}">Vaihda RH ↔ paine</button></div></details>
-      <div class="actions" style="margin-top:10px"><button class="danger" type="button" data-del="${i}">Poista sarja</button></div>
-    </div>`}).join("")||'<div class="empty">Ei sarjoja.</div>';
+      <div class="actions" style="margin-top:10px"><button class="danger" type="button" data-del="${i}">Poista sessio</button></div>
+    </div>`}).join("")||'<div class="empty">Ei sessioita.</div>';
   bindTips($("dBody"));
 }
 async function patch(i,body){const s=S.dayStrings[i];try{S.dayStrings[i]=await api("PATCH","chrono/strings/"+s.id,body);renderDay();loadAll()}catch(e){toast("Tallennus epäonnistui: "+e.message)}}
@@ -748,7 +766,7 @@ $("dBody").addEventListener("click",async e=>{
   else if(t.dataset.del!=null){
     if(!t.dataset.armed){t.dataset.armed=1;t.textContent="Vahvista poisto";return}
     const s=S.dayStrings[t.dataset.del];
-    try{await api("DELETE","chrono/strings/"+s.id);S.dayStrings.splice(+t.dataset.del,1);renderDay();loadAll();toast("Sarja poistettu")}catch(e){toast("Poisto epäonnistui")}
+    try{await api("DELETE","chrono/strings/"+s.id);S.dayStrings.splice(+t.dataset.del,1);renderDay();loadAll();toast("Sessio poistettu")}catch(e){toast("Poisto epäonnistui")}
   }
 });
 $("dBody").addEventListener("change",e=>{const t=e.target;
@@ -833,7 +851,7 @@ $("eForm").addEventListener("submit",async ev=>{ev.preventDefault();
   }catch(e){
     if(e.status===409&&e.body&&e.body.error==="duplicate"){
       const o=e.body;$("eDup").hidden=false;
-      $("eDup").innerHTML=`Samalla nimellä on jo lataus <b>${esc(o.name)}</b>.`+(E.id?` Yhdistä tämä siihen, niin kaikki tämän latauksen sarjat siirtyvät sille.`:` Käytä olemassa olevaa latausta.`)
+      $("eDup").innerHTML=`Samalla nimellä on jo lataus <b>${esc(o.name)}</b>.`+(E.id?` Yhdistä tämä siihen, niin kaikki tämän latauksen sessiot siirtyvät sille.`:` Käytä olemassa olevaa latausta.`)
         +`<div class="actions" style="margin-top:8px">${E.id?`<button class="ghost" type="button" data-merge="${esc(o.other)}">Yhdistä</button>`:`<button class="ghost" type="button" data-use="${esc(o.other)}">Käytä sitä</button>`}<button class="ghost" type="button" data-force>Tallenna silti erillisenä</button></div>`;
     }else{$("eMsg").hidden=false;$("eMsg").textContent="Tallennus epäonnistui: "+e.message}
   }finally{$("eSave").disabled=false}
@@ -842,7 +860,7 @@ $("eDup").addEventListener("click",async e=>{const b=e.target.closest("button");
   if(b.dataset.force!=null){E.force=true;$("eForm").requestSubmit();return}
   if(b.dataset.use){closeEditor();await loadAll();if(E.onSave)E.onSave(b.dataset.use);return}
   if(b.dataset.merge){try{const r=await api("POST","chrono/loads/"+encodeURIComponent(E.id)+"/merge",{into:b.dataset.merge});
-    toast(`Yhdistetty – ${r.moved} sarjaa siirretty`);if(S.load===E.id)S.load=b.dataset.merge;closeEditor();await loadAll();renderLoads()}catch(err){toast("Yhdistäminen epäonnistui")}}
+    toast(`Yhdistetty – ${r.moved} sessiota siirretty`);if(S.load===E.id)S.load=b.dataset.merge;closeEditor();await loadAll();renderLoads()}catch(err){toast("Yhdistäminen epäonnistui")}}
 });
 $("eDel").addEventListener("click",async()=>{
   if(!E.delArm){E.delArm=true;$("eDel").textContent="Vahvista poisto";return}
