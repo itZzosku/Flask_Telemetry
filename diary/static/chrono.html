@@ -468,7 +468,7 @@ function renderDays(list){
       return`<button type="button" class="drow" data-day="${date}" data-sid="${esc(x.id)}">
       <span class="nm"><span class="tm">${esc(x.started_at||"–")}</span>${esc(loadName(x.load_id))}${S.gun?"":` <span>· ${esc(gunName(x.gun_id))}</span>`}</span>
       <span class="fig">⌀ <b>${f1(st.avg)}</b> m/s</span>
-      <span class="meta">n ${st.n}${x.shot_count>st.n?"/"+x.shot_count:""} · SD ${f2(st.sd)} · ES ${f1(st.es)}${delta!=null?` · Δ ${delta>0?"+":""}${f1(delta)}`:""}</span></button>`}).join("")+`</div>`}).join("");
+      <span class="meta">n ${st.n}${x.shot_count>st.n?"/"+x.shot_count:""} · SD ${f2(st.sd)} · ES ${f1(st.es)}${st.ke_j?` · ⌀ ${st.ke_j} J`:""}${delta!=null?` · Δ ${delta>0?"+":""}${f1(delta)}`:""}</span></button>`}).join("")+`</div>`}).join("");
 }
 $("days").addEventListener("click",e=>{const b=e.target.closest("[data-day]");if(b)openDay(b.dataset.day,b.dataset.sid)});
 
@@ -608,7 +608,7 @@ async function renderLoad(){
     ["⌀ m/s",f1(a.avg),l&&one.days>10?`last 10 days: <b>${f1(l.avg)}</b>`:`${one.days} days`],
     ["SD m/s",f2(a.sd),l&&one.days>10?`last 10 days: <b>${f2(l.sd)}</b>`:"sample"],
     ["ES m/s",f1(a.es),`${f1(a.min)}–${f1(a.max)}`],
-    ["Shots",a.n,a.ke_j?`${a.ke_j} J`:""]].map(k=>`<div class="stat"><b class="num">${k[1]}</b><small>${k[0]}${k[2]?" · "+k[2]:""}</small></div>`).join(""):"";
+    ["Shots",a.n,a.ke_j?`⌀ ${a.ke_j} J`:""]].map(k=>`<div class="stat"><b class="num">${k[1]}</b><small>${k[0]}${k[2]?" · "+k[2]:""}</small></div>`).join(""):"";
   $("kpis").hidden=!a;
   const ts=one&&one.temp_sensitivity;
   $("kpiNote").innerHTML=(one?"":pg.length>1?"This load is used in several guns – pick a gun above to see its figures. ":"")
@@ -822,7 +822,7 @@ function renderDay(){
     return`<div class="chart" data-card="${esc(s.id)}" style="scroll-margin-top:70px">
       <h3>String ${i+1}/${list.length} · ${esc(s.started_at||"–")} · ${esc(loadName(s.load_id))}</h3>
       ${calClash(s.gun_id,s.load_id)?`<div class="msg" style="margin:2px 0 6px">${esc(calClash(s.gun_id,s.load_id))}</div>`:""}
-      <p class="sub">⌀ <b>${f1(st.avg)}</b> m/s · n ${st.n}/${s.shots.length} · SD ${f2(st.sd)} (Garmin ${f2(st.sd_garmin)}) · ES ${f1(st.es)}${st.ke_j?` · ${st.ke_j} J`:""}${w.temp_c!=null?` · ${f1(w.temp_c)} °C ${w.rh!=null?f1(w.rh)+" %":""} ${w.hpa!=null?Math.round(w.hpa)+" hPa":""}`:""}</p>
+      <p class="sub">⌀ <b>${f1(st.avg)}</b> m/s · n ${st.n}/${s.shots.length} · SD ${f2(st.sd)} (Garmin ${f2(st.sd_garmin)}) · ES ${f1(st.es)}${st.ke_j?` · ⌀ ${st.ke_j} J`:""}${w.temp_c!=null?` · ${f1(w.temp_c)} °C ${w.rh!=null?f1(w.rh)+" %":""} ${w.hpa!=null?Math.round(w.hpa)+" hPa":""}`:""}</p>
       ${dotPlot(s.shots,st.avg)}
       <div class="shots" style="margin:8px 0 12px">${s.shots.map(x=>`<button type="button" class="shot" data-ex="${i}" data-n="${x.n}" aria-pressed="${!!x.excluded}" title="Exclude from / restore to the statistics"><small>#${x.n}</small>${f1(x.v_ms)}</button>`).join("")}</div>
       <div class="grid2"><label class="f">Gun<select data-sgun="${i}">${gunOpts(s.gun_id)}</select></label>

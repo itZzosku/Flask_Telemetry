@@ -311,7 +311,8 @@ def chrono_print_stats(gun, load):
         st = d["stats"]
         print(f"{d['date']}  {gnames.get(d['gun_id'], d['gun_id'] or '–'):<20.20} "
               f"{lnames.get(d["load_id"], d["load_id"] or "–"):<52.52} n={st['n']:<3} {_fmt(st['avg'])} "
-              f"SD {_fmt(st['sd'], 2)} ES {_fmt(st['es'])}  {_fmt(d['temp_c'])} °C")
+              f"SD {_fmt(st['sd'], 2)} ES {_fmt(st['es'])} {str(st['ke_j']) + ' J' if st['ke_j'] else '':>7} "
+              f"{_fmt(d['temp_c'])} °C")
     conn.close()
 
 

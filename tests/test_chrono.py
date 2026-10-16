@@ -184,7 +184,12 @@ def test_stats_sample_vs_garmin():
     st = stats([768.1, 764.0, 763.9, 767.4, 762.1, 762.4, 765.6], bullet_gr=139)
     assert st["n"] == 7 and st["avg"] == 764.79
     assert st["sd"] == 2.34 and st["sd_garmin"] == 2.16 and st["es"] == 6.0
-    assert st["ci_low"] < st["avg"] < st["ci_high"] and st["ke_j"] == 2634
+    assert st["ci_low"] < st["avg"] < st["ci_high"]
+    # mean of per-shot energies, not ½mv² at the mean velocity
+    v = [768.1, 764.0, 763.9, 767.4, 762.1, 762.4, 765.6]
+    assert st["ke_j"] == round(sum(0.5 * 139 * 0.06479891e-3 * x * x for x in v) / 7)
+    assert stats([800, 820], bullet_gr=150)["ke_j"] == round(0.5 * 150 * 0.06479891e-3 * (800**2 + 820**2) / 2)
+    assert stats([800, 820])["ke_j"] is None                # no bullet weight → no energy
     assert stats([800, 801])["sd"] is None                 # SD needs n ≥ 3
     assert stats([800, 801, 802, 803])["ci_low"] is None   # CI needs n ≥ 5
 

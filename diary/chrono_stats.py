@@ -49,7 +49,8 @@ def stats(velocities, bullet_gr=None):
             half = t95(n - 1) * sd / math.sqrt(n)
             out.update(ci_low=_r(avg - half), ci_high=_r(avg + half))
     if bullet_gr:
-        out["ke_j"] = _r(0.5 * bullet_gr * GRAIN_KG * avg ** 2, 0)
+        # Mean of the per-shot energies (not the energy at the mean velocity, which is a little lower)
+        out["ke_j"] = _r(sum(ke_joules(bullet_gr, x) for x in v) / n, 0)
     return out
 
 
