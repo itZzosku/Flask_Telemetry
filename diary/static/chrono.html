@@ -1,0 +1,706 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Lähtönopeudet</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#eef0ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141714" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="static/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="static/icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: single-column range log; licence strip + totals up top, entries by month, entry sheet over the log. */
+:root{
+  --bg:#eef0ec; --surface:#ffffff; --surface-2:#e3e6e0; --line:#c9cec4;
+  --fg:#1c211c; --muted:#5b6359; --accent:#e2590f; --accent-ink:#ffffff; --accent-soft:#fbe3d4;
+  --danger:#b3261e;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141714; --surface:#1d211d; --surface-2:#272c27; --line:#363d36;
+  --fg:#e8ebe6; --muted:#9aa398; --accent:#ff7a33; --accent-ink:#1a0d05; --accent-soft:#3a2416;
+  --danger:#ff8a80; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#141714; --surface:#1d211d; --surface-2:#272c27; --line:#363d36;
+  --fg:#e8ebe6; --muted:#9aa398; --accent:#ff7a33; --accent-ink:#1a0d05; --accent-soft:#3a2416;
+  --danger:#ff8a80; color-scheme:dark }
+
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg)}
+[hidden]{display:none!important}
+body{font-family:var(--f-body);font-size:16px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:env(safe-area-inset-top,0px) calc(120px + env(safe-area-inset-bottom,0px))}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+header.top{padding-top:20px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--f-display);font-weight:700;font-size:min(2.4rem,7.6vw);line-height:1;margin:0;letter-spacing:.01em;text-transform:uppercase}
+h1 span{color:var(--accent)}
+.hbtns{display:flex;gap:8px;flex-wrap:wrap}
+.ghost{background:none;border:1px solid var(--line);border-radius:999px;padding:8px 14px;font-size:.85rem;color:var(--fg)}
+.ghost:hover{border-color:var(--fg)}
+.banner{background:var(--accent-soft);border-radius:var(--r);padding:10px 14px;font-size:.9rem}
+
+/* Licence strip */
+.ids{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px 16px;padding:12px 0;border-top:2px solid var(--fg)}
+.ids div{min-width:0}
+.ids small,.lbl{display:block;color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+.ids b{font-weight:600;overflow-wrap:anywhere}
+.ids .num{font-weight:600}
+
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.stat{padding:12px 4px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.stat+.stat{border-left:1px solid var(--line);padding-left:12px}
+.stat b{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:1.7rem;font-weight:600;line-height:1.1}
+.stat small{color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em}
+.types{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.9rem;padding-top:10px}
+.types span{color:var(--muted)}
+.types b{font-family:var(--f-mono);font-weight:600;color:var(--fg)}
+
+h2{font-family:var(--f-display);font-weight:700;font-size:1.35rem;text-transform:uppercase;letter-spacing:.04em;margin:0}
+.loghead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.yrs{display:flex;gap:6px;flex-wrap:wrap}
+.search{position:relative;margin-bottom:12px}
+.search input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:11px 40px 11px 16px;font-size:1rem;color:var(--fg)}
+.search input::-webkit-search-cancel-button{-webkit-appearance:none;display:none}
+.search button{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:32px;height:32px;border:0;border-radius:50%;background:var(--surface-2);color:var(--muted);font-size:1rem;line-height:1}
+.found{font-size:.85rem;color:var(--muted);margin:-4px 0 12px}
+.found b{color:var(--fg);font-family:var(--f-mono)}
+.yr{background:none;border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:.82rem;font-family:var(--f-mono)}
+.yr[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.month{font-family:var(--f-display);font-weight:600;font-size:1rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px;display:flex;justify-content:space-between}
+.month:first-child{margin-top:0}
+
+.entry{display:grid;grid-template-columns:84px minmax(0,1fr);gap:12px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:8px}
+.entry:hover{border-color:var(--muted)}
+.day{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-right:1px solid var(--line);padding-right:10px}
+.day b{font-family:var(--f-mono);font-size:.92rem;font-weight:600;line-height:1.1;white-space:nowrap;font-variant-numeric:tabular-nums}
+.day small{font-size:.72rem;color:var(--muted)}
+.e-head{display:flex;gap:4px 10px;align-items:baseline;flex-wrap:wrap}
+.e-place{font-weight:600}
+.e-meta{color:var(--muted);font-size:.85rem}
+.e-lines{display:flex;flex-direction:column;gap:2px;margin-top:6px;font-size:.88rem}
+.e-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}
+.e-line .what{min-width:0;overflow-wrap:anywhere}
+.e-line .what span{color:var(--muted)}
+.e-line .num{font-weight:600}
+.tm{display:inline-block;font-family:var(--f-mono);font-size:.72rem;border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-right:4px;color:var(--muted)}
+
+.empty{border:1.5px dashed var(--line);border-radius:var(--r);padding:24px;text-align:center;color:var(--muted)}
+
+.fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));
+  background:var(--accent);color:var(--accent-ink);border:0;border-radius:999px;padding:16px 28px;
+  font-family:var(--f-display);font-weight:700;font-size:1.25rem;letter-spacing:.06em;text-transform:uppercase;
+  box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:5;white-space:nowrap}
+
+/* Sheets */
+.sheet{position:fixed;inset:0;z-index:10;background:var(--bg);overflow-y:auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+.sheet-in{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.sheet-bar{display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--bg);padding-block:12px;z-index:1;border-bottom:1px solid var(--line)}
+label.f{display:flex;flex-direction:column;gap:6px;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;min-width:0}
+.field{display:flex;flex-direction:column;gap:6px}
+input[type=text],input[type=date],input[type=time],input[type=number],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:11px;font-size:1rem;color:var(--fg);font-weight:400;text-transform:none;letter-spacing:0;min-width:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px 13px;font-size:.9rem}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.chip.add{border-style:dashed}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.grid3{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr);gap:12px}
+
+.line{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:10px;box-shadow:inset 4px 0 0 var(--accent)}
+.line-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.line-top .lbl{font-size:.75rem}
+.rm{background:none;border:0;color:var(--muted);font-size:.85rem;padding:4px 6px}
+.lgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.step{display:flex;align-items:center;gap:4px}
+.step button{width:44px;height:44px;flex:0 0 44px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);font-size:1.3rem;line-height:1}
+.step input{text-align:center;font-family:var(--f-mono);font-weight:600}
+.total{font-family:var(--f-mono);font-size:.9rem;color:var(--muted);text-align:right}
+
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.primary{background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:14px 22px;font-weight:600;font-size:1rem;flex:1 1 auto}
+.danger{background:none;border:1px solid var(--danger);color:var(--danger);border-radius:8px;padding:13px 16px}
+.msg{font-size:.88rem;color:var(--danger)}
+.opt{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.opt>label.r{display:flex;gap:10px;align-items:center;font-weight:600;cursor:pointer}
+.opt input[type=radio]{width:20px;height:20px;accent-color:var(--accent)}
+.opt .sub{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding-left:30px}
+.hint{font-size:.85rem;color:var(--muted)}
+.hint b{color:var(--fg);font-family:var(--f-mono)}
+/* Guns */
+.guns{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.gunrow{display:grid;grid-template-columns:36px minmax(0,1fr);align-items:stretch;border-top:1px solid var(--line);background:var(--surface)}
+.gunrow:first-child{border-top:0;border-radius:var(--r) var(--r) 0 0}
+.gunrow:last-child{border-radius:0 0 var(--r) var(--r)}
+.grip{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:1.1rem;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.gunrow.dragging{position:relative;z-index:2;box-shadow:0 6px 18px rgba(0,0,0,.18);background:var(--surface-2)}
+.gunrow.dragging .grip{cursor:grabbing;color:var(--accent)}
+.gun{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center;width:100%;text-align:left;background:none;border:0;padding:12px 14px 12px 0}
+.gun:hover{background:var(--surface-2)}
+.gun b{font-weight:600}
+.gun .g-sub{color:var(--muted);font-size:.82rem;grid-column:1}
+.gun .g-r{grid-row:1/3;grid-column:2;text-align:right}
+.gun .g-r .num{font-size:1.3rem;font-weight:600;display:block;line-height:1.1}
+.gun .g-r small{color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.06em}
+.gun.archived{opacity:.55}
+.sechead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.toggle{display:flex;align-items:baseline;gap:10px;background:none;border:0;padding:4px 0;color:var(--fg);text-align:left}
+.toggle .cnt{font-size:.85rem;color:var(--muted)}
+.toggle .chev{display:inline-block;color:var(--muted);transition:transform .15s}
+.toggle[aria-expanded="true"] .chev{transform:rotate(90deg)}
+.check{display:flex;gap:10px;align-items:center;font-size:.95rem;cursor:pointer}
+.check input{width:20px;height:20px;accent-color:var(--accent)}
+.e-line .gname{color:var(--fg);font-weight:500}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(90px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:20}
+
+@media (max-width:560px){ .ids{grid-template-columns:repeat(2,minmax(0,1fr))} .grid3{grid-template-columns:1fr 1fr} .grid3>:first-child{grid-column:1/-1} }
+@media (max-width:420px){ .stat b{font-size:1.35rem} .lgrid{grid-template-columns:1fr} }
+@media (prefers-reduced-motion:no-preference){ .toast{animation:up .2s ease-out} @keyframes up{from{opacity:0;transform:translate(-50%,8px)}} }
+/* ---- velocity page additions ---- */
+.filters{display:flex;flex-direction:column;gap:10px}
+.filters select{max-width:100%}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.kpis .stat b{font-size:1.45rem}
+.kpis .stat small b{font-size:inherit;font-family:inherit;font-weight:600}
+.chart{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 12px 6px;position:relative}
+.chart h3{font-family:var(--f-body);font-size:.85rem;font-weight:600;margin:0 0 2px}
+.chart .sub{font-size:.78rem;color:var(--muted);margin:0 0 6px}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart .ax{font-family:var(--f-mono);font-size:11px;fill:var(--muted)}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .mk{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.chart .mk.hollow{fill:var(--surface);stroke:var(--muted);stroke-width:1.5}
+.chart .wh{stroke:var(--accent);stroke-width:2;stroke-linecap:round;opacity:.55}
+.chart .ln{fill:none;stroke:var(--accent);stroke-width:2;opacity:.35}
+.chart .avgline{stroke:var(--fg);stroke-width:1;stroke-dasharray:3 3;opacity:.6}
+.chart .lab{font-family:var(--f-mono);font-size:10.5px;fill:var(--fg)}
+.chart .hit{fill:transparent;cursor:pointer}
+.chart details{margin-top:4px;font-size:.82rem}
+.chart summary{color:var(--muted);cursor:pointer;padding:4px 0}
+.tbl{width:100%;border-collapse:collapse;font-size:.82rem;font-variant-numeric:tabular-nums}
+.tbl th,.tbl td{text-align:right;padding:4px 6px;border-top:1px solid var(--line)}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl th{color:var(--muted);font-weight:600}
+#tip{position:fixed;z-index:30;pointer-events:none;background:var(--fg);color:var(--bg);font-size:.8rem;line-height:1.35;
+  padding:7px 10px;border-radius:8px;max-width:260px;font-family:var(--f-body)}
+#tip b{font-family:var(--f-mono)}
+.dcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);margin-bottom:8px;overflow:hidden}
+.dcard .dh{display:flex;justify-content:space-between;gap:10px;padding:10px 12px 4px;font-family:var(--f-mono);font-weight:600;font-size:.92rem}
+.dcard .dh small{font-family:var(--f-body);color:var(--muted);font-weight:400}
+.drow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:9px 12px}
+.drow:first-of-type{border-top:0}
+.drow:hover{background:var(--surface-2)}
+.drow .nm{min-width:0;overflow-wrap:anywhere;font-size:.9rem}
+.drow .nm span{color:var(--muted)}
+.drow .fig{font-family:var(--f-mono);font-size:.88rem;text-align:right;white-space:nowrap}
+.drow .fig b{font-weight:600}
+.drow .meta{grid-column:1/-1;color:var(--muted);font-size:.78rem;font-family:var(--f-mono)}
+.pos{color:var(--accent)}
+.badge{display:inline-block;font-size:.7rem;font-weight:600;border-radius:4px;padding:1px 6px;border:1px solid var(--line);color:var(--muted);margin-right:4px;font-family:var(--f-body)}
+.badge.ok{border-color:var(--muted)}
+.badge.warn{border-color:var(--danger);color:var(--danger)}
+.pcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:10px}
+.pcard.off{opacity:.55}
+.pcard .ph{display:flex;gap:10px;align-items:flex-start}
+.pcard .ph input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent);flex:0 0 auto;margin-top:2px}
+.pcard .pt{min-width:0;flex:1}
+.pcard .pt b{font-family:var(--f-mono)}
+.pcard .pt .src{color:var(--muted);font-size:.78rem;overflow-wrap:anywhere}
+.pcard .fig{font-family:var(--f-mono);font-size:.88rem}
+.warns{display:flex;flex-direction:column;gap:4px;font-size:.84rem}
+.warns div{color:var(--danger)}
+.warns div.info{color:var(--muted)}
+.shots{display:flex;flex-wrap:wrap;gap:6px}
+.shot{font-family:var(--f-mono);font-size:.82rem;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+.shot small{color:var(--muted);margin-right:4px}
+.shot[aria-pressed="true"]{text-decoration:line-through;opacity:.5;border-style:dashed}
+.drop{border:1.5px dashed var(--line);border-radius:var(--r);padding:18px;display:flex;flex-direction:column;gap:10px;align-items:stretch;text-align:center}
+.drop .ghost{align-self:center}
+.sumline{font-size:.88rem;color:var(--muted)}
+.sumline b{color:var(--fg);font-family:var(--f-mono)}
+.lrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;margin-bottom:6px}
+.lrow .meta{grid-column:1/-1;color:var(--muted);font-size:.8rem}
+@media (max-width:560px){ .kpis{grid-template-columns:repeat(2,minmax(0,1fr))} .kpis .stat:nth-child(3){border-left:0;padding-left:4px} .kpis .stat:nth-child(n+3){border-top:1px solid var(--line)} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Lähtö<span>nopeudet</span></h1>
+    <div class="hbtns">
+      <a class="ghost" href="./" style="text-decoration:none">← Päiväkirja</a>
+      <button class="ghost" id="loadsBtn" type="button">Lataukset</button>
+      <form method="post" action="logout" style="display:contents"><button class="ghost" type="submit">Kirjaudu ulos</button></form>
+    </div>
+  </header>
+
+  <div class="banner" id="offNote" hidden></div>
+
+  <section class="filters" aria-label="Rajaus">
+    <div class="chips" id="gunChips"></div>
+    <label class="f">Lataus<select id="loadSel"></select></label>
+  </section>
+
+  <section id="loadView" hidden>
+    <div class="kpis" id="kpis"></div>
+    <p class="sumline" id="kpiNote"></p>
+    <div class="chart" id="trendBox"></div>
+    <div class="chart" id="sdBox" style="margin-top:12px"></div>
+  </section>
+
+  <section id="ladderView" hidden>
+    <div class="sechead"><h2>Latausportaat</h2></div>
+    <div id="ladders" style="display:flex;flex-direction:column;gap:12px"></div>
+  </section>
+
+  <section>
+    <div class="loghead"><h2>Päivät</h2><span class="sumline" id="dayCount"></span></div>
+    <div id="days"><div class="empty">Ladataan…</div></div>
+  </section>
+</div>
+
+<button class="fab" id="importBtn" type="button">+ Tuo nopeudet</button>
+<div id="tip" hidden></div>
+<div class="toast" id="toast" hidden></div>
+
+<!-- Import -->
+<div class="sheet" id="iSheet" hidden role="dialog" aria-modal="true" aria-labelledby="iTitle">
+  <div class="sheet-in">
+    <div class="sheet-bar"><h2 id="iTitle">Tuo nopeudet</h2><button class="ghost" type="button" data-close>Sulje</button></div>
+    <div class="drop">
+      <div class="hint">ShotView-vienti (.xls/.xlsx), oma nopeustaulukko (.xlsx) tai Kestrel-loki (CSV). Kansiossa ruuti- ja asekansioiden nimet luetaan latauksen ja aseen tunnistamiseen.</div>
+      <input type="file" id="iFiles" multiple hidden>
+      <input type="file" id="iDir" webkitdirectory multiple hidden>
+      <div class="actions" style="justify-content:center">
+        <button class="ghost" type="button" id="pickFiles">Valitse tiedostot</button>
+        <button class="ghost" type="button" id="pickDir">Valitse kansio</button>
+      </div>
+    </div>
+    <div class="sumline" id="iSum" hidden></div>
+    <div id="iList" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div class="actions" id="iActions" hidden>
+      <button class="primary" type="button" id="iSave">Tallenna valitut</button>
+    </div>
+    <div class="msg" id="iMsg" hidden></div>
+  </div>
+</div>
+
+<!-- Day -->
+<div class="sheet" id="dSheet" hidden role="dialog" aria-modal="true" aria-labelledby="dTitle">
+  <div class="sheet-in">
+    <div class="sheet-bar"><h2 id="dTitle">Päivä</h2><button class="ghost" type="button" data-close>Sulje</button></div>
+    <div id="dBody" style="display:flex;flex-direction:column;gap:14px"></div>
+  </div>
+</div>
+
+<!-- Loads -->
+<div class="sheet" id="lSheet" hidden role="dialog" aria-modal="true" aria-labelledby="lTitle">
+  <div class="sheet-in">
+    <div class="sheet-bar"><h2 id="lTitle">Lataukset</h2><button class="ghost" type="button" data-close>Sulje</button></div>
+    <div id="lBody"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pad=n=>String(n).padStart(2,"0");
+const fiDate=s=>{const[y,m,d]=s.split("-").map(Number);return d+"."+m+"."+y};
+const WD=["su","ma","ti","ke","to","pe","la"];
+const wd=s=>{const[y,m,d]=s.split("-").map(Number);return WD[new Date(y,m-1,d).getDay()]};
+const f1=v=>v==null?"–":(+v).toFixed(1).replace(".",",");
+const f2=v=>v==null?"–":(+v).toFixed(2).replace(".",",");
+const LS="chrono-filter";
+function lsGet(){try{return JSON.parse(localStorage.getItem(LS)||"{}")}catch(e){return{}}}
+function lsSet(v){try{localStorage.setItem(LS,JSON.stringify(v))}catch(e){}}
+function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>el.hidden=true,2600)}
+
+const S={guns:[],loads:[],days:[],gun:"",load:"",preview:null};
+const gunName=id=>(S.guns.find(g=>g.id===id)||{}).name||"Ei asetta";
+const loadOf=id=>S.loads.find(l=>l.id===id);
+const loadName=id=>(loadOf(id)||{}).name||"Ei latausta";
+
+async function api(method,path,body,form){
+  const opt={method,credentials:"same-origin",headers:{"X-Requested-With":"fetch"}};
+  if(form)opt.body=form;
+  else if(body!==undefined){opt.headers["Content-Type"]="application/json";opt.body=JSON.stringify(body)}
+  const r=await fetch("api/"+path,opt);
+  if(r.status===401){location.href="login";throw new Error("auth")}
+  if(method==="GET")$("offNote").hidden=!r.headers.get("X-Offline"),$("offNote").textContent="Ei yhteyttä – näytetään viimeksi haetut tiedot.";
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw Object.assign(new Error(j.error||("HTTP "+r.status)),{status:r.status});
+  return j;
+}
+
+/* ---------- data ---------- */
+async function loadAll(){
+  try{
+    const[g,l,d]=await Promise.all([api("GET","guns"),api("GET","chrono/loads"),api("GET","chrono/days")]);
+    S.guns=g;S.loads=l;S.days=d;
+  }catch(e){if(e.message!=="auth"){$("days").innerHTML='<div class="empty">Tietoja ei saatu haettua.</div>'}return}
+  render();
+}
+
+/* ---------- filters ---------- */
+function render(){
+  const used=new Set(S.days.map(d=>d.gun_id||""));
+  if(S.gun&&!used.has(S.gun))S.gun="";
+  const guns=S.guns.filter(g=>used.has(g.id)).sort((a,b)=>String(a.name).localeCompare(b.name));
+  $("gunChips").innerHTML=`<button type="button" class="chip" data-gun="" aria-pressed="${!S.gun}">Kaikki aseet</button>`
+    +guns.map(g=>`<button type="button" class="chip" data-gun="${esc(g.id)}" aria-pressed="${S.gun===g.id}">${esc(g.name)}</button>`).join("")
+    +(used.has("")?`<button type="button" class="chip" data-gun="-" aria-pressed="${S.gun==="-"}">Ei asetta</button>`:"");
+  const inGun=S.days.filter(d=>!S.gun||(S.gun==="-"?!d.gun_id:d.gun_id===S.gun));
+  const counts={};inGun.forEach(d=>{const k=d.load_id||"";counts[k]=(counts[k]||0)+1});
+  if(S.load&&!(S.load in counts))S.load="";
+  const ids=Object.keys(counts).filter(Boolean).sort((a,b)=>loadName(a).localeCompare(loadName(b),"fi",{numeric:true}));
+  $("loadSel").innerHTML=`<option value="">Kaikki lataukset (${inGun.length} päivää)</option>`
+    +ids.map(id=>`<option value="${esc(id)}" ${S.load===id?"selected":""}>${esc(loadName(id))} · ${counts[id]} pv</option>`).join("")
+    +(counts[""]?`<option value="-" ${S.load==="-"?"selected":""}>Ei latausta · ${counts[""]} pv</option>`:"");
+  lsSet({gun:S.gun,load:S.load});
+  renderDays(inGun.filter(d=>!S.load||(S.load==="-"?!d.load_id:d.load_id===S.load)));
+  renderLoad();renderLadder();
+}
+$("gunChips").addEventListener("click",e=>{const b=e.target.closest("[data-gun]");if(!b)return;S.gun=b.dataset.gun;S.load="";render()});
+$("loadSel").addEventListener("change",e=>{S.load=e.target.value;render()});
+
+/* ---------- day list ---------- */
+function renderDays(list){
+  $("dayCount").textContent=list.length?list.length+" päivä"+(list.length>1?"ä":"")+" · "+list.reduce((a,d)=>a+d.stats.n,0)+" laukausta":"";
+  if(!list.length){$("days").innerHTML=S.days.length?'<div class="empty">Ei päiviä tällä rajauksella.</div>':'<div class="empty">Ei vielä nopeuksia. Tuo ShotView-vienti tai oma taulukko alta.</div>';return}
+  const byDate=new Map();list.forEach(d=>{if(!byDate.has(d.date))byDate.set(d.date,[]);byDate.get(d.date).push(d)});
+  $("days").innerHTML=[...byDate.entries()].map(([date,rows])=>`<div class="dcard"><div class="dh"><span>${fiDate(date)} <small>${wd(date)}</small></span><small>${rows[0].temp_c!=null?f1(rows[0].temp_c)+" °C":""}</small></div>`
+    +rows.map(d=>{const s=d.stats;return`<button type="button" class="drow" data-day="${date}">
+      <span class="nm">${esc(loadName(d.load_id))}${S.gun?"":` <span>· ${esc(gunName(d.gun_id))}</span>`}</span>
+      <span class="fig">⌀ <b>${f1(s.avg)}</b> m/s</span>
+      <span class="meta">n ${s.n} · SD ${f2(s.sd)} · ES ${f1(s.es)}${d.delta!=null&&S.load?` · Δ ${d.delta>0?"+":""}${f1(d.delta)}`:""}${d.strings.length>1?` · ${d.strings.length} sarjaa`:""}</span></button>`}).join("")+`</div>`).join("");
+}
+$("days").addEventListener("click",e=>{const b=e.target.closest("[data-day]");if(b)openDay(b.dataset.day)});
+
+/* ---------- charts ---------- */
+const tip=$("tip");
+function bindTips(root){
+  root.querySelectorAll("[data-tip]").forEach(el=>{
+    const show=ev=>{tip.innerHTML=el.dataset.tip;tip.hidden=false;const r=tip.getBoundingClientRect();
+      const x=Math.min(window.innerWidth-r.width-8,Math.max(8,ev.clientX-r.width/2)),y=ev.clientY-r.height-14;
+      tip.style.left=x+"px";tip.style.top=(y<8?ev.clientY+18:y)+"px"};
+    el.addEventListener("pointerenter",show);el.addEventListener("pointermove",show);
+    el.addEventListener("pointerleave",()=>tip.hidden=true);
+  });
+}
+document.addEventListener("scroll",()=>tip.hidden=true,{passive:true});
+function niceTicks(lo,hi,n){const span=hi-lo||1,step0=span/n,mag=Math.pow(10,Math.floor(Math.log10(step0)));
+  const step=[1,2,2.5,5,10].map(m=>m*mag).find(s=>s>=step0)||10*mag;const out=[];
+  for(let v=Math.ceil(lo/step)*step;v<=hi+1e-9;v+=step)out.push(+v.toFixed(6));return out}
+function yScale(lo,hi,H,top,bot){
+  if(hi-lo<1e-9){lo-=1;hi+=1}
+  const t0=niceTicks(lo,hi,4),step=t0.length>1?t0[1]-t0[0]:1;
+  const a=Math.floor(lo/step+1e-9)*step,b=Math.ceil(hi/step-1e-9)*step,ticks=[];
+  for(let v=a;v<=b+1e-9;v+=step)ticks.push(+v.toFixed(6));
+  return{ticks,step,y:v=>top+(H-top-bot)*(1-(v-a)/((b-a)||1))}}
+// Charts are drawn at the column's real width so text stays readable on a phone
+let W=700;
+const fitW=()=>{W=Math.round(Math.max(300,Math.min(760,(document.querySelector(".wrap").clientWidth||700)-26)))};
+const PL=64;                                   // plot starts right of the tick labels
+const tickFmt=ys=>Number.isInteger(+ys.step.toFixed(6))?(v=>String(Math.round(v))):f1;
+function frame(H,ys,unit){
+  const fmtT=tickFmt(ys);
+  return ys.ticks.map(t=>`<line class="grid" x1="${PL-12}" x2="${W-8}" y1="${ys.y(t)}" y2="${ys.y(t)}"/><text class="ax" x="${PL-16}" y="${ys.y(t)+4}" text-anchor="end">${fmtT(t)}</text>`).join("")
+    +`<text class="ax" x="${PL-12}" y="10">${unit}</text>`;
+}
+function dateX(points,L,R){
+  const t=s=>Date.parse(s+"T12:00:00Z")/864e5;const lo=t(points[0].date),hi=t(points[points.length-1].date);
+  return{x:s=>hi===lo?(L+R)/2:L+(R-L)*(t(s)-lo)/(hi-lo),lo:points[0].date,hi:points[points.length-1].date};
+}
+function trendChart(pts,title,sub){
+  if(pts.length<2)return"";
+  const H=230,L=PL+8,R=W-20;
+  const lo=Math.min(...pts.map(p=>p.ci_low??p.min??p.avg)),hi=Math.max(...pts.map(p=>p.ci_high??p.max??p.avg));
+  const ys=yScale(lo,hi,H,18,30),dx=dateX(pts,L,R);
+  const marks=pts.map(p=>{const x=dx.x(p.date),y=ys.y(p.avg);
+    const wh=p.ci_low!=null?`<line class="wh" x1="${x}" x2="${x}" y1="${ys.y(p.ci_low)}" y2="${ys.y(p.ci_high)}"/>`:"";
+    const t=`<b>${fiDate(p.date)}</b><br>⌀ ${f1(p.avg)} m/s · n ${p.n}<br>SD ${f2(p.sd)} · ES ${f1(p.es)}${p.ci_low!=null?`<br>95 % ${f1(p.ci_low)}–${f1(p.ci_high)}`:""}${p.temp_c!=null?`<br>${f1(p.temp_c)} °C`:""}`;
+    return wh+`<circle class="mk" cx="${x}" cy="${y}" r="5"/><circle class="hit" cx="${x}" cy="${y}" r="14" data-tip="${esc(t)}"/>`}).join("");
+  const path=pts.length>1?`<polyline class="ln" points="${pts.map(p=>dx.x(p.date)+","+ys.y(p.avg)).join(" ")}"/>`:"";
+  const xl=`<text class="ax" x="${L}" y="${H-8}">${fiDate(dx.lo)}</text>`+(dx.hi!==dx.lo?`<text class="ax" x="${R}" y="${H-8}" text-anchor="end">${fiDate(dx.hi)}</text>`:"");
+  return`<h3>${title}</h3><p class="sub">${sub}</p><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}">${frame(H,ys,"m/s")}${path}${marks}${xl}</svg>`
+    +table(["Päivä","n","⌀ m/s","SD","ES","°C"],pts.map(p=>[fiDate(p.date),p.n,f1(p.avg),f2(p.sd),f1(p.es),f1(p.temp_c)]));
+}
+function sdChart(pts){
+  const q=pts.filter(p=>p.sd!=null);if(q.length<2)return"";
+  const H=150,L=PL+8,R=W-20,ys=yScale(0,Math.max(...q.map(p=>p.sd)),H,18,26),dx=dateX(pts,L,R);
+  const marks=q.map(p=>{const x=dx.x(p.date),y=ys.y(p.sd);
+    return`<line class="wh" x1="${x}" x2="${x}" y1="${ys.y(0)}" y2="${y}" style="opacity:.9"/><circle class="mk" cx="${x}" cy="${y}" r="4"/><circle class="hit" cx="${x}" cy="${y}" r="14" data-tip="${esc(`<b>${fiDate(p.date)}</b><br>SD ${f2(p.sd)} m/s · n ${p.n}`)}"/>`}).join("");
+  return`<h3>Hajonta (SD) päivittäin</h3><p class="sub">Otoskeskihajonta, m/s</p><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Keskihajonta päivittäin">${frame(H,ys,"SD")}${marks}</svg>`;
+}
+function ladderChart(group,pts){
+  const H=220,L=PL+16,R=W-28;
+  const lo=Math.min(...pts.map(p=>p.ci_low??p.min)),hi=Math.max(...pts.map(p=>p.ci_high??p.max));
+  const ys=yScale(lo,hi,H,26,30),cs=pts.map(p=>p.charge_gr),c0=Math.min(...cs),c1=Math.max(...cs);
+  const x=c=>c1===c0?(L+R)/2:L+(R-L)*(c-c0)/(c1-c0);
+  const xt=niceTicks(c0,c1,6).filter(t=>t>=c0-1e-9&&t<=c1+1e-9);
+  // Selective labels: a point whose neighbour is closer than a label's width alternates above/below on a
+  // wide screen; on a phone the crowded ones go unlabelled (tooltip and table carry the figure).
+  const xs=pts.map(p=>x(p.charge_gr));let flip=false;
+  const marks=pts.map((p,i)=>{const X=xs[i],Y=ys.y(p.avg);
+    const crowded=(i>0&&X-xs[i-1]<48)||(i<xs.length-1&&xs[i+1]-X<48);
+    const below=crowded&&W>=500&&(flip=!flip),skip=crowded&&W<500;
+    const t=`<b>${String(p.charge_gr).replace(".",",")} gr</b><br>⌀ ${f1(p.avg)} m/s · n ${p.n}<br>SD ${f2(p.sd)} · ${p.days.length} pv`;
+    return(p.ci_low!=null?`<line class="wh" x1="${X}" x2="${X}" y1="${ys.y(p.ci_low)}" y2="${ys.y(p.ci_high)}"/>`:"")
+      +`<circle class="mk" cx="${X}" cy="${Y}" r="5"/>${skip?"":`<text class="lab" x="${X}" y="${below?Y+20:Y-12}" text-anchor="middle">${p.sd!=null?"SD "+f1(p.sd):"n "+p.n}</text>`}<circle class="hit" cx="${X}" cy="${Y}" r="14" data-tip="${esc(t)}"/>`}).join("");
+  const path=pts.length>1?`<polyline class="ln" points="${pts.map(p=>x(p.charge_gr)+","+ys.y(p.avg)).join(" ")}"/>`:"";
+  const xl=xt.map(t=>`<text class="ax" x="${x(t)}" y="${H-8}" text-anchor="middle">${String(t).replace(".",",")}</text>`).join("");
+  return`<div class="chart"><h3>${esc(group)}</h3><p class="sub">Keskinopeus panoksen (gr) mukaan, kaikki päivät yhdistettynä · viiksi 95 % luottamusväli</p><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(group)}">${frame(H,ys,"m/s")}${path}${marks}${xl}</svg>`
+    +table(["Panos gr","n","⌀ m/s","SD","Päiviä"],pts.map(p=>[String(p.charge_gr).replace(".",","),p.n,f1(p.avg),f2(p.sd),p.days.length]))+`</div>`;
+}
+function dotPlot(shots,avg){
+  const inc=shots.filter(s=>!s.excluded);if(!shots.length)return"";
+  const H=86,L=20,R=W-20,v=shots.map(s=>s.v_ms),lo=Math.min(...v),hi=Math.max(...v),pad=Math.max(1,(hi-lo)*.08);
+  const x=u=>L+(R-L)*(u-(lo-pad))/((hi+pad)-(lo-pad));
+  const ticks=niceTicks(lo-pad,hi+pad,5);
+  // stack identical-ish values so every shot stays visible
+  const lanes=[];const y=s=>{const X=x(s.v_ms);let k=0;while(lanes[k]&&lanes[k].some(p=>Math.abs(p-X)<10))k++;(lanes[k]=lanes[k]||[]).push(X);return 50-k*11};
+  const dots=shots.map(s=>{const Y=y(s),X=x(s.v_ms);return`<circle class="mk${s.excluded?" hollow":""}" cx="${X}" cy="${Y}" r="5"/><circle class="hit" cx="${X}" cy="${Y}" r="10" data-tip="${esc(`#${s.n} · <b>${f1(s.v_ms)}</b> m/s${s.t?"<br>"+s.t:""}${s.excluded?"<br>poissuljettu":""}`)}"/>`}).join("");
+  const a=avg!=null?`<line class="avgline" x1="${x(avg)}" x2="${x(avg)}" y1="4" y2="60"/>`:"";
+  return`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Laukausten nopeudet">${ticks.map(t=>`<text class="ax" x="${x(t)}" y="${H-6}" text-anchor="middle">${f1(t)}</text><line class="grid" x1="${x(t)}" x2="${x(t)}" y1="62" y2="66"/>`).join("")}<line class="grid" x1="${L}" x2="${R}" y1="62" y2="62"/>${a}${dots}</svg>`;
+}
+function table(head,rows){
+  return`<details><summary>Taulukko</summary><table class="tbl"><thead><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></details>`;
+}
+
+/* ---------- load view ---------- */
+async function renderLoad(){
+  fitW();
+  const box=$("loadView");
+  if(!S.load||S.load==="-"){box.hidden=true;return}
+  box.hidden=false;
+  const gq=S.gun&&S.gun!=="-"?"&gun="+encodeURIComponent(S.gun):"";
+  let tr,info;
+  try{[tr,info]=await Promise.all([api("GET","chrono/trend?load="+encodeURIComponent(S.load)+gq),api("GET","chrono/loads/"+encodeURIComponent(S.load))])}catch(e){return}
+  const pg=(info.per_gun||[]).filter(p=>!S.gun||S.gun==="-"||p.gun_id===S.gun);
+  const one=pg.length===1?pg[0]:null;
+  const a=one?one.all:null,l=one?one.last10:null;
+  $("kpis").innerHTML=a?[
+    ["⌀ m/s",f1(a.avg),l&&one.days>10?`10 pv: <b>${f1(l.avg)}</b>`:`${one.days} päivää`],
+    ["SD m/s",f2(a.sd),l&&one.days>10?`10 pv: <b>${f2(l.sd)}</b>`:"otos"],
+    ["ES m/s",f1(a.es),`${f1(a.min)}–${f1(a.max)}`],
+    ["Laukauksia",a.n,a.ke_j?`${a.ke_j} J`:""]].map(k=>`<div class="stat"><b class="num">${k[1]}</b><small>${k[0]}${k[2]?" · "+k[2]:""}</small></div>`).join(""):"";
+  $("kpis").hidden=!a;
+  const ts=one&&one.temp_sensitivity;
+  $("kpiNote").innerHTML=(one?"":pg.length>1?"Sama lataus usealla aseella – valitse ase yllä nähdäksesi sen luvut. ":"")
+    +(ts!=null?`Lämpötilaherkkyys <b>${ts>0?"+":""}${f2(ts)} m/s / °C</b> (${one.days} päivää).`:"");
+  const pts=tr.points||[];
+  $("trendBox").innerHTML=trendChart(pts,"Keskinopeus päivittäin",`${esc(loadName(S.load))}${S.gun&&S.gun!=="-"?" · "+esc(gunName(S.gun)):""} · viiksi 95 % luottamusväli`);
+  $("trendBox").hidden=!$("trendBox").innerHTML;
+  $("sdBox").innerHTML=sdChart(pts);$("sdBox").hidden=!$("sdBox").innerHTML;
+  bindTips(box);
+}
+
+/* ---------- ladder ---------- */
+async function renderLadder(){
+  fitW();
+  const box=$("ladderView");
+  if(!S.gun||S.gun==="-"||S.load){box.hidden=true;return}
+  let pts;try{pts=await api("GET","chrono/ladder?gun="+encodeURIComponent(S.gun))}catch(e){box.hidden=true;return}
+  const groups=new Map();pts.forEach(p=>{const k=[p.bullet,p.brass?p.brass+" brass":"",p.powder].filter(Boolean).join(", ");if(!groups.has(k))groups.set(k,[]);groups.get(k).push(p)});
+  const html=[...groups.entries()].filter(([,g])=>g.length>=2).map(([k,g])=>ladderChart(k,g)).join("");
+  box.hidden=!html;$("ladders").innerHTML=html;bindTips(box);
+}
+
+/* ---------- sheets ---------- */
+function openSheet(id){["iSheet","dSheet","lSheet"].forEach(s=>$(s).hidden=s!==id);document.body.style.overflow="hidden"}
+function closeSheets(){["iSheet","dSheet","lSheet"].forEach(s=>$(s).hidden=true);document.body.style.overflow="";tip.hidden=true}
+document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",closeSheets));
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeSheets()});
+const gunOpts=sel=>`<option value="">— ei asetta —</option>`+S.guns.slice().sort((a,b)=>String(a.name).localeCompare(b.name)).map(g=>`<option value="${esc(g.id)}" ${g.id===sel?"selected":""}>${esc(g.name)}</option>`).join("");
+const loadOpts=(sel,spec)=>`<option value="">— ei latausta —</option>`+(spec?`<option value="new" ${sel==="new"?"selected":""}>Uusi: ${esc(spec.name)}</option>`:"")
+  +`<option value="custom">+ Uusi lataus…</option>`
+  +S.loads.filter(l=>!l.archived||l.id===sel).sort((a,b)=>a.name.localeCompare(b.name,"fi",{numeric:true})).map(l=>`<option value="${esc(l.id)}" ${l.id===sel?"selected":""}>${esc(l.name)}</option>`).join("");
+
+/* ---------- import ---------- */
+$("importBtn").addEventListener("click",()=>{S.preview=null;$("iList").innerHTML="";$("iSum").hidden=true;$("iActions").hidden=true;$("iMsg").hidden=true;openSheet("iSheet")});
+$("pickFiles").addEventListener("click",()=>$("iFiles").click());
+$("pickDir").addEventListener("click",()=>$("iDir").click());
+$("iFiles").addEventListener("change",e=>upload(e.target.files));
+$("iDir").addEventListener("change",e=>upload(e.target.files));
+async function upload(files){
+  const list=[...files].filter(f=>!/\.(jpe?g|png|pdf|heic)$/i.test(f.name)&&f.size<=5*1024*1024).slice(0,100);
+  if(!list.length){toast("Ei tuotavia tiedostoja");return}
+  const fd=new FormData();list.forEach(f=>{fd.append("files",f,f.name);fd.append("paths",f.webkitRelativePath||f.name)});
+  $("iSum").hidden=false;$("iSum").textContent="Luetaan "+list.length+" tiedostoa…";$("iList").innerHTML="";$("iActions").hidden=true;
+  try{S.preview=await api("POST","chrono/parse",undefined,fd)}catch(e){$("iSum").textContent="Lukeminen epäonnistui: "+e.message;return}
+  $("iFiles").value="";$("iDir").value="";
+  const p=S.preview;
+  p.strings.forEach(s=>{
+    s.ui={on:!s.already_imported&&!s.existing_shots,gun:s.suggest.gun_id||"",load:s.suggest.load_id||(s.suggest.load?"new":""),
+      swap:s.warnings.some(w=>w.code==="weather_range"&&w.swap),date:s.date};
+  });
+  p.strings.sort((a,b)=>(a.date||"").localeCompare(b.date||"")||(a.started_at||"").localeCompare(b.started_at||""));
+  renderPreview();
+}
+function renderPreview(){
+  const p=S.preview,on=p.strings.filter(s=>s.ui.on);
+  $("iSum").innerHTML=`<b>${p.strings.length}</b> sarjaa, valittuna <b>${on.length}</b> (${on.reduce((a,s)=>a+s.stats.n,0)} laukausta)`
+    +(p.weather_records?` · Kestrel: <b>${p.weather_records}</b> riviä, sää ${p.weather_filled} laukaukseen`:"")
+    +(p.errors.length?`<br>Ohitettu: ${p.errors.map(esc).join("; ")}`:"")
+    +(p.notes.length?`<br>${p.notes.map(n=>esc(n.text)).join("<br>")}`:"");
+  $("iList").innerHTML=p.strings.map((s,i)=>{
+    const st=s.stats,c=s.check;
+    const w=s.warnings.filter(x=>x.code!=="no_load"||!s.ui.load).map(x=>{
+      if(x.code==="date_outlier"&&x.suggest)return`<div>${esc(x.text)} <button type="button" class="ghost" data-fixdate="${i}" data-v="${x.suggest}">Käytä ${fiDate(x.suggest)}</button></div>`;
+      if(x.code==="weather_range")return`<div>${esc(x.text)}${x.swap?` <label class="check" style="display:inline-flex"><input type="checkbox" data-swap="${i}" ${s.ui.swap?"checked":""}>Vaihda</label>`:""}</div>`;
+      if(x.code==="date_corrected")return`<div class="info">${esc(x.text)}</div>`;
+      return`<div>${esc(x.text)}</div>`}).join("");
+    const done=s.already_imported?"Jo tuotu":s.existing_shots?`${s.existing_shots} laukausta on jo tallennettu – sarja lisää vain puuttuvan sään`:"";
+    return`<div class="pcard${s.ui.on?"":" off"}">
+      <div class="ph"><input type="checkbox" data-on="${i}" ${s.ui.on?"checked":""} aria-label="Tuo tämä sarja">
+        <div class="pt"><b>${s.ui.date?fiDate(s.ui.date):"?"}</b> ${esc(s.started_at||"")} · ${esc(s.name)}
+          <div class="src">${esc(s.file)}${s.sheet&&s.sheet!==s.name?" · "+esc(s.sheet):""}</div></div>
+        <div class="fig">n ${st.n}<br>⌀ ${f1(st.avg)}</div></div>
+      <div class="sumline">SD <b>${f2(st.sd)}</b> (Garmin ${f2(st.sd_garmin)}) · ES <b>${f1(st.es)}</b> m/s
+        ${c?(c.ok?' <span class="badge ok">✓ ShotView täsmää</span>':c.ok===false?' <span class="badge warn">≠ ShotView</span>':""):""}</div>
+      ${done?`<div class="hint">${done}</div>`:""}
+      <div class="grid2"><label class="f">Ase<select data-gun="${i}">${gunOpts(s.ui.gun)}</select></label>
+        <label class="f">Lataus<select data-load="${i}">${loadOpts(s.ui.load,s.suggest.load)}</select></label></div>
+      ${w?`<div class="warns">${w}</div>`:""}
+    </div>`}).join("")||'<div class="empty">Tiedostoista ei löytynyt laukauksia.</div>';
+  $("iActions").hidden=!on.length;
+}
+$("iList").addEventListener("change",e=>{
+  const t=e.target,S2=S.preview.strings;
+  if(t.dataset.on!=null){S2[t.dataset.on].ui.on=t.checked}
+  else if(t.dataset.gun!=null){S2[t.dataset.gun].ui.gun=t.value;return}
+  else if(t.dataset.load!=null){
+    const s=S2[t.dataset.load];
+    if(t.value==="custom"){const spec=askLoad(s.bullet_gr,s.ui.gun);if(spec){s.suggest.load=spec;s.ui.load="new"}}
+    else s.ui.load=t.value}
+  else if(t.dataset.swap!=null){S2[t.dataset.swap].ui.swap=t.checked;return}
+  renderPreview();
+});
+$("iList").addEventListener("click",e=>{const b=e.target.closest("[data-fixdate]");if(!b)return;const s=S.preview.strings[b.dataset.fixdate];s.ui.date=b.dataset.v;s.warnings=s.warnings.filter(w=>w.code!=="date_outlier");renderPreview()});
+$("iSave").addEventListener("click",async()=>{
+  const items=S.preview.strings.filter(s=>s.ui.on).map(s=>({key:s.key,date:s.ui.date,started_at:s.started_at,name:s.name,source:s.source,
+    unit_in:s.unit_in,bullet_gr:s.bullet_gr,gun_id:s.ui.gun||null,visit_id:s.suggest.visit_id,
+    load_id:s.ui.load&&s.ui.load!=="new"?s.ui.load:null,load:s.ui.load==="new"?s.suggest.load:null,
+    swap_rh_hpa:s.ui.swap,shots:s.shots}));
+  // Curated sources first: own workbooks carry loads and weather; raw exports then only fill gaps.
+  items.sort((a,b)=>(a.source!=="workbook")-(b.source!=="workbook"));
+  $("iSave").disabled=true;
+  try{
+    const r=await api("POST","chrono/commit",{strings:items});
+    const shots=r.created.reduce((a,c)=>a+c.shots,0);
+    toast(`Tallennettu ${r.created.length} sarjaa, ${shots} laukausta`+(r.merged_shots?`, sää ${r.merged_shots} laukaukseen`:""));
+    closeSheets();await loadAll();
+  }catch(e){$("iMsg").hidden=false;$("iMsg").textContent="Tallennus epäonnistui: "+e.message}
+  finally{$("iSave").disabled=false}
+});
+
+// A load typed by hand: "Sako Blade 120 gr, Lapua brass, N555 43 gr" → powder and charge read from the name
+function askLoad(bulletGr,gunId){
+  const name=(prompt("Latauksen nimi, esim. Sako Blade 120 gr, Lapua brass, N555 43 gr")||"").trim();
+  if(!name)return null;
+  const chg=name.match(/(\d+(?:[.,]\d+)?)\s*gr\s*$/i),pw=name.match(/\bN\d{3}\b/i),br=name.match(/([\wåäö-]+)\s+brass/i);
+  const g=S.guns.find(x=>x.id===gunId)||{};
+  return{kind:chg||pw?"handload":"factory",name,cal:g.cal||null,bullet_gr:bulletGr||null,bullet:name.split(",")[0].trim(),
+    brass:br?br[1]:null,powder:pw?pw[0].toUpperCase():null,charge_gr:chg?+chg[1].replace(",","."):null};
+}
+
+/* ---------- day ---------- */
+async function openDay(date){
+  $("dTitle").textContent=fiDate(date)+" "+wd(date);$("dBody").innerHTML='<div class="empty">Ladataan…</div>';openSheet("dSheet");
+  let list;try{list=await api("GET","chrono/strings?date="+date)}catch(e){return}
+  const full=await Promise.all(list.map(s=>api("GET","chrono/strings/"+s.id)));
+  S.dayDate=date;S.dayStrings=full;renderDay();
+}
+function renderDay(){
+  fitW();
+  const list=S.dayStrings;
+  $("dBody").innerHTML=list.map((s,i)=>{const st=s.stats;const temps=s.shots.filter(x=>x.temp_c!=null);
+    const w=temps.length?temps[0]:{};
+    return`<div class="chart">
+      <h3>${esc(s.started_at||"")} · ${esc(loadName(s.load_id))}</h3>
+      <p class="sub">⌀ <b>${f1(st.avg)}</b> m/s · n ${st.n}/${s.shots.length} · SD ${f2(st.sd)} (Garmin ${f2(st.sd_garmin)}) · ES ${f1(st.es)}${st.ke_j?` · ${st.ke_j} J`:""}${w.temp_c!=null?` · ${f1(w.temp_c)} °C ${w.rh!=null?f1(w.rh)+" %":""} ${w.hpa!=null?Math.round(w.hpa)+" hPa":""}`:""}</p>
+      ${dotPlot(s.shots,st.avg)}
+      <div class="shots" style="margin:8px 0 12px">${s.shots.map(x=>`<button type="button" class="shot" data-ex="${i}" data-n="${x.n}" aria-pressed="${!!x.excluded}" title="Poista tilastoista / palauta"><small>#${x.n}</small>${f1(x.v_ms)}</button>`).join("")}</div>
+      <div class="grid2"><label class="f">Ase<select data-sgun="${i}">${gunOpts(s.gun_id)}</select></label>
+        <label class="f">Lataus<select data-sload="${i}">${loadOpts(s.load_id)}</select></label></div>
+      <details style="margin-top:10px"><summary>Sää tälle sarjalle</summary>
+        <div class="grid3" style="margin-top:8px"><label class="f">°C<input type="number" step="0.1" data-wt="${i}" value="${w.temp_c??""}"></label>
+          <label class="f">RH %<input type="number" step="1" data-wr="${i}" value="${w.rh??""}"></label>
+          <label class="f">hPa<input type="number" step="0.1" data-wp="${i}" value="${w.hpa??""}"></label></div>
+        <div class="actions" style="margin-top:8px"><button class="ghost" type="button" data-wsave="${i}">Tallenna sää kaikille laukauksille</button>
+          <button class="ghost" type="button" data-wswap="${i}">Vaihda RH ↔ paine</button></div></details>
+      <div class="actions" style="margin-top:10px"><button class="danger" type="button" data-del="${i}">Poista sarja</button></div>
+    </div>`}).join("")||'<div class="empty">Ei sarjoja.</div>';
+  bindTips($("dBody"));
+}
+async function patch(i,body){const s=S.dayStrings[i];try{S.dayStrings[i]=await api("PATCH","chrono/strings/"+s.id,body);renderDay();loadAll()}catch(e){toast("Tallennus epäonnistui: "+e.message)}}
+$("dBody").addEventListener("click",async e=>{
+  const t=e.target.closest("button");if(!t)return;
+  if(t.dataset.ex!=null){const on=t.getAttribute("aria-pressed")!=="true";patch(+t.dataset.ex,{shots:[{n:+t.dataset.n,excluded:on}]})}
+  else if(t.dataset.wsave!=null){const i=t.dataset.wsave,q=k=>$("dBody").querySelector(`[data-${k}="${i}"]`).value;
+    patch(+i,{weather:{temp_c:q("wt"),rh:q("wr"),hpa:q("wp"),overwrite:true}})}
+  else if(t.dataset.wswap!=null){patch(+t.dataset.wswap,{weather:{swap_rh_hpa:true}})}
+  else if(t.dataset.del!=null){
+    if(!t.dataset.armed){t.dataset.armed=1;t.textContent="Vahvista poisto";return}
+    const s=S.dayStrings[t.dataset.del];
+    try{await api("DELETE","chrono/strings/"+s.id);S.dayStrings.splice(+t.dataset.del,1);renderDay();loadAll();toast("Sarja poistettu")}catch(e){toast("Poisto epäonnistui")}
+  }
+});
+$("dBody").addEventListener("change",e=>{const t=e.target;
+  if(t.dataset.sgun!=null)patch(+t.dataset.sgun,{gun_id:t.value||null});
+  if(t.dataset.sload!=null)patch(+t.dataset.sload,{load_id:t.value||null});
+});
+
+/* ---------- loads ---------- */
+$("loadsBtn").addEventListener("click",()=>{renderLoads();openSheet("lSheet")});
+function renderLoads(){
+  const used={};S.days.forEach(d=>{if(d.load_id)used[d.load_id]=(used[d.load_id]||0)+d.stats.n});
+  $("lBody").innerHTML=(S.loads.length?S.loads.slice().sort((a,b)=>(a.archived-b.archived)||a.name.localeCompare(b.name,"fi",{numeric:true})).map(l=>`<button type="button" class="lrow" data-lid="${esc(l.id)}" style="${l.archived?"opacity:.55":""}">
+      <b>${esc(l.name)}</b><span class="fig num">${used[l.id]||0} lks</span>
+      <span class="meta">${l.kind==="factory"?"Tehdas":"Lataus"}${l.cal?" · "+esc(l.cal):""}${l.bullet_gr?" · "+String(l.bullet_gr).replace(".",",")+" gr luoti":""}${l.powder?" · "+esc(l.powder):""}${l.charge_gr!=null?" "+String(l.charge_gr).replace(".",",")+" gr":""}</span></button>`).join("")
+    :'<div class="empty">Lataukset syntyvät tuonnin yhteydessä tiedostojen nimistä.</div>');
+}
+$("lBody").addEventListener("click",e=>{const b=e.target.closest("[data-lid]");if(b)editLoad(b.dataset.lid)});
+function editLoad(id){
+  const l=loadOf(id);if(!l)return;
+  const fld=(k,lab,type="text",step)=>`<label class="f">${lab}<input type="${type}" ${step?`step="${step}"`:""} data-k="${k}" value="${esc(l[k]??"")}"></label>`;
+  $("lBody").innerHTML=`<form id="lForm" style="display:flex;flex-direction:column;gap:14px">
+    ${fld("name","Nimi")}
+    <div class="grid2"><label class="f">Tyyppi<select data-k="kind"><option value="handload" ${l.kind==="handload"?"selected":""}>Oma lataus</option><option value="factory" ${l.kind==="factory"?"selected":""}>Tehdas</option></select></label>${fld("cal","Kaliiperi")}</div>
+    <div class="grid2">${fld("bullet","Luoti")}${fld("bullet_gr","Luodin paino gr","number","0.1")}</div>
+    <div class="grid3">${fld("brass","Hylsy")}${fld("powder","Ruuti")}${fld("charge_gr","Panos gr","number","0.1")}</div>
+    ${fld("notes","Muistiinpanot")}
+    <label class="check"><input type="checkbox" data-k="archived" ${l.archived?"checked":""}>Arkistoitu</label>
+    <div class="actions"><button class="primary" type="submit">Tallenna</button><button class="ghost" type="button" id="lBack">Takaisin</button></div>
+  </form>`;
+  $("lBack").addEventListener("click",renderLoads);
+  $("lForm").addEventListener("submit",async ev=>{ev.preventDefault();const body={};
+    ev.target.querySelectorAll("[data-k]").forEach(el=>body[el.dataset.k]=el.type==="checkbox"?(el.checked?1:0):el.value);
+    try{await api("PUT","chrono/loads/"+encodeURIComponent(id),body);toast("Tallennettu");await loadAll();renderLoads()}catch(e){toast("Tallennus epäonnistui: "+e.message)}});
+}
+
+let rT;window.addEventListener("resize",()=>{clearTimeout(rT);rT=setTimeout(()=>{if(!$("dSheet").hidden)renderDay();else{renderLoad();renderLadder()}},200)});
+
+/* ---------- boot ---------- */
+const saved=lsGet();S.gun=saved.gun||"";S.load=saved.load||"";
+loadAll();
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&$("iSheet").hidden)loadAll()});
+})();
+</script>
+</body>
+</html>

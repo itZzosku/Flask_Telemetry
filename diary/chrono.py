@@ -10,9 +10,11 @@ import secrets
 import time
 from collections import defaultdict
 
-from flask import abort, jsonify, request
+import os
 
-from . import DATE_RE, ID_RE, bp, db, kv_get, kv_set, login_required
+from flask import abort, jsonify, request, send_from_directory
+
+from . import DATE_RE, HERE, ID_RE, bp, db, kv_get, kv_set, login_required
 from .chrono_import import (MAX_SHOTS_PER_STRING, fingerprint, parse_kestrel, parse_many, secs, sniff,
                             swap_rh_hpa)
 from .chrono_stats import stats, temp_sensitivity
@@ -207,7 +209,7 @@ def preview(conn, parsed):
         if votes and s["source"] != "shotview":
             d, cnt = max(votes.items(), key=lambda kv: kv[1])
             if d != s["date"] and cnt >= max(2, len(vs) / 2):
-                warnings.append({"code": "date_corrected", "text": f"date {s['date']} → {d}: the same shots exist in a ShotView export"})
+                warnings.append({"code": "date_corrected", "text": f"päivä {s['date']} → {d}: samat laukaukset löytyvät ShotView-viennistä"})
                 s["date_original"], s["date"] = s["date"], d
 
         # Gun, visit, load
@@ -228,7 +230,7 @@ def preview(conn, parsed):
         s["suggest"] = {"gun_id": gun_id, "visit_id": visit_id, "load_id": load_id,
                         "load": None if load_id else spec}
         if not load_id and not spec:
-            warnings.append({"code": "no_load", "text": "pick a load (or no load) before saving"})
+            warnings.append({"code": "no_load", "text": "latausta ei tunnistettu – valitse se tai jätä tyhjäksi"})
 
         # Already imported?
         fps = [fingerprint(s["date"], x["t"], x["v_ms"]) for x in s["shots"]]
@@ -538,6 +540,14 @@ def import_rows(conn, data, replace=False):
 
 
 # ------------------------------------------------------------------ routes
+@bp.get("/chrono")
+@login_required
+def page_chrono():
+    resp = send_from_directory(os.path.join(HERE, "static"), "chrono.html", max_age=0)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 def _fetch_only():
     if request.headers.get("X-Requested-With") != "fetch":
         abort(403)

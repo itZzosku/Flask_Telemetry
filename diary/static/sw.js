@@ -3,7 +3,7 @@
    - API reads: network first, last answer when offline, marked with X-Offline so the page can say so.
    - Icons, manifest, fonts and the PDF library: cache first.
    - Logging out clears everything cached. Writes are never cached; the page queues them itself. */
-const VERSION = "v1";
+const VERSION = "v2";
 const PAGE = "diary-page-" + VERSION, DATA = "diary-data", ASSETS = "diary-assets-" + VERSION;
 const BASE = new URL("./", self.registration.scope).pathname;            // "/diary/"
 const ASSET_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com", "cdnjs.cloudflare.com"];
@@ -46,8 +46,8 @@ self.addEventListener("fetch", e => {
   }
   if (req.method !== "GET") return;
 
-  if (local && req.mode === "navigate" && url.pathname === BASE) {
-    e.respondWith(networkFirst(req, PAGE, BASE).catch(() =>
+  if (local && req.mode === "navigate" && (url.pathname === BASE || url.pathname === BASE + "chrono")) {
+    e.respondWith(networkFirst(req, PAGE, url.pathname).catch(() =>
       new Response("<p style='font:16px system-ui;padding:24px'>Ei yhteyttä. Avaa sovellus kerran verkossa, niin se toimii jatkossa myös ilman yhteyttä.</p>",
                    {headers: {"Content-Type": "text/html; charset=utf-8"}})));
   } else if (local && url.pathname.startsWith(BASE + "api/")) {

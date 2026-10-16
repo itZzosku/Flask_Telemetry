@@ -81,3 +81,33 @@ Backups contain your licence numbers – they only go to your own mailbox.
 
 Restore: `python -m diary import diary_backups/diary-YYYY-MM-DD.json --replace`
 (or stop the app and copy the `.db` over `diary_data/diary.db`).
+
+## Lähtönopeudet (`/diary/chrono`)
+
+Muzzle-velocity data inside the diary (same login): Garmin Xero C1 ShotView exports, your own velocity
+workbooks and Kestrel DROP weather logs. Open it from the diary header (*Nopeudet*).
+
+- **Import** (*+ Tuo nopeudet*): pick files or a whole folder. ShotView `.xls`/`.xlsx`, velocity workbooks
+  (`<gun>, <bullet>, <brass>, <charge> gr.xlsx`, one `DDMMYYYY` sheet per day) and Kestrel CSVs are
+  recognised by content. Folder names give the powder (`N555`, `N133`, `N150` …) and the gun, in either
+  order. Nothing is saved until you press *Tallenna valitut* in the preview.
+- Shots are fingerprinted (date + time + speed): re-importing is harmless, and a raw ShotView session that
+  overlaps a stored day only fills missing weather — fliers you removed in a workbook stay removed.
+- **Statistics** are computed from included shots: average, sample SD (÷ n−1), Garmin's SD (÷ n), ES,
+  95 % CI, KE. Days pool all strings of the same gun + load; the same load in two guns is tracked separately.
+- Views: per-day list, trend of a load (average + CI, SD per day), charge ladder per gun, shot dot-plot with
+  exclude/include per shot, manual weather per string.
+
+```bash
+pip install -r requirements.txt                    # adds xlrd + openpyxl
+python -m diary chrono-alias "KP-15" g-wwsd        # folder/file name → diary gun (no args lists them)
+python -m diary chrono-import Ballistiikkataulukot/Velocity "Ballistiikkataulukot/Garmin Xero C1" \
+                              "Ballistiikkataulukot/Kestrel Drop D3" --dry-run
+python -m diary chrono-import …same paths…         # commit; RH/pressure that look swapped are fixed,
+                                                   # --keep-swaps to leave them, --fix-dates for year typos
+python -m diary chrono-stats --gun g-t3x           # per-day table
+```
+
+Velocity tables (`loads`, `chrono_strings`, `chrono_shots`) live in `diary.db` and are part of
+`export`/`import`/`backup`. `*.xls`/`*.xlsx` are git-ignored — never commit your logs. Tests use synthetic data:
+`python -m pytest tests`.
