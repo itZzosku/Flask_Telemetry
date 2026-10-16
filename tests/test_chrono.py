@@ -265,3 +265,19 @@ def test_raw_export_overlap_adds_nothing(client):
     assert not res["created"] and res["skipped"][0]["dropped"] == 1
     assert conn.execute("SELECT count(*) FROM chrono_shots").fetchone()[0] == 2
     conn.close()
+
+
+def test_gun_matching_by_model_token():
+    conn = diary.connect()
+    conn.execute("DELETE FROM guns")
+    for gid, name in (("g-1", "Tikka T3x Super Varmint"), ("g-2", "Tikka T1x"), ("g-3", "Sako M39"),
+                      ("g-4", "WWSD AR-15")):
+        diary.upsert_gun(conn, gid, {"name": name})
+    conn.commit()
+    r = lambda *c: chrono.resolve_gun(conn, list(c))
+    assert r("T3X Super Varmint") == "g-1"
+    assert r("T1X, SK Long Range, 40,0 gr") == "g-2"           # ShotView title
+    assert r("M39 Kisa") == r("M-39 Kisa") == r("M_39") == "g-3"
+    assert r("Rifle Bullet 120,0 gr") is None                  # no model token → no guess
+    assert r("KP-15") is None                                  # needs an alias
+    conn.close()

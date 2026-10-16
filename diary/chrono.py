@@ -93,9 +93,31 @@ def known_powders(conn):
     return json.loads(kv_get(POWDERS_KEY, conn) or "[]")
 
 
+def _tokens(text):
+    """Words of a name, with letter-digit splits joined back: 'M-39 Kisa' / 'M_39' → {'m39', 'kisa'}."""
+    words = re.findall(r"[a-z0-9]+", str(text or "").casefold())
+    out, i = [], 0
+    while i < len(words):
+        w = words[i]
+        if i + 1 < len(words) and w.isalpha() and len(w) <= 2 and words[i + 1].isdigit():
+            w += words[i + 1]
+            i += 1
+        out.append(w)
+        i += 1
+    return set(out)
+
+
+def _model(tokens):
+    return {t for t in tokens if re.search(r"[a-z]", t) and re.search(r"\d", t)}
+
+
 def resolve_gun(conn, candidates):
-    """Match folder names / file-name prefixes against gun names and stored aliases; longest match wins."""
-    names = {_norm(g.get("name")): gid for gid, g in guns(conn).items() if g.get("name")}
+    """Folder names / file-name prefixes / ShotView titles → a diary gun.
+    1) stored alias or gun name as an exact or prefix match (longest wins);
+    2) otherwise the model token ('t3x', 't1x', 'm39') shared with exactly one best-matching gun name,
+       so 'T3X Super Varmint' finds 'Tikka T3x Super Varmint' and 'M39 Kisa' finds 'Sako M39'."""
+    gmap = guns(conn)
+    names = {_norm(g.get("name")): gid for gid, g in gmap.items() if g.get("name")}
     names.update({_norm(a): gid for a, gid in aliases(conn).items()})
     names.pop("", None)
     best = None
@@ -107,7 +129,18 @@ def resolve_gun(conn, candidates):
             if c == key or c.startswith(key):
                 if best is None or len(key) > best[0]:
                     best = (len(key), gid)
-    return best[1] if best else None
+    if best:
+        return best[1]
+    gtoks = {gid: _tokens(g.get("name")) for gid, g in gmap.items() if not g.get("archived")}
+    for cand in candidates:
+        ct = _tokens(cand)
+        cm = _model(ct)
+        if not cm:
+            continue
+        scored = sorted(((len(ct & gt), gid) for gid, gt in gtoks.items() if cm & _model(gt)), reverse=True)
+        if scored and (len(scored) == 1 or scored[0][0] > scored[1][0]):
+            return scored[0][1]
+    return None
 
 
 def load_rows(conn):
