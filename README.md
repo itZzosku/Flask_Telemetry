@@ -96,7 +96,8 @@ workbooks and Kestrel DROP weather logs. Open it from the diary header (*Velocit
 
 - **Share from ShotView** (Android, installed app): ShotView → session → Share → *Shooting Diary* opens the
   import preview with the file. After updating, remove and re-add the app to the home screen once so Android
-  learns the share target. Not available on iPhone (Safari has no share targets).
+  learns the share target. Install it with **Chrome** (menu → *Install app*): Vivaldi and other browsers only make
+  a home-screen shortcut, which Android never lists as a share target. Not available on iPhone.
 - **Import** (*+ Import velocities*): pick files or a whole folder. ShotView `.xls`/`.xlsx`, velocity workbooks
   (`<gun>, <bullet>, <brass>, <charge> gr.xlsx`, one `DDMMYYYY` sheet per day) and Kestrel CSVs are
   recognised by content. Folder names give the powder (`N555`, `N133`, `N150` …) and the gun, in either
