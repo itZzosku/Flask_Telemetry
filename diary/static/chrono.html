@@ -306,6 +306,7 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
       </div>
     </div>
     <div class="sumline" id="iSum" hidden></div>
+    <div class="wbox" id="iWeather" hidden style="margin-top:0;padding-top:0;border-top:0"></div>
     <div id="iList" style="display:flex;flex-direction:column;gap:10px"></div>
     <div class="actions" id="iActions" hidden>
       <button class="primary" type="button" id="iSave">Tallenna valitut</button>
@@ -652,7 +653,7 @@ function calClash(gunId,loadId){const g=gunCal(gunId),l=(loadOf(loadId)||{}).cal
   return g&&l&&calKey(g)!==calKey(l)?`Aseen kaliiperi ${g}, latauksen ${l}`:""}
 
 /* ---------- import ---------- */
-$("importBtn").addEventListener("click",()=>{S.preview=null;$("iList").innerHTML="";$("iSum").hidden=true;$("iActions").hidden=true;$("iMsg").hidden=true;openSheet("iSheet")});
+$("importBtn").addEventListener("click",()=>{S.preview=null;$("iList").innerHTML="";$("iSum").hidden=true;$("iWeather").hidden=true;$("iActions").hidden=true;$("iMsg").hidden=true;openSheet("iSheet")});
 $("pickFiles").addEventListener("click",()=>$("iFiles").click());
 $("pickDir").addEventListener("click",()=>$("iDir").click());
 $("iFiles").addEventListener("change",e=>upload(e.target.files));
@@ -670,10 +671,49 @@ async function upload(files){
       swap:s.warnings.some(w=>w.code==="weather_range"&&w.swap),date:s.date};
   });
   p.strings.sort((a,b)=>(a.date||"").localeCompare(b.date||"")||(a.started_at||"").localeCompare(b.started_at||""));
+  p.weather={};p.wOverwrite=false;
   renderPreview();
 }
+// Weather typed once in the preview, per day, for every selected sarja of that day.
+function fileWeather(s){
+  const t=wStat(s.shots,"temp_c"),r=wStat(s.shots,"rh"),p=wStat(s.shots,"hpa");
+  if(!t&&!r&&!p)return null;
+  return{text:[t?f1(t.avg)+" °C":"",r?Math.round(r.avg)+" %":"",p?Math.round(p.avg)+" hPa":""].filter(Boolean).join(" · "),
+    complete:[t,r,p].every(x=>x&&x.all)};
+}
+function renderWeatherBox(){
+  const p=S.preview,on=p.strings.filter(s=>s.ui.on);
+  const dates=[...new Set(on.map(s=>s.ui.date).filter(Boolean))].sort();
+  const box=$("iWeather");
+  if(!dates.length){box.hidden=true;return}
+  const key=dates.join(",")+"|"+p.wOverwrite;
+  if(box.dataset.key===key)return;                       // don't redraw while typing
+  box.dataset.key=key;box.hidden=false;
+  box.innerHTML=`<div class="lbl">Sää ${dates.length>1?"päivittäin":"kaikille sarjoille"}</div>`
+    +dates.map(d=>{const w=p.weather[d]||{},n=on.filter(s=>s.ui.date===d).length;
+      return`${dates.length>1?`<div class="hint"><b>${fiDate(d)}</b> · ${n} sarja${n>1?"a":""}</div>`:""}
+      <div class="grid3"><label class="f">°C<input type="text" inputmode="decimal" data-iw="temp_c" data-d="${d}" value="${esc(w.temp_c??"")}" placeholder="–"></label>
+        <label class="f">Kosteus %<input type="text" inputmode="decimal" data-iw="rh" data-d="${d}" value="${esc(w.rh??"")}" placeholder="–"></label>
+        <label class="f">Paine hPa<input type="text" inputmode="decimal" data-iw="hpa" data-d="${d}" value="${esc(w.hpa??"")}" placeholder="–"></label></div>`}).join("")
+    +`<label class="check"><input type="checkbox" id="iWOver" ${p.wOverwrite?"checked":""}>Korvaa myös tiedostossa tai Kestrelissä olevat säätiedot</label>
+    <div class="hint">Tyhjäksi jätetty kenttä ei muuta mitään. Ilman ruksia sää täytetään vain laukauksille, joilta se puuttuu.</div>`;
+}
+$("iWeather").addEventListener("input",e=>{const t=e.target;if(!t.dataset.iw)return;
+  const w=S.preview.weather[t.dataset.d]=S.preview.weather[t.dataset.d]||{};w[t.dataset.iw]=t.value.trim();renderStatuses()});
+$("iWeather").addEventListener("change",e=>{if(e.target.id==="iWOver"){S.preview.wOverwrite=e.target.checked;renderWeatherBox();renderStatuses()}});
+function typedWeather(d){const w=S.preview.weather[d]||{},o={};
+  for(const k of["temp_c","rh","hpa"])if(w[k]){const v=parseFloat(String(w[k]).replace(",","."));if(isFinite(v))o[k]=v}
+  return o}
+function statusLine(s){
+  const fw=fileWeather(s),tw=typedWeather(s.ui.date),typed=Object.keys(tw).length;
+  if(typed&&(S.preview.wOverwrite||!fw))return`Sää: syötetty (${[tw.temp_c!=null?f1(tw.temp_c)+" °C":"",tw.rh!=null?Math.round(tw.rh)+" %":"",tw.hpa!=null?Math.round(tw.hpa)+" hPa":""].filter(Boolean).join(" · ")})`;
+  if(fw)return`Sää tiedostosta: ${fw.text}${!fw.complete&&typed?" – puuttuvat täytetään syötetyllä":""}`;
+  return"Ei säätietoja";
+}
+function renderStatuses(){S.preview.strings.forEach((s,i)=>{const el=$("iList").querySelector(`[data-wst="${i}"]`);if(el)el.textContent=statusLine(s)})}
 function renderPreview(){
   const p=S.preview,on=p.strings.filter(s=>s.ui.on);
+  renderWeatherBox();
   $("iSum").innerHTML=`<b>${p.strings.length}</b> sarjaa, valittuna <b>${on.length}</b> (${on.reduce((a,s)=>a+s.stats.n,0)} laukausta)`
     +(p.weather_records?` · Kestrel: <b>${p.weather_records}</b> riviä, sää ${p.weather_filled} laukaukseen`:"")
     +(p.errors.length?`<br>Ohitettu: ${p.errors.map(esc).join("; ")}`:"")
@@ -695,6 +735,7 @@ function renderPreview(){
       <div class="sumline">SD <b>${f2(st.sd)}</b> (Garmin ${f2(st.sd_garmin)}) · ES <b>${f1(st.es)}</b> m/s
         ${c?(c.ok?' <span class="badge ok">✓ ShotView täsmää</span>':c.ok===false?' <span class="badge warn">≠ ShotView</span>':""):""}</div>
       ${done?`<div class="hint">${done}</div>`:""}
+      <div class="hint" data-wst="${i}">${esc(statusLine(s))}</div>
       <div class="grid2"><label class="f">Ase<select data-gun="${i}">${gunOpts(s.ui.gun)}</select></label>
         <label class="f">Lataus<select data-load="${i}">${loadOpts(s.ui.load,s.suggest.load,s.ui.gun)}</select></label></div>
       ${w?`<div class="warns">${w}</div>`:""}
@@ -724,6 +765,12 @@ $("iSave").addEventListener("click",async()=>{
     unit_in:s.unit_in,bullet_gr:s.bullet_gr,gun_id:s.ui.gun||null,visit_id:s.suggest.visit_id,
     load_id:s.ui.load&&s.ui.load!=="new"?s.ui.load:null,load:s.ui.load==="new"?s.suggest.load:null,
     swap_rh_hpa:s.ui.swap,shots:s.shots}));
+  const bad=Object.keys(S.preview.weather).map(typedWeather).find(w=>w.rh!=null&&(w.rh<0||w.rh>100)||w.hpa!=null&&(w.hpa<850||w.hpa>1100));
+  if(bad){toast("Tarkista kosteus (0–100 %) ja paine (850–1100 hPa)");return}
+  items.forEach(it=>{const w=typedWeather(it.date);if(!Object.keys(w).length)return;
+    Object.assign(it,w);
+    if(S.preview.wOverwrite){it.shots=it.shots.map(x=>Object.assign({},x,w));
+      if(w.rh!=null||w.hpa!=null)it.swap_rh_hpa=false}});     // typed values are already the right way round
   // Curated sources first: own workbooks carry loads and weather; raw exports then only fill gaps.
   items.sort((a,b)=>(a.source!=="workbook")-(b.source!=="workbook"));
   $("iSave").disabled=true;
