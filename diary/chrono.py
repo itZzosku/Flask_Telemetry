@@ -377,9 +377,12 @@ def apply_day_weather(conn, date, values, gun_id=None, overwrite=False):
     ids = [r["id"] for r in conn.execute(q, (date, gun_id) if gun_id else (date,))]
     n = 0
     for sid in ids:
+        touched = 0
         for k, v in vals.items():
             cond = "" if overwrite else f" AND {k} IS NULL"
-            n += conn.execute(f"UPDATE chrono_shots SET {k}=? WHERE string_id=?{cond}", (v, sid)).rowcount
+            touched = max(touched, conn.execute(f"UPDATE chrono_shots SET {k}=? WHERE string_id=?{cond}",
+                                                (v, sid)).rowcount)
+        n += touched                      # shots, not field updates
         _refresh_temp(conn, sid)
     return n
 
