@@ -5,7 +5,7 @@
    - Logging out clears everything cached. Writes are never cached; the page queues them itself.
    - Share target: a file shared to the installed app (e.g. from ShotView) is POSTed to chrono/share;
      it is kept in the SHARE cache and the velocity page opens and imports it. */
-const VERSION = "v4";
+const VERSION = "v5";
 const PAGE = "diary-page-" + VERSION, DATA = "diary-data", ASSETS = "diary-assets-" + VERSION, SHARE = "diary-share";
 const BASE = new URL("./", self.registration.scope).pathname;            // "/diary/"
 const ASSET_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com", "cdnjs.cloudflare.com"];
@@ -75,8 +75,9 @@ self.addEventListener("fetch", e => {
   } else if (local && url.pathname.startsWith(BASE + "api/")) {
     e.respondWith(networkFirst(req, DATA, null, true).catch(() =>
       new Response(JSON.stringify({error: "offline"}), {status: 503, headers: {"Content-Type": "application/json"}})));
-  } else if ((local && (url.pathname.startsWith(BASE + "static/") || url.pathname === BASE + "manifest.webmanifest"))
-             || ASSET_HOSTS.includes(url.hostname)) {
+  } else if (local && url.pathname === BASE + "manifest.webmanifest") {
+    e.respondWith(networkFirst(req, ASSETS));          // never a stale manifest (share target, name)
+  } else if ((local && url.pathname.startsWith(BASE + "static/")) || ASSET_HOSTS.includes(url.hostname)) {
     e.respondWith(cacheFirst(req));
   }
 });

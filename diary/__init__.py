@@ -222,8 +222,11 @@ def page():
 
 @bp.get("/manifest.webmanifest")
 def manifest():
-    return send_from_directory(os.path.join(HERE, "static"), "manifest.webmanifest",
-                               mimetype="application/manifest+json", max_age=3600)
+    # Always fresh: Android reads the share target from it when the app is installed.
+    resp = send_from_directory(os.path.join(HERE, "static"), "manifest.webmanifest",
+                               mimetype="application/manifest+json", max_age=0)
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
 
 
 @bp.get("/sw.js")
