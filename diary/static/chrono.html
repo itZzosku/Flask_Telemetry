@@ -234,6 +234,19 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
 .sumline b{color:var(--fg);font-family:var(--f-mono)}
 .lrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;margin-bottom:6px}
 .lrow .meta{grid-column:1/-1;color:var(--muted);font-size:.8rem}
+.namebox{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;box-shadow:inset 4px 0 0 var(--accent)}
+.namebox small{display:block;color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+.namebox b{font-family:var(--f-mono);font-weight:600;font-size:1rem;overflow-wrap:anywhere}
+.egroup{display:flex;flex-direction:column;gap:10px}
+.egroup .lbl{margin-top:2px}
+.lsec{font-family:var(--f-display);font-weight:600;font-size:1rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px}
+.lrow b{font-family:var(--f-mono);font-weight:600;font-size:.9rem;overflow-wrap:anywhere}
+.lrow .fig{text-align:right}
+.lrow .fig small{display:block;color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.06em}
+.lrow.archived{opacity:.55}
+.pg{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;border-top:1px solid var(--line);padding:8px 0;font-size:.88rem}
+.pg .fig{font-family:var(--f-mono);text-align:right}
+.pg .meta{grid-column:1/-1;color:var(--muted);font-size:.78rem;font-family:var(--f-mono)}
 @media (max-width:560px){ .kpis{grid-template-columns:repeat(2,minmax(0,1fr))} .kpis .stat:nth-child(3){border-left:0;padding-left:4px} .kpis .stat:nth-child(n+3){border-top:1px solid var(--line)} }
 </style>
 </head>
@@ -312,9 +325,60 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
 <div class="sheet" id="lSheet" hidden role="dialog" aria-modal="true" aria-labelledby="lTitle">
   <div class="sheet-in">
     <div class="sheet-bar"><h2 id="lTitle">Lataukset</h2><button class="ghost" type="button" data-close>Sulje</button></div>
+    <div class="actions"><button class="ghost" type="button" id="addLoadBtn">+ Uusi lataus</button></div>
     <div id="lBody"></div>
   </div>
 </div>
+
+<!-- Load editor (opens over the list or the import preview) -->
+<div class="sheet" id="eSheet" hidden role="dialog" aria-modal="true" aria-labelledby="eTitle" style="z-index:12">
+  <form class="sheet-in" id="eForm" autocomplete="off">
+    <div class="sheet-bar"><h2 id="eTitle">Lataus</h2><button class="ghost" type="button" id="eClose">Sulje</button></div>
+    <div class="namebox"><small>Nimi</small><b id="eName">–</b></div>
+    <div class="chips" role="radiogroup" aria-label="Tyyppi">
+      <button type="button" class="chip" data-kind="handload">Oma lataus</button>
+      <button type="button" class="chip" data-kind="factory">Tehdaspatruuna</button>
+    </div>
+    <label class="f">Kaliiperi<input type="text" data-k="cal" list="dlLCal" placeholder="esim. 6.5 CM"></label>
+    <div data-for="handload" class="egroup">
+      <div class="lbl">Luoti</div>
+      <div class="grid3">
+        <label class="f">Valmistaja<input type="text" data-k="bullet_maker" list="dlBMaker" placeholder="Lapua"></label>
+        <label class="f">Malli<input type="text" data-k="bullet_model" list="dlBModel" placeholder="Scenar"></label>
+        <label class="f">Paino gr<input type="text" inputmode="decimal" data-k="bullet_gr" placeholder="139"></label>
+      </div>
+      <div class="lbl">Hylsy, ruuti ja nalli</div>
+      <div class="grid3">
+        <label class="f">Hylsy<input type="text" data-k="brass" list="dlBrass" placeholder="Lapua"></label>
+        <label class="f">Ruuti<input type="text" data-k="powder" list="dlPowder" placeholder="N555"></label>
+        <label class="f">Panos gr<input type="text" inputmode="decimal" data-k="charge_gr" placeholder="44,0"></label>
+      </div>
+      <div class="grid2">
+        <label class="f">Nalli<input type="text" data-k="primer" list="dlPrimer" placeholder="esim. CCI BR-2"></label>
+        <label class="f">COAL mm<input type="text" inputmode="decimal" data-k="coal_mm" placeholder="72,4"></label>
+      </div>
+    </div>
+    <div data-for="factory" class="egroup">
+      <div class="grid3">
+        <label class="f">Valmistaja<input type="text" data-k="maker" list="dlFMaker" placeholder="SK"></label>
+        <label class="f">Tuote<input type="text" data-k="product" placeholder="Long Range Match"></label>
+        <label class="f">Luoti gr<input type="text" inputmode="decimal" data-k="bullet_gr" data-fk="1" placeholder="40"></label>
+      </div>
+    </div>
+    <label class="f">Muistiinpanot<input type="text" data-k="notes" placeholder="erä, ostopaikka, havainnot"></label>
+    <label class="check"><input type="checkbox" data-k="archived">Piilota valinnoista (loppunut tai ei käytössä)</label>
+    <div class="hint" id="eStats"></div>
+    <div id="ePerGun"></div>
+    <div class="banner" id="eDup" hidden></div>
+    <div class="msg" id="eMsg" hidden></div>
+    <div class="actions">
+      <button class="primary" type="submit" id="eSave">Tallenna lataus</button>
+      <button class="danger" type="button" id="eDel" hidden>Poista</button>
+    </div>
+  </form>
+</div>
+<datalist id="dlLCal"></datalist><datalist id="dlBMaker"></datalist><datalist id="dlBModel"></datalist><datalist id="dlBrass"></datalist>
+<datalist id="dlPowder"></datalist><datalist id="dlPrimer"></datalist><datalist id="dlFMaker"></datalist>
 
 <script>
 (function(){
@@ -344,7 +408,7 @@ async function api(method,path,body,form){
   if(r.status===401){location.href="login";throw new Error("auth")}
   if(method==="GET")$("offNote").hidden=!r.headers.get("X-Offline"),$("offNote").textContent="Ei yhteyttä – näytetään viimeksi haetut tiedot.";
   const j=await r.json().catch(()=>({}));
-  if(!r.ok)throw Object.assign(new Error(j.error||("HTTP "+r.status)),{status:r.status});
+  if(!r.ok)throw Object.assign(new Error(j.error||("HTTP "+r.status)),{status:r.status,body:j});
   return j;
 }
 
@@ -547,7 +611,7 @@ async function renderLadder(){
   const box=$("ladderView");
   if(!S.gun||S.gun==="-"||S.load){box.hidden=true;return}
   let pts;try{pts=await api("GET","chrono/ladder?gun="+encodeURIComponent(S.gun))}catch(e){box.hidden=true;return}
-  const groups=new Map();pts.forEach(p=>{const k=[p.bullet,p.brass?p.brass+" brass":"",p.powder].filter(Boolean).join(", ");if(!groups.has(k))groups.set(k,[]);groups.get(k).push(p)});
+  const groups=new Map();pts.forEach(p=>{const k=p.group;if(!groups.has(k))groups.set(k,[]);groups.get(k).push(p)});
   const html=[...groups.entries()].filter(([,g])=>g.length>=2).map(([k,g])=>ladderChart(k,g)).join("");
   box.hidden=!html;$("ladders").innerHTML=html;bindTips(box);
 }
@@ -556,7 +620,7 @@ async function renderLadder(){
 function openSheet(id){["iSheet","dSheet","lSheet"].forEach(s=>$(s).hidden=s!==id);document.body.style.overflow="hidden"}
 function closeSheets(){["iSheet","dSheet","lSheet"].forEach(s=>$(s).hidden=true);document.body.style.overflow="";tip.hidden=true}
 document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",closeSheets));
-document.addEventListener("keydown",e=>{if(e.key==="Escape")closeSheets()});
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("eSheet").hidden)closeEditor();else closeSheets()});
 const gunOpts=sel=>`<option value="">— ei asetta —</option>`+S.guns.slice().sort((a,b)=>String(a.name).localeCompare(b.name)).map(g=>`<option value="${esc(g.id)}" ${g.id===sel?"selected":""}>${esc(g.name)}</option>`).join("");
 const loadOpts=(sel,spec)=>`<option value="">— ei latausta —</option>`+(spec?`<option value="new" ${sel==="new"?"selected":""}>Uusi: ${esc(spec.name)}</option>`:"")
   +`<option value="custom">+ Uusi lataus…</option>`
@@ -617,8 +681,13 @@ $("iList").addEventListener("change",e=>{
   else if(t.dataset.gun!=null){S2[t.dataset.gun].ui.gun=t.value;return}
   else if(t.dataset.load!=null){
     const s=S2[t.dataset.load];
-    if(t.value==="custom"){const spec=askLoad(s.bullet_gr,s.ui.gun);if(spec){s.suggest.load=spec;s.ui.load="new"}}
-    else s.ui.load=t.value}
+    if(t.value==="custom"){
+      const g=S.guns.find(x=>x.id===s.ui.gun)||{};
+      const pre=Object.assign({kind:"handload",cal:g.cal||"",bullet_gr:s.bullet_gr||""},s.suggest.load||{});
+      t.value=s.ui.load;
+      editLoad(null,pre,id=>{s.ui.load=id;renderPreview()});
+      return}
+    s.ui.load=t.value}
   else if(t.dataset.swap!=null){S2[t.dataset.swap].ui.swap=t.checked;return}
   renderPreview();
 });
@@ -639,16 +708,6 @@ $("iSave").addEventListener("click",async()=>{
   }catch(e){$("iMsg").hidden=false;$("iMsg").textContent="Tallennus epäonnistui: "+e.message}
   finally{$("iSave").disabled=false}
 });
-
-// A load typed by hand: "Sako Blade 120 gr, Lapua brass, N555 43 gr" → powder and charge read from the name
-function askLoad(bulletGr,gunId){
-  const name=(prompt("Latauksen nimi, esim. Sako Blade 120 gr, Lapua brass, N555 43 gr")||"").trim();
-  if(!name)return null;
-  const chg=name.match(/(\d+(?:[.,]\d+)?)\s*gr\s*$/i),pw=name.match(/\bN\d{3}\b/i),br=name.match(/([\wåäö-]+)\s+brass/i);
-  const g=S.guns.find(x=>x.id===gunId)||{};
-  return{kind:chg||pw?"handload":"factory",name,cal:g.cal||null,bullet_gr:bulletGr||null,bullet:name.split(",")[0].trim(),
-    brass:br?br[1]:null,powder:pw?pw[0].toUpperCase():null,charge_gr:chg?+chg[1].replace(",","."):null};
-}
 
 /* ---------- day ---------- */
 async function openDay(date){
@@ -698,32 +757,97 @@ $("dBody").addEventListener("change",e=>{const t=e.target;
 });
 
 /* ---------- loads ---------- */
+// Mirrors chrono_loads.load_name on the server: the name is always generated from the fields.
+const numFi=(v,d)=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)?(d==null?(Number.isInteger(n)?String(n):String(n).replace(".",",")):n.toFixed(d).replace(".",",")):""};
+function genName(f){
+  const w=f.bullet_gr!==""&&f.bullet_gr!=null&&numFi(f.bullet_gr)?numFi(f.bullet_gr)+" gr":"";
+  if(f.kind==="factory")return[f.maker,f.product,w].filter(Boolean).join(" ")||"Tehdaspatruuna";
+  const out=[[f.bullet_maker,f.bullet_model,w].filter(Boolean).join(" ")||"Lataus"];
+  if(f.brass)out.push("hylsy "+f.brass);
+  const pw=[f.powder,numFi(f.charge_gr,1)?numFi(f.charge_gr,1)+" gr":""].filter(Boolean).join(" ");
+  if(pw)out.push(pw);
+  return out.join(" · ");
+}
+const dl=(id,vals)=>{$(id).innerHTML=[...new Set(vals.filter(Boolean))].sort((a,b)=>a.localeCompare(b,"fi")).map(v=>`<option value="${esc(v)}">`).join("")};
+function fillLoadLists(){
+  const L=S.loads;
+  dl("dlLCal",L.map(l=>l.cal).concat(S.guns.map(g=>g.cal)));
+  dl("dlBMaker",L.map(l=>l.bullet_maker).concat(["Lapua","Sako","Hornady","Sierra","Berger","Nosler","Norma"]));
+  dl("dlBModel",L.map(l=>l.bullet_model).concat(["Scenar","Scenar-L","Naturalis","Mega","FMJ","HPCE","Blade","ELD-M","ELD-X","A-Tip","MatchKing","Hybrid Target"]));
+  dl("dlBrass",L.map(l=>l.brass).concat(["Lapua","Sako","Norma","Peterson","Starline","Hornady"]));
+  dl("dlPowder",L.map(l=>l.powder).concat(["N133","N140","N150","N160","N550","N555","N560","N565","N570"]));
+  dl("dlPrimer",L.map(l=>l.primer).concat(["CCI BR-2","CCI BR-4","CCI 200","Federal 210M","Federal 205M","Murom KVB-7"]));
+  dl("dlFMaker",L.map(l=>l.maker).concat(["Lapua","Sako","Norma","SK","Eley","RWS","Geco","Fiocchi","Sellier & Bellot","PPU"]));
+}
 $("loadsBtn").addEventListener("click",()=>{renderLoads();openSheet("lSheet")});
+$("addLoadBtn").addEventListener("click",()=>{const g=S.guns.find(x=>x.id===S.gun)||{};editLoad(null,{kind:"handload",cal:g.cal||""})});
 function renderLoads(){
-  const used={};S.days.forEach(d=>{if(d.load_id)used[d.load_id]=(used[d.load_id]||0)+d.stats.n});
-  $("lBody").innerHTML=(S.loads.length?S.loads.slice().sort((a,b)=>(a.archived-b.archived)||a.name.localeCompare(b.name,"fi",{numeric:true})).map(l=>`<button type="button" class="lrow" data-lid="${esc(l.id)}" style="${l.archived?"opacity:.55":""}">
-      <b>${esc(l.name)}</b><span class="fig num">${used[l.id]||0} lks</span>
-      <span class="meta">${l.kind==="factory"?"Tehdas":"Lataus"}${l.cal?" · "+esc(l.cal):""}${l.bullet_gr?" · "+String(l.bullet_gr).replace(".",",")+" gr luoti":""}${l.powder?" · "+esc(l.powder):""}${l.charge_gr!=null?" "+String(l.charge_gr).replace(".",",")+" gr":""}</span></button>`).join("")
-    :'<div class="empty">Lataukset syntyvät tuonnin yhteydessä tiedostojen nimistä.</div>');
+  const row=l=>{const u=l.use||{};const guns=(u.guns||[]).map(gunName).join(", ");
+    const parts=[l.cal,guns,u.last?"viimeksi "+fiDate(u.last):""].filter(Boolean);
+    return`<button type="button" class="lrow${l.archived?" archived":""}" data-lid="${esc(l.id)}">
+      <b>${esc(l.name)}</b><span class="fig"><span class="num">${u.shots||0}</span><small>laukausta</small></span>
+      <span class="meta">${esc(parts.join(" · "))||"ei vielä nopeuksia"}</span></button>`};
+  const sorted=S.loads.slice().sort((a,b)=>(a.archived-b.archived)||a.name.localeCompare(b.name,"fi",{numeric:true}));
+  const own=sorted.filter(l=>l.kind!=="factory"),fac=sorted.filter(l=>l.kind==="factory");
+  $("lBody").innerHTML=!S.loads.length?'<div class="empty">Ei vielä latauksia. Lisää uusi tai tuo nopeudet – tiedostojen nimistä syntyy lataukset.</div>'
+    :(own.length?`<div class="lsec">Omat lataukset · ${own.length}</div>`+own.map(row).join(""):"")
+    +(fac.length?`<div class="lsec">Tehdaspatruunat · ${fac.length}</div>`+fac.map(row).join(""):"");
 }
 $("lBody").addEventListener("click",e=>{const b=e.target.closest("[data-lid]");if(b)editLoad(b.dataset.lid)});
-function editLoad(id){
-  const l=loadOf(id);if(!l)return;
-  const fld=(k,lab,type="text",step)=>`<label class="f">${lab}<input type="${type}" ${step?`step="${step}"`:""} data-k="${k}" value="${esc(l[k]??"")}"></label>`;
-  $("lBody").innerHTML=`<form id="lForm" style="display:flex;flex-direction:column;gap:14px">
-    ${fld("name","Nimi")}
-    <div class="grid2"><label class="f">Tyyppi<select data-k="kind"><option value="handload" ${l.kind==="handload"?"selected":""}>Oma lataus</option><option value="factory" ${l.kind==="factory"?"selected":""}>Tehdas</option></select></label>${fld("cal","Kaliiperi")}</div>
-    <div class="grid2">${fld("bullet","Luoti")}${fld("bullet_gr","Luodin paino gr","number","0.1")}</div>
-    <div class="grid3">${fld("brass","Hylsy")}${fld("powder","Ruuti")}${fld("charge_gr","Panos gr","number","0.1")}</div>
-    ${fld("notes","Muistiinpanot")}
-    <label class="check"><input type="checkbox" data-k="archived" ${l.archived?"checked":""}>Arkistoitu</label>
-    <div class="actions"><button class="primary" type="submit">Tallenna</button><button class="ghost" type="button" id="lBack">Takaisin</button></div>
-  </form>`;
-  $("lBack").addEventListener("click",renderLoads);
-  $("lForm").addEventListener("submit",async ev=>{ev.preventDefault();const body={};
-    ev.target.querySelectorAll("[data-k]").forEach(el=>body[el.dataset.k]=el.type==="checkbox"?(el.checked?1:0):el.value);
-    try{await api("PUT","chrono/loads/"+encodeURIComponent(id),body);toast("Tallennettu");await loadAll();renderLoads()}catch(e){toast("Tallennus epäonnistui: "+e.message)}});
+
+const E={id:null,kind:"handload",onSave:null,delArm:false,force:false};
+const eFields=()=>[...$("eForm").querySelectorAll("[data-k]")].filter(el=>!el.closest(".egroup")||el.closest(".egroup").dataset.for===E.kind);
+function eRead(){const f={kind:E.kind};eFields().forEach(el=>f[el.dataset.k]=el.type==="checkbox"?(el.checked?1:0):el.value.trim());return f}
+function eKind(k){E.kind=k;$("eForm").querySelectorAll("[data-kind]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.kind===k));
+  $("eForm").querySelectorAll(".egroup").forEach(g=>g.hidden=g.dataset.for!==k);eName()}
+function eName(){$("eName").textContent=genName(eRead());$("eDup").hidden=true;E.force=false}
+async function editLoad(id,pre,onSave){
+  fillLoadLists();
+  const l=id?loadOf(id):null;E.id=id;E.onSave=onSave||null;E.delArm=false;E.force=false;
+  const f=Object.assign({},l||pre||{kind:"handload"});
+  $("eTitle").textContent=l?"Muokkaa latausta":"Uusi lataus";
+  $("eForm").querySelectorAll("[data-k]").forEach(el=>{const v=f[el.dataset.k];
+    if(el.type==="checkbox")el.checked=!!v;
+    else el.value=v==null?"":(el.inputMode==="decimal"&&v!==""?String(v).replace(".",","):v)});
+  eKind(f.kind==="factory"?"factory":"handload");
+  const u=l&&l.use||{};
+  $("eStats").innerHTML=l&&u.shots?`<b>${u.shots}</b> laukausta · <b>${u.days}</b> päivää${u.last?" · viimeksi "+fiDate(u.last):""}`:(l?"Ei vielä nopeuksia tällä latauksella.":"");
+  $("eDel").hidden=!l||!!u.shots;$("eDel").textContent="Poista";$("eMsg").hidden=true;$("ePerGun").innerHTML="";
+  $("eSheet").hidden=false;document.body.style.overflow="hidden";
+  if(l&&u.shots){try{const info=await api("GET","chrono/loads/"+encodeURIComponent(id));
+    $("ePerGun").innerHTML=(info.per_gun||[]).map(p=>{const a=p.all;return`<div class="pg"><span>${esc(gunName(p.gun_id))}</span>
+      <span class="fig">⌀ <b>${f1(a.avg)}</b> m/s</span><span class="meta">n ${a.n} · SD ${f2(a.sd)} · ES ${f1(a.es)} · ${p.days} pv${p.temp_sensitivity!=null?` · ${p.temp_sensitivity>0?"+":""}${f2(p.temp_sensitivity)} m/s/°C`:""}</span></div>`}).join("")}catch(e){}}
 }
+function closeEditor(){$("eSheet").hidden=true;if(["iSheet","dSheet","lSheet"].every(x=>$(x).hidden))document.body.style.overflow=""}
+$("eClose").addEventListener("click",closeEditor);
+$("eForm").addEventListener("click",e=>{const b=e.target.closest("[data-kind]");if(b)eKind(b.dataset.kind)});
+$("eForm").addEventListener("input",eName);
+$("eForm").addEventListener("submit",async ev=>{ev.preventDefault();
+  const f=eRead(),id=E.id||("l-"+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+  if(E.force)f.allow_duplicate=true;
+  $("eSave").disabled=true;
+  try{
+    const saved=await api("PUT","chrono/loads/"+encodeURIComponent(id),f);
+    await loadAll();toast("Lataus tallennettu");closeEditor();
+    if(E.onSave)E.onSave(saved.id);else if(!$("lSheet").hidden)renderLoads();
+  }catch(e){
+    if(e.status===409&&e.body&&e.body.error==="duplicate"){
+      const o=e.body;$("eDup").hidden=false;
+      $("eDup").innerHTML=`Samalla nimellä on jo lataus <b>${esc(o.name)}</b>.`+(E.id?` Yhdistä tämä siihen, niin kaikki tämän latauksen sarjat siirtyvät sille.`:` Käytä olemassa olevaa latausta.`)
+        +`<div class="actions" style="margin-top:8px">${E.id?`<button class="ghost" type="button" data-merge="${esc(o.other)}">Yhdistä</button>`:`<button class="ghost" type="button" data-use="${esc(o.other)}">Käytä sitä</button>`}<button class="ghost" type="button" data-force>Tallenna silti erillisenä</button></div>`;
+    }else{$("eMsg").hidden=false;$("eMsg").textContent="Tallennus epäonnistui: "+e.message}
+  }finally{$("eSave").disabled=false}
+});
+$("eDup").addEventListener("click",async e=>{const b=e.target.closest("button");if(!b)return;
+  if(b.dataset.force!=null){E.force=true;$("eForm").requestSubmit();return}
+  if(b.dataset.use){closeEditor();await loadAll();if(E.onSave)E.onSave(b.dataset.use);return}
+  if(b.dataset.merge){try{const r=await api("POST","chrono/loads/"+encodeURIComponent(E.id)+"/merge",{into:b.dataset.merge});
+    toast(`Yhdistetty – ${r.moved} sarjaa siirretty`);if(S.load===E.id)S.load=b.dataset.merge;closeEditor();await loadAll();renderLoads()}catch(err){toast("Yhdistäminen epäonnistui")}}
+});
+$("eDel").addEventListener("click",async()=>{
+  if(!E.delArm){E.delArm=true;$("eDel").textContent="Vahvista poisto";return}
+  try{await api("DELETE","chrono/loads/"+encodeURIComponent(E.id));toast("Lataus poistettu");closeEditor();await loadAll();renderLoads()}catch(e){toast("Poisto epäonnistui")}
+});
 
 let rT;window.addEventListener("resize",()=>{clearTimeout(rT);rT=setTimeout(()=>{if(!$("dSheet").hidden)renderDay();else{renderLoad();renderLadder()}},200)});
 

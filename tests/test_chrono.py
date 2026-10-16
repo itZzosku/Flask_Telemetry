@@ -228,7 +228,7 @@ def test_api_parse_commit_idempotent(client):
     p = r.get_json()
     s = p["strings"][0]
     assert s["suggest"]["gun_id"] == "g-t3x"
-    assert s["suggest"]["load"]["powder"] == "N555" and s["suggest"]["load"]["charge_gr"] == 44.0
+    assert s["suggest"]["load"]["name"] == "Lapua Scenar 139 gr · hylsy Lapua · N555 44,0 gr"
     item = dict(s, gun_id=s["suggest"]["gun_id"], load=s["suggest"]["load"])
     r = client.post("/diary/api/chrono/commit", json={"strings": [item]})
     assert r.status_code == 200 and len(r.get_json()["created"]) == 1
@@ -281,3 +281,60 @@ def test_gun_matching_by_model_token():
     assert r("Rifle Bullet 120,0 gr") is None                  # no model token → no guess
     assert r("KP-15") is None                                  # needs an alias
     conn.close()
+
+
+# ------------------------------------------------------------------ structured loads
+from diary import chrono_loads
+
+
+def test_load_names_and_legacy_migration():
+    assert chrono_loads.load_name({"kind": "handload", "bullet_maker": "Lapua", "bullet_model": "Scenar",
+                                   "bullet_gr": 139, "brass": "Lapua", "powder": "N555", "charge_gr": 44}) \
+        == "Lapua Scenar 139 gr · hylsy Lapua · N555 44,0 gr"
+    assert chrono_loads.load_name({"kind": "factory", "maker": "SK", "product": "Long Range Match", "bullet_gr": 40}) \
+        == "SK Long Range Match 40 gr"
+    leg = lambda **kw: chrono_loads.from_legacy(kw)["name"]
+    assert leg(kind="handload", bullet="9 g Scenar", bullet_gr=139, brass="Lapua", powder="N555", charge_gr=44.0) \
+        == "Lapua Scenar 139 gr · hylsy Lapua · N555 44,0 gr"
+    assert leg(kind="handload", bullet="8,8 g Scenar-L", bullet_gr=136, brass="Lapua", powder="N555", charge_gr=44.0) \
+        .startswith("Lapua Scenar-L 136 gr")
+    assert leg(kind="factory", name="Geco .22lr Rifle 2,6g") == "Geco .22lr Rifle 40 gr"
+    assert leg(kind="factory", name="Sellier & Bellot 223. Rem 55gr. FMJ", bullet_gr=123) \
+        == "Sellier & Bellot 223. Rem FMJ 55 gr"                     # the name's weight beats a copied cell
+    assert leg(kind="factory", name="Sako Range 6,5 9,3g_144g Creedmoor") == "Sako Range 6,5 Creedmoor 144 gr"
+
+
+def test_migrate_old_loads_table():
+    import sqlite3
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute("CREATE TABLE loads (id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT, cal TEXT, bullet TEXT, "
+                 "bullet_gr REAL, brass TEXT, powder TEXT, charge_gr REAL, notes TEXT, archived INTEGER)")
+    conn.execute("INSERT INTO loads VALUES ('l-1','9 g Scenar, Lapua brass, N555 40 gr','handload',NULL,"
+                 "'9 g Scenar',139,'Lapua','N555',40,'',0)")
+    assert chrono_loads.migrate(conn) == 1
+    r = conn.execute("SELECT * FROM loads").fetchone()
+    assert r["name"] == "Lapua Scenar 139 gr · hylsy Lapua · N555 40,0 gr" and r["bullet_model"] == "Scenar"
+    assert chrono_loads.migrate(conn) == 0                           # idempotent
+
+
+def test_api_load_duplicate_and_merge(client):
+    base = {"kind": "handload", "bullet_maker": "Lapua", "bullet_model": "Scenar", "bullet_gr": "139",
+            "brass": "Lapua", "powder": "N555", "charge_gr": "44,0"}
+    r = client.put("/diary/api/chrono/loads/l-a", json=base)
+    assert r.status_code == 200 and r.get_json()["name"] == "Lapua Scenar 139 gr · hylsy Lapua · N555 44,0 gr"
+    client.put("/diary/api/chrono/loads/l-b", json=dict(base, charge_gr="43,5"))
+    conn = diary.connect()
+    chrono.commit_strings(conn, [{"date": "2024-07-13", "source": "workbook", "gun_id": "g-t3x", "load_id": "l-b",
+                                  "shots": [{"v_ms": 830.0, "t": "15:00:00"}, {"v_ms": 831.0, "t": "15:01:00"}]}])
+    conn.commit()
+    conn.close()
+    r = client.put("/diary/api/chrono/loads/l-b", json=base)       # edited to the same fields as l-a
+    assert r.status_code == 409 and r.get_json()["other"] == "l-a"
+    r = client.post("/diary/api/chrono/loads/l-b/merge", json={"into": "l-a"})
+    assert r.get_json()["moved"] == 1
+    loads = {l["id"]: l for l in client.get("/diary/api/chrono/loads").get_json()}
+    assert "l-b" not in loads and loads["l-a"]["use"]["shots"] == 2
+    f = client.put("/diary/api/chrono/loads/l-f", json={"kind": "factory", "maker": "SK", "product": "Long Range Match",
+                                                         "bullet_gr": "40", "brass": "ignored"}).get_json()
+    assert f["name"] == "SK Long Range Match 40 gr" and f["brass"] is None

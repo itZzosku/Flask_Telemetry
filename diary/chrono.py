@@ -18,6 +18,7 @@ from . import DATE_RE, HERE, ID_RE, bp, db, kv_get, kv_set, login_required
 from .chrono_import import (MAX_SHOTS_PER_STRING, fingerprint, parse_kestrel, parse_many, secs, sniff,
                             swap_rh_hpa)
 from .chrono_stats import stats, temp_sensitivity
+from . import chrono_loads
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS loads (
@@ -58,13 +59,12 @@ CREATE TABLE IF NOT EXISTS chrono_shots (
 );
 CREATE INDEX IF NOT EXISTS chrono_shots_t ON chrono_shots(t);
 """
-LOAD_FIELDS = {"name": str, "kind": str, "cal": str, "bullet": str, "bullet_gr": float, "brass": str,
-               "powder": str, "charge_gr": float, "notes": str, "archived": int}
 ALIAS_KEY, POWDERS_KEY = "chrono_gun_aliases", "chrono_powders"
 
 
 def init_chrono(conn):
     conn.executescript(SCHEMA)
+    chrono_loads.migrate(conn)
 
 
 def _now():
@@ -148,53 +148,33 @@ def load_rows(conn):
 
 
 def load_spec(hints, bullet_gr, cal):
-    """Proposed load from file-name/folder hints, or None when nothing names a load."""
-    if not hints:
-        return None
-    if hints.get("kind") == "factory" and hints.get("factory"):
-        return {"kind": "factory", "name": hints["factory"], "cal": cal, "bullet_gr": bullet_gr,
-                "bullet": None, "brass": None, "powder": None, "charge_gr": None}
-    if hints.get("kind") == "handload" and hints.get("bullet"):
-        chg, powder = hints.get("charge_gr"), hints.get("powder")
-        name = f"{hints['bullet']}, {hints.get('brass') or '?'} brass"
-        if powder or chg is not None:
-            name += f", {powder or '?'}" + (f" {chg:g} gr" if chg is not None else "")
-        return {"kind": "handload", "name": name, "cal": cal, "bullet": hints["bullet"],
-                "bullet_gr": bullet_gr, "brass": hints.get("brass"), "powder": powder, "charge_gr": chg}
-    return None
+    """Proposed load (structured fields + generated name) from file-name/folder hints, or None."""
+    return chrono_loads.from_hints(hints, bullet_gr, cal)
 
 
 def match_load(rows, spec):
+    """Same generated name (+ calibre when both know it) → the same load."""
     if not spec:
         return None
+    key = _norm(spec["name"])
     for r in rows:
-        if spec["kind"] == "factory" and r["kind"] == "factory" and _norm(r["name"]) == _norm(spec["name"]):
-            return r["id"]
-        if (spec["kind"] == "handload" and r["kind"] == "handload"
-                and _norm(r["bullet"]) == _norm(spec["bullet"]) and _norm(r["brass"]) == _norm(spec["brass"])
-                and _norm(r["powder"]) == _norm(spec["powder"]) and r["charge_gr"] == spec["charge_gr"]):
+        if _norm(r["name"]) == key and r["kind"] == spec["kind"] and (
+                not r.get("cal") or not spec.get("cal") or _norm(r["cal"]) == _norm(spec["cal"])):
             return r["id"]
     return None
 
 
 def upsert_load(conn, lid, body):
-    vals = {}
-    for k, typ in LOAD_FIELDS.items():
-        v = body.get(k)
-        if v is None or v == "":
-            vals[k] = 0 if k == "archived" else None
-            continue
-        vals[k] = typ(v) if typ is not str else str(v)[:200]
-    if not vals.get("name"):
-        raise ValueError("name_required")
-    vals["kind"] = vals["kind"] if vals.get("kind") in ("handload", "factory") else "handload"
+    vals = chrono_loads.clean(body)
     cols = ",".join(vals)
     conn.execute(f"INSERT INTO loads(id,{cols}) VALUES(?{',?' * len(vals)}) "
                  f"ON CONFLICT(id) DO UPDATE SET " + ",".join(f"{k}=excluded.{k}" for k in vals),
                  (lid, *vals.values()))
+    return vals
 
 
 def ensure_load(conn, spec):
+    spec = chrono_loads.clean(spec)
     lid = match_load(load_rows(conn), spec)
     if lid:
         return lid
@@ -203,6 +183,13 @@ def ensure_load(conn, spec):
         lid = slug(spec["name"])[:55] + "-" + secrets.token_hex(3)
     upsert_load(conn, lid, spec)
     return lid
+
+
+def merge_loads(conn, src, dst):
+    """Move every string of load `src` to `dst` and delete `src`."""
+    n = conn.execute("UPDATE chrono_strings SET load_id=? WHERE load_id=?", (dst, src)).rowcount
+    conn.execute("DELETE FROM loads WHERE id=?", (src,))
+    return n
 
 
 def visits_on(conn, date):
@@ -530,9 +517,9 @@ def ladder(conn, gun):
         if lrow["id"] not in by_load or lrow["kind"] != "handload" or lrow["charge_gr"] is None:
             continue
         g = by_load[lrow["id"]]
-        out.append({"load_id": lrow["id"], "bullet": lrow["bullet"], "brass": lrow["brass"], "powder": lrow["powder"],
+        out.append({"load_id": lrow["id"], "group": chrono_loads.ladder_group(lrow), "name": lrow["name"],
                     "charge_gr": lrow["charge_gr"], "days": sorted(g["days"]), **stats(g["v"], lrow["bullet_gr"])})
-    out.sort(key=lambda p: (p["bullet"] or "", p["brass"] or "", p["powder"] or "", p["charge_gr"]))
+    out.sort(key=lambda p: (p["group"], p["charge_gr"]))
     return out
 
 
@@ -569,6 +556,7 @@ def import_rows(conn, data, replace=False):
             cols = list(row)
             conn.execute(f"INSERT OR REPLACE INTO {table}({','.join(cols)}) VALUES({','.join('?' * len(cols))})",
                          [row[c] for c in cols])
+    chrono_loads.migrate(conn)          # backups from before the structured load fields
     return {t: len(data.get(t, [])) for t in ("loads", "chrono_strings", "chrono_shots")}
 
 
@@ -748,10 +736,25 @@ def api_ladder():
     return jsonify(ladder(db(), gun))
 
 
+def load_usage(conn):
+    """Per load: shots, days, guns and last date (for the load list)."""
+    out = {}
+    for r in conn.execute(
+            "SELECT st.load_id lid, count(sh.n) n, count(DISTINCT st.date) d, max(st.date) last, "
+            "group_concat(DISTINCT st.gun_id) guns FROM chrono_strings st "
+            "JOIN chrono_shots sh ON sh.string_id=st.id AND sh.excluded=0 WHERE st.load_id IS NOT NULL "
+            "GROUP BY st.load_id"):
+        out[r["lid"]] = {"shots": r["n"], "days": r["d"], "last": r["last"],
+                         "guns": [g for g in (r["guns"] or "").split(",") if g]}
+    return out
+
+
 @bp.get("/api/chrono/loads")
 @login_required
 def api_loads():
-    return jsonify(load_rows(db()))
+    use = load_usage(db())
+    return jsonify([dict(r, use=use.get(r["id"], {"shots": 0, "days": 0, "last": None, "guns": []}))
+                    for r in load_rows(db())])
 
 
 @bp.get("/api/chrono/loads/<lid>")
@@ -766,14 +769,35 @@ def api_load(lid):
 @bp.put("/api/chrono/loads/<lid>")
 @login_required
 def api_put_load(lid):
+    """Save a load. Another load with the same generated name → 409 with its id, so the page can offer
+    to merge the two instead of keeping duplicates."""
     if not ID_RE.match(lid):
         abort(400)
+    conn = db()
     try:
-        upsert_load(db(), lid, _body())
+        vals = chrono_loads.clean(_body())
     except (TypeError, ValueError) as e:
-        return jsonify(error=str(e) if str(e) == "name_required" else "bad_value"), 400
-    db().commit()
-    return jsonify(ok=True)
+        return jsonify(error=str(e) if str(e).startswith("bad_") else "bad_value"), 400
+    twin = next((r for r in load_rows(conn) if r["id"] != lid and _norm(r["name"]) == _norm(vals["name"])
+                 and r["kind"] == vals["kind"]), None)
+    if twin and not (isinstance(request.json, dict) and request.json.get("allow_duplicate")):
+        return jsonify(error="duplicate", other=twin["id"], name=vals["name"]), 409
+    upsert_load(conn, lid, vals)
+    conn.commit()
+    return jsonify(dict(conn.execute("SELECT * FROM loads WHERE id=?", (lid,)).fetchone()))
+
+
+@bp.post("/api/chrono/loads/<lid>/merge")
+@login_required
+def api_merge_load(lid):
+    b = _body()
+    into = b.get("into") if isinstance(b, dict) else None
+    conn = db()
+    if not into or into == lid or not conn.execute("SELECT 1 FROM loads WHERE id=?", (into,)).fetchone():
+        return jsonify(error="bad_target"), 400
+    n = merge_loads(conn, lid, into)
+    conn.commit()
+    return jsonify(moved=n, into=into)
 
 
 @bp.delete("/api/chrono/loads/<lid>")

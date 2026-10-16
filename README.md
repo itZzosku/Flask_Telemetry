@@ -97,6 +97,10 @@ workbooks and Kestrel DROP weather logs. Open it from the diary header (*Nopeude
   95 % CI, KE. Days pool all strings of the same gun + load; the same load in two guns is tracked separately.
 - Views: per-day list, trend of a load (average + CI, SD per day), charge ladder per gun, shot dot-plot with
   exclude/include per shot, manual weather per string.
+- **Loads** (*Lataukset*): like guns, each load is a set of fields — handload: bullet maker, bullet,
+  weight, brass, powder, charge, primer, COAL; factory: maker, product, bullet weight. The name is generated,
+  e.g. `Lapua Scenar 139 gr · hylsy Lapua · N555 44,0 gr` or `SK Long Range Match 40 gr`. Saving a load
+  whose name matches another offers to merge them. Loads saved before this were converted on first start.
 
 ```bash
 pip install -r requirements.txt                    # adds xlrd + openpyxl

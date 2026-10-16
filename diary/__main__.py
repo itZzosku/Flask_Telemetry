@@ -281,7 +281,7 @@ def chrono_import(paths, gun, dry_run, keep_swaps, fix_dates):
         in_batch = bool(fps & seen)
         seen |= fps
         done = " (jo tuotu)" if s["already_imported"] or s["existing_shots"] else (" (sama kuin yllä)" if in_batch else "")
-        print(f"{s['date']} {s['started_at'] or '     '}  {gnames.get(gid, gid or '?'):<20.20} {load:<44.44} "
+        print(f"{s['date']} {s['started_at'] or '     '}  {gnames.get(gid, gid or '?'):<20.20} {load:<52.52} "
               f"n={st['n']:<3} {_fmt(st['avg'])} SD {_fmt(st['sd'], 2)}{flags}{done}")
         if not (s["already_imported"] or s["existing_shots"] or in_batch):
             shots += st["n"]
@@ -310,7 +310,7 @@ def chrono_print_stats(gun, load):
     for d in chrono.days(conn, gun, load):
         st = d["stats"]
         print(f"{d['date']}  {gnames.get(d['gun_id'], d['gun_id'] or '–'):<20.20} "
-              f"{lnames.get(d['load_id'], d['load_id'] or '–'):<44.44} n={st['n']:<3} {_fmt(st['avg'])} "
+              f"{lnames.get(d["load_id"], d["load_id"] or "–"):<52.52} n={st['n']:<3} {_fmt(st['avg'])} "
               f"SD {_fmt(st['sd'], 2)} ES {_fmt(st['es'])}  {_fmt(d['temp_c'])} °C")
     conn.close()
 
