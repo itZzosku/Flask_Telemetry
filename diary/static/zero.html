@@ -252,6 +252,8 @@ header.top{padding-top:6px!important}
   <header class="top">
     <h1>Scope <span>zeroes</span></h1>
     <div class="hbtns">
+      <button class="ghost" type="button" id="scopeBtn" hidden title="Scope settings">Settings</button>
+      <button class="ghost" type="button" id="pdfBtn" hidden title="Zeroing card as PDF">PDF card</button>
       <form method="post" action="logout" style="display:contents"><button class="ghost" type="submit">Log out</button></form>
     </div>
   </header>
@@ -315,10 +317,6 @@ header.top{padding-top:6px!important}
         <button class="ghost" type="button" id="logMore" hidden style="align-self:flex-start">Show all</button></div>
     </section>
 
-    <section class="row2">
-      <button class="ghost" type="button" id="pdfBtn">Zeroing card (PDF)</button>
-      <button class="ghost" type="button" id="scopeBtn">Scope settings</button>
-    </section>
   </div>
 </div>
 <div class="toast" id="toast" hidden></div>
@@ -526,7 +524,7 @@ async function loadAll(keep){
 /* ---------- render ---------- */
 function render(){
   const s=scope();
-  $("empty").hidden=!!s;$("main").hidden=!s;
+  $("empty").hidden=!!s;$("main").hidden=!s;$("scopeBtn").hidden=$("pdfBtn").hidden=!s;
   // One chip per scope (where it is now), archived ones last and dimmed, and "+ Scope" for the next one
   const vis=S.scopes.slice().sort((a,b)=>(a.archived-b.archived)||(a.ord-b.ord)||a.name.localeCompare(b.name));
   $("scopeChips").hidden=!S.scopes.length;
