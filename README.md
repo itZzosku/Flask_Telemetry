@@ -75,7 +75,7 @@ Back up `diary_data/diary.db` (or a `python -m diary export` dump) with the rest
 kept), pulls `main`, installs `requirements.txt` if it changed, compiles, starts the app once in a
 throwaway folder and runs the tests. If anything fails it rolls back to the previous commit and leaves
 the running site alone; otherwise it restarts and checks the site answers. Restart command:
-`RESTART_CMD="…"` or a systemd unit `SERVICE` (default `flask_telemetry`); `./scripts/update.sh --restart`
+`RESTART_CMD="…"` or a systemd unit `SERVICE` (default `flask-telemetry.service`); `./scripts/update.sh --restart`
 only restarts.
 
 ### Weekly backup by email

@@ -10,15 +10,15 @@
 # keep the old version running → restart → check the site answers.
 #
 # Restart: set RESTART_CMD (e.g. in the environment or below), or SERVICE for a systemd unit.
-#   RESTART_CMD="systemctl restart flask_telemetry" ./scripts/update.sh
-# Without either, the script tries systemd unit $SERVICE (default flask_telemetry) and otherwise tells
+#   RESTART_CMD="systemctl restart flask-telemetry.service" ./scripts/update.sh
+# Without either, the script tries systemd unit $SERVICE (default flask-telemetry.service) and otherwise tells
 # you to restart by hand.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PYTHON="${PYTHON:-$REPO_DIR/venv/bin/python}"
 PIP="${PIP:-$REPO_DIR/venv/bin/pip}"
-SERVICE="${SERVICE:-flask_telemetry}"
+SERVICE="${SERVICE:-flask-telemetry.service}"
 RESTART_CMD="${RESTART_CMD:-}"
 BRANCH="${BRANCH:-main}"
 DATA_DIR="${DIARY_DATA_DIR:-$REPO_DIR/diary_data}"
