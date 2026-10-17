@@ -1,0 +1,20 @@
+# Runs the test suite on every push and pull request. The badge/tick on GitHub shows whether main is safe to
+# deploy; scripts/update.sh runs the same tests on the server before restarting.
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt pytest
+      - run: python -m pytest -q tests

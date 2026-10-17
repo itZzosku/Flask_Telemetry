@@ -213,3 +213,37 @@ def ensure(username, password, admin=False, db_file=None):  # noqa: E302
         set_password(username, password)
         return by_name(username)
     return create(username, password, admin=admin, db_file=db_file)
+
+
+def delete(username):
+    """Remove an account and its data file. A final copy (JSON + .db) goes to DATA_DIR/deleted/ first.
+    Returns the folder holding that copy."""
+    import json
+    import sqlite3
+    from . import connect
+    from .summary import export_data
+    u = by_name(username)
+    if not u:
+        raise ValueError(f"No user {username}.")
+    path = db_path(u)
+    keep = os.path.join(_data_dir(), "deleted")
+    os.makedirs(keep, exist_ok=True)
+    base = os.path.join(keep, f"{u['username']}-{time.strftime('%Y%m%d-%H%M%S')}")
+    if os.path.exists(path):
+        conn = connect(path)
+        try:
+            with open(base + ".json", "w", encoding="utf-8") as f:
+                json.dump(export_data(conn), f, ensure_ascii=False, indent=1)
+        finally:
+            conn.close()
+        src, dst = sqlite3.connect(path), sqlite3.connect(base + ".db")
+        with dst:
+            src.backup(dst)
+        src.close()
+        dst.close()
+    with uconnect() as c:
+        c.execute("DELETE FROM users WHERE id=?", (u["id"],))
+    for p in (path, path + "-wal", path + "-shm"):
+        if os.path.exists(p):
+            os.remove(p)
+    return keep

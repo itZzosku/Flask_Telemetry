@@ -1,8 +1,8 @@
-"""One-line summaries for the landing page (/diary/): diary, velocity and zeroes."""
+"""Landing page (/diary/): one-line summaries of diary, velocity and zeroes; "My data" download."""
 import json
 import time
 
-from flask import jsonify
+from flask import Response, jsonify
 
 from . import bp, db, kv_get, login_required
 from .chrono_stats import stats
@@ -59,3 +59,26 @@ def api_home():
     from . import current_user
     me = current_user()
     return jsonify(name=name, username=me["username"], is_admin=bool(me["is_admin"]), diary=diary_summary(conn), velocity=vel, zeroes=zero_summary(conn))
+
+
+def export_data(conn):
+    """Everything in one account's file, in the backup / import format (python -m diary import …)."""
+    from . import chrono, zero
+    sessions = [dict(json.loads(r["data"]), id=r["id"])
+                for r in conn.execute("SELECT id, data FROM sessions ORDER BY date, id")]
+    guns = [dict(json.loads(r["data"]), id=r["id"]) for r in conn.execute("SELECT id, data FROM guns ORDER BY id")]
+    out = {"profile": json.loads(kv_get("profile", conn) or "{}"), "guns": guns, "sessions": sessions}
+    out.update(chrono.export_rows(conn))
+    out.update(zero.export_rows(conn))
+    return out
+
+
+@bp.get("/api/account/export")
+@login_required
+def api_export_mine():
+    """'My data': the logged-in user's own complete backup as a JSON download."""
+    from . import current_user
+    name = current_user()["username"]
+    body = json.dumps(export_data(db()), ensure_ascii=False, indent=1)
+    return Response(body, mimetype="application/json", headers={
+        "Content-Disposition": f'attachment; filename="shooting-diary-{name}-{time.strftime("%Y-%m-%d")}.json"'})

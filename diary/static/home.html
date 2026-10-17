@@ -216,6 +216,7 @@ header.top{padding-top:6px!important}
     <div class="hbtns">
       <button class="ghost" id="installBtn" type="button" hidden>Install app</button>
       <button class="ghost" id="pwBtn" type="button">Password</button>
+      <a class="ghost" id="myData" href="api/account/export" download style="text-decoration:none">My data</a>
       <button class="ghost" id="accBtn" type="button" hidden>Accounts</button>
       <form method="post" action="logout" style="display:contents"><button class="ghost" type="submit">Log out</button></form>
     </div>
@@ -255,7 +256,7 @@ header.top{padding-top:6px!important}
     </form>
     <div class="card" id="accNew" hidden></div>
     <div id="accList"></div>
-    <p class="hint" style="margin:0">A new account has no password: the person logs in with the username and an empty password within 7 days and chooses their own. <b>Reset password</b> does the same for someone who forgot theirs. Each account sees only its own data.</p>
+    <p class="hint" style="margin:0">A new account has no password: the person logs in with the username and an empty password within 7 days and chooses their own. <b>Reset password</b> does the same for someone who forgot theirs. <b>Delete</b> removes the account and its data; a final copy stays on the server in <code>diary_data/deleted/</code>. Each account sees only its own data.</p>
   </div>
 </div>
 <div class="sheet" id="pwSheet" hidden role="dialog" aria-modal="true" aria-labelledby="pwTitle">
@@ -330,7 +331,8 @@ async function accLoad(){
     const mine=u.username===me;
     return`<div class="urow"><span><b>${esc(u.username)}</b>${u.is_admin?'<span class="badge">admin</span>':""}${u.disabled?'<span class="badge warn">disabled</span>':""}${mine?'<span class="badge">you</span>':""}</span>
       <span class="bt">${mine?"":`<button class="ghost" type="button" data-act="clear-password" data-u="${esc(u.username)}">Reset password</button>
-        <button class="ghost" type="button" data-act="${u.disabled?"enable":"disable"}" data-u="${esc(u.username)}">${u.disabled?"Enable":"Disable"}</button>`}</span>
+        <button class="ghost" type="button" data-act="${u.disabled?"enable":"disable"}" data-u="${esc(u.username)}">${u.disabled?"Enable":"Disable"}</button>
+        <button class="ghost" type="button" data-act="delete" data-u="${esc(u.username)}" style="color:var(--danger);border-color:var(--danger)">Delete</button>`}</span>
       <span class="st">${esc(st)}</span></div>`}).join("");
 }
 function loginHelp(name){
@@ -358,10 +360,11 @@ $("accForm").addEventListener("submit",async e=>{e.preventDefault();
 });
 $("accList").addEventListener("click",async e=>{
   const b=e.target.closest("[data-act]");if(!b)return;
-  if(!b.dataset.armed){b.dataset.armed=1;b.dataset.label=b.textContent;b.textContent="Tap again";
+  if(!b.dataset.armed){b.dataset.armed=1;b.dataset.label=b.textContent;b.textContent=b.dataset.act==="delete"?"Tap again – deletes their data":"Tap again";
     setTimeout(()=>{if(b.isConnected&&b.dataset.armed){delete b.dataset.armed;b.textContent=b.dataset.label}},4000);return}
   try{await accApi("POST",`users/${encodeURIComponent(b.dataset.u)}/${b.dataset.act}`,{})}catch(err){toast(err.message);return}
-  if(b.dataset.act==="clear-password")showNew(b.dataset.u,true);else toast(b.dataset.act==="disable"?"Disabled – logged out everywhere":"Enabled");
+  if(b.dataset.act==="clear-password")showNew(b.dataset.u,true);
+  else toast({disable:"Disabled – logged out everywhere",enable:"Enabled",delete:"Deleted – a final copy is kept on the server"}[b.dataset.act]);
   accLoad();
 });
 let installEvt=null;

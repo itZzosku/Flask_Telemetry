@@ -418,7 +418,7 @@ def admin_add_user():
 @bp.post("/api/admin/users/<name>/<action>")
 @login_required
 def admin_user_action(name, action):
-    """clear-password (forgotten password → choose a new one at next login), disable, enable."""
+    """clear-password (forgotten password → choose a new one at next login), disable, enable, delete."""
     from . import users
     me = _admin()
     _json_body()
@@ -431,6 +431,9 @@ def admin_user_action(name, action):
         users.clear_password(u["username"])
     elif action in ("disable", "enable"):
         users.set_disabled(u["username"], action == "disable")
+    elif action == "delete":
+        users.delete(u["username"])            # final copy kept in DATA_DIR/deleted/
+        return jsonify(ok=True, deleted=u["username"])
     else:
         abort(404)
     return jsonify(ok=True, user=_account_row(users.by_name(u["username"])))

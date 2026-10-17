@@ -7,6 +7,7 @@ Accounts (each has its own data file):
   python -m diary user-passwd NAME [--clear] set a new password, or --clear it so they choose one at next
                                             login (either logs that user out everywhere)
   python -m diary user-disable NAME / user-enable NAME / user-rename OLD NEW
+  python -m diary user-delete NAME          remove the account and its data (final copy in diary_data/deleted/)
 
 Data commands work on one account: add --user NAME (default: the first admin account, i.e. diary.db).
   python -m diary import seed.json        load sessions, guns + profile from JSON
@@ -135,18 +136,13 @@ def import_json(path, replace):
 
 
 def export_json(path):
+    from .summary import export_data
     conn = connect()
-    sessions = [dict(json.loads(r["data"]), id=r["id"])
-                for r in conn.execute("SELECT id, data FROM sessions ORDER BY date, id")]
-    guns = [dict(json.loads(r["data"]), id=r["id"])
-            for r in conn.execute("SELECT id, data FROM guns ORDER BY id")]
-    profile = json.loads(kv_get("profile", conn) or "{}")
-    velocity = chrono.export_rows(conn)
-    velocity.update(zero.export_rows(conn))
+    data = export_data(conn)
     conn.close()
+    sessions = data["sessions"]
     with open(path, "w", encoding="utf-8") as f:
-        json.dump({"profile": profile, "guns": guns, "sessions": sessions, **velocity}, f,
-                  ensure_ascii=False, indent=1)
+        json.dump(data, f, ensure_ascii=False, indent=1)
     print(f"Exported {len(sessions)} visits → {path}")
 
 
@@ -458,6 +454,7 @@ def main():
     ua.add_argument("--admin", action="store_true")
     ua.add_argument("--password", action="store_true", help="set the password now instead of on first login")
     sub.add_parser("user-list")
+    sub.add_parser("user-delete").add_argument("name")
     for cmd in ("user-passwd", "user-disable", "user-enable"):
         sub.add_parser(cmd).add_argument("name")
     sub.choices["user-passwd"].add_argument("--clear", action="store_true",
@@ -510,6 +507,14 @@ def main():
         if not name:
             sys.exit("No accounts yet. Create one: python -m diary user-add NAME --admin")
         return user_passwd(name, getattr(a, "clear", False))
+    if a.cmd == "user-delete":
+        try:
+            if input(f"Delete {a.name} and all their data? A final copy is kept. Type the username: ").strip() != a.name:
+                sys.exit("Not deleted.")
+            keep = users.delete(a.name)
+        except ValueError as e:
+            sys.exit(str(e))
+        return print(f"Deleted {a.name}. Final copy in {keep}")
     if a.cmd in ("user-disable", "user-enable", "user-rename"):
         try:
             if a.cmd == "user-rename":

@@ -216,3 +216,24 @@ def test_admin_manages_accounts_in_the_app(two):
     assert users.verify("mikko", "mikko-password-1") is None
     assert o.post("/diary/api/admin/users/nobody/disable", json={}).status_code == 404
     assert o.post("/diary/api/admin/users/mikko/explode", json={}).status_code == 404
+
+
+def test_my_data_and_delete_account(two):
+    app, o, m = two
+    m.put("/diary/api/guns/g-m", json={"name": "Mikko Rifle"})
+    r = m.get("/diary/api/account/export")
+    assert r.status_code == 200 and "mikko" in r.headers["Content-Disposition"]
+    data = r.get_json()
+    assert [g["name"] for g in data["guns"]] == ["Mikko Rifle"] and NOTE not in r.get_data(as_text=True)
+    assert {"sessions", "profile", "loads", "chrono_strings", "scopes", "chrono_settings"} <= set(data)
+    # Delete: admin only, never yourself; final copy kept, file and login gone
+    assert m.post("/diary/api/admin/users/osku/delete", json={}).status_code == 403
+    assert o.post("/diary/api/admin/users/osku/delete", json={}).status_code == 400
+    path = users.db_path(users.by_name("mikko"))
+    assert o.post("/diary/api/admin/users/mikko/delete", json={}).get_json()["deleted"] == "mikko"
+    assert users.by_name("mikko") is None and not os.path.exists(path)
+    assert m.get("/diary/api/guns").status_code == 401
+    kept = os.path.join(diary.DATA_DIR, "deleted")
+    jsons = sorted(f for f in os.listdir(kept) if f.startswith("mikko-") and f.endswith(".json"))
+    assert jsons and "Mikko Rifle" in open(os.path.join(kept, jsons[-1]), encoding="utf-8").read()
+    assert o.get("/diary/api/guns").status_code == 200
