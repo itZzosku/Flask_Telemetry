@@ -189,7 +189,6 @@ header.top{padding-top:6px!important}
   <header class="top">
     <h1>Range <span>diary</span></h1>
     <div class="hbtns">
-      <button class="ghost" id="installBtn" type="button" hidden>Install app</button>
       <button class="ghost" id="profBtn" type="button">My details</button>
       <button class="ghost" id="pdfBtn" type="button" hidden>Export</button>
       <form method="post" action="logout" style="display:contents"><button class="ghost" type="submit">Log out</button></form>
@@ -862,14 +861,10 @@ $("xForm").addEventListener("submit",async e=>{e.preventDefault();
   finally{btn.disabled=false;btn.textContent=label}
 });
 
-/* ---------- installable app ---------- */
+/* ---------- service worker (installing the app is offered on the landing page) ---------- */
 if("serviceWorker" in navigator){
   window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js",{scope:"./"}).catch(()=>{}));
 }
-let installEvt=null;
-window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();installEvt=e;$("installBtn").hidden=false});
-window.addEventListener("appinstalled",()=>{installEvt=null;$("installBtn").hidden=true;toast("App installed")});
-$("installBtn").addEventListener("click",async()=>{if(!installEvt)return;installEvt.prompt();await installEvt.userChoice;installEvt=null;$("installBtn").hidden=true});
 
 /* ---------- boot ---------- */
 async function boot(){
