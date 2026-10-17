@@ -448,7 +448,7 @@ const pad=n=>String(n).padStart(2,"0");
 const todayStr=()=>{const d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
 const parseD=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
 const fiDate=s=>{const d=parseD(s);return d.getDate()+"/"+(d.getMonth()+1)+"/"+d.getFullYear()};
-const fmt=n=>n.toLocaleString("en-GB");
+const fmt=n=>String(n);                       // plain digits: 14912, no thousands separator
 const sRounds=s=>(s.lines||[]).reduce((a,l)=>a+(+l.rounds||0),0);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const toTime=s=>s?s.replace(".",":"):"";

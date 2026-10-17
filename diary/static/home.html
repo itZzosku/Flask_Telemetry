@@ -237,7 +237,7 @@ header.top{padding-top:6px!important}
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fiDate=s=>{if(!s)return"";const[y,m,d]=s.split("-").map(Number);return d+"/"+m+"/"+y};
-const nf=n=>Number(n||0).toLocaleString("fi-FI");
+const nf=n=>String(Number(n||0));             // plain digits: 2242
 async function load(){
   let r,j;
   try{r=await fetch("api/home",{credentials:"same-origin",headers:{"X-Requested-With":"fetch"}})}catch(e){return}
