@@ -196,6 +196,16 @@ header.top{padding-top:6px!important}
 .tile .now b{font-family:var(--f-mono);font-size:.9rem;font-weight:600;text-transform:none;letter-spacing:0}
 .tile .now span{color:var(--muted)}
 .foot{display:flex;gap:8px;flex-wrap:wrap}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:12px}
+.check{display:flex;gap:10px;align-items:center;font-size:.95rem;cursor:pointer}
+.check input{width:20px;height:20px;accent-color:var(--accent)}
+.urow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;margin-bottom:6px}
+.urow b{font-family:var(--f-mono);font-weight:600}
+.urow .st{grid-column:1/-1;color:var(--muted);font-size:.82rem}
+.urow .bt{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.urow .bt button{padding:6px 10px;font-size:.8rem}
+.badge{display:inline-block;font-size:.68rem;font-weight:600;border-radius:4px;padding:1px 6px;border:1px solid var(--line);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-left:6px;font-family:var(--f-body)}
+.badge.warn{border-color:var(--danger);color:var(--danger)}
 </style>
 </head>
 <body>
@@ -206,6 +216,7 @@ header.top{padding-top:6px!important}
     <div class="hbtns">
       <button class="ghost" id="installBtn" type="button" hidden>Install app</button>
       <button class="ghost" id="pwBtn" type="button">Password</button>
+      <button class="ghost" id="accBtn" type="button" hidden>Accounts</button>
       <form method="post" action="logout" style="display:contents"><button class="ghost" type="submit">Log out</button></form>
     </div>
   </header>
@@ -233,6 +244,20 @@ header.top{padding-top:6px!important}
   </nav>
 </div>
 <div class="toast" id="toast" hidden></div>
+<div class="sheet" id="accSheet" hidden role="dialog" aria-modal="true" aria-labelledby="accTitle">
+  <div class="sheet-in">
+    <div class="sheet-bar"><h2 id="accTitle">Accounts</h2><button class="ghost" type="button" id="accClose">Close</button></div>
+    <form id="accForm" class="card" autocomplete="off">
+      <label class="f">New account – username<input type="text" id="accName" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="32" placeholder="e.g. mikko" required></label>
+      <label class="check"><input type="checkbox" id="accAdmin"> Admin (can manage accounts)</label>
+      <div class="actions"><button class="primary" type="submit">Add account</button></div>
+      <div class="msg" id="accMsg" hidden></div>
+    </form>
+    <div class="card" id="accNew" hidden></div>
+    <div id="accList"></div>
+    <p class="hint" style="margin:0">A new account has no password: the person logs in with the username and an empty password within 7 days and chooses their own. <b>Reset password</b> does the same for someone who forgot theirs. Each account sees only its own data.</p>
+  </div>
+</div>
 <div class="sheet" id="pwSheet" hidden role="dialog" aria-modal="true" aria-labelledby="pwTitle">
   <form class="sheet-in" id="pwForm" autocomplete="on">
     <div class="sheet-bar"><h2 id="pwTitle">Change password</h2><button class="ghost" type="button" id="pwClose">Close</button></div>
@@ -260,6 +285,7 @@ async function load(){
   if(!r.ok)return;
   $("who").textContent=[j.name,j.username?"signed in as "+j.username:""].filter(Boolean).join(" · ");
   $("pwUser").value=j.username||"";
+  $("accBtn").hidden=!j.is_admin;
   const d=j.diary,v=j.velocity,z=j.zeroes||[];
   $("nDiary").innerHTML=`<b>${d.visits}</b> <span>visits in ${d.year} ·</span> <b>${nf(d.rounds)}</b> <span>shots</span>`
     +(d.last?`<br><span>Last:</span> ${fiDate(d.last.date)}${d.last.place?" · "+esc(d.last.place):""}`:"");
@@ -285,6 +311,58 @@ $("pwForm").addEventListener("submit",async e=>{e.preventDefault();
   if(r.status===403)return msg("The current password is wrong.");
   if(!r.ok)return msg("Use at least 10 characters.");
   pwClose();toast("Password changed");
+});
+/* ---------- accounts (admins) ---------- */
+const fiDT=s=>s?fiDate(s.slice(0,10)):"";
+async function accApi(method,path,body){
+  const r=await fetch("api/admin/"+path,{method,credentials:"same-origin",
+    headers:Object.assign({"X-Requested-With":"fetch"},body?{"Content-Type":"application/json"}:{}),body:body?JSON.stringify(body):undefined});
+  if(r.status===401){location.href="login";throw new Error("auth")}
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(j.error||("HTTP "+r.status));
+  return j;
+}
+async function accLoad(){
+  let list;try{list=await accApi("GET","users")}catch(e){$("accList").innerHTML=`<p class="msg">${esc(e.message==="Failed to fetch"?"No connection.":e.message)}</p>`;return}
+  const me=$("pwUser").value;
+  $("accList").innerHTML=list.map(u=>{
+    const st=u.disabled?"disabled":u.setup_open?`no password yet – first login by ${fiDT(u.setup_until)}`:u.unclaimed?"no password – first-login time ran out, reset it":u.last_login?"last login "+fiDT(u.last_login):"never logged in";
+    const mine=u.username===me;
+    return`<div class="urow"><span><b>${esc(u.username)}</b>${u.is_admin?'<span class="badge">admin</span>':""}${u.disabled?'<span class="badge warn">disabled</span>':""}${mine?'<span class="badge">you</span>':""}</span>
+      <span class="bt">${mine?"":`<button class="ghost" type="button" data-act="clear-password" data-u="${esc(u.username)}">Reset password</button>
+        <button class="ghost" type="button" data-act="${u.disabled?"enable":"disable"}" data-u="${esc(u.username)}">${u.disabled?"Enable":"Disable"}</button>`}</span>
+      <span class="st">${esc(st)}</span></div>`}).join("");
+}
+function loginHelp(name){
+  const url=location.origin+location.pathname.replace(/[^/]*$/,"");
+  return{url,text:`Shooting diary: ${url}\nUsername: ${name}\nPassword: leave it empty the first time, then choose your own (within 7 days).`};
+}
+function showNew(name,reset){
+  const h=loginHelp(name);
+  $("accNew").innerHTML=`<b>${reset?"Password reset for":"Account created:"} ${esc(name)}</b>
+    <div class="hint" style="white-space:pre-line">${esc(h.text)}</div>
+    <div class="actions"><button class="primary" type="button" id="accShare">${navigator.share?"Share login details":"Copy login details"}</button></div>`;
+  $("accNew").hidden=false;
+  $("accShare").addEventListener("click",async()=>{
+    try{if(navigator.share)await navigator.share({title:"Shooting diary",text:h.text});
+      else{await navigator.clipboard.writeText(h.text);toast("Copied")}}catch(e){}
+  });
+}
+$("accBtn").addEventListener("click",()=>{$("accMsg").hidden=true;$("accNew").hidden=true;$("accSheet").hidden=false;document.body.style.overflow="hidden";accLoad()});
+$("accClose").addEventListener("click",()=>{$("accSheet").hidden=true;document.body.style.overflow=""});
+$("accForm").addEventListener("submit",async e=>{e.preventDefault();
+  const name=$("accName").value.trim().toLowerCase();
+  try{await accApi("POST","users",{username:name,admin:$("accAdmin").checked})}
+  catch(err){$("accMsg").textContent=err.message==="Failed to fetch"?"No connection – accounts can only be added online.":err.message;$("accMsg").hidden=false;return}
+  $("accMsg").hidden=true;$("accForm").reset();showNew(name,false);accLoad();
+});
+$("accList").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-act]");if(!b)return;
+  if(!b.dataset.armed){b.dataset.armed=1;b.dataset.label=b.textContent;b.textContent="Tap again";
+    setTimeout(()=>{if(b.isConnected&&b.dataset.armed){delete b.dataset.armed;b.textContent=b.dataset.label}},4000);return}
+  try{await accApi("POST",`users/${encodeURIComponent(b.dataset.u)}/${b.dataset.act}`,{})}catch(err){toast(err.message);return}
+  if(b.dataset.act==="clear-password")showNew(b.dataset.u,true);else toast(b.dataset.act==="disable"?"Disabled – logged out everywhere":"Enabled");
+  accLoad();
 });
 let installEvt=null;
 window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();installEvt=e;$("installBtn").hidden=false});

@@ -50,6 +50,10 @@ queue and backups never touch another's data. Accounts are created on the server
 person logs in with their username and an **empty password** (within 7 days) and must choose their own
 before anything else. Later they change it on the landing page (*Password*).
 
+Admins can do the same from the app: landing page → **Accounts** – add an account (then *Share login
+details* sends the address, username and "leave the password empty" to the buddy), *Reset password*,
+*Disable* / *Enable*. Not on your own account (use *Password* for that). Same from the command line:
+
 ```bash
 python -m diary user-add mikko             # new account, no password yet – tell them to log in soon
 python -m diary user-add NAME --password   # …or set the password now (asks twice, min. 10 chars)

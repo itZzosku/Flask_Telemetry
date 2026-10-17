@@ -377,6 +377,65 @@ def delete_session(sid):
     return jsonify(ok=True)
 
 
+# ------------------------------------------------------------------ accounts (admins, from the app)
+def _admin():
+    u = current_user()
+    if not u["is_admin"]:
+        abort(403)
+    return u
+
+
+def _account_row(u):
+    from . import users
+    return {"username": u["username"], "is_admin": bool(u["is_admin"]), "disabled": bool(u["disabled"]),
+            "last_login": u["last_login"], "created": u["created"],
+            "unclaimed": not u["pw_hash"], "setup_open": users.needs_setup(u),
+            "setup_until": u.get("setup_until")}
+
+
+@bp.get("/api/admin/users")
+@login_required
+def admin_users():
+    from . import users
+    _admin()
+    return jsonify([_account_row(u) for u in users.all_users()])
+
+
+@bp.post("/api/admin/users")
+@login_required
+def admin_add_user():
+    """New account without a password: the person logs in with an empty password and chooses one."""
+    from . import users
+    _admin()
+    body = _json_body()
+    try:
+        u = users.create(str(body.get("username", "")), None, admin=bool(body.get("admin")))
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
+    return jsonify(ok=True, user=_account_row(u))
+
+
+@bp.post("/api/admin/users/<name>/<action>")
+@login_required
+def admin_user_action(name, action):
+    """clear-password (forgotten password → choose a new one at next login), disable, enable."""
+    from . import users
+    me = _admin()
+    _json_body()
+    u = users.by_name(name)
+    if not u:
+        return jsonify(error="not_found"), 404
+    if u["id"] == me["id"]:
+        return jsonify(error="Not your own account – use Password for that."), 400
+    if action == "clear-password":
+        users.clear_password(u["username"])
+    elif action in ("disable", "enable"):
+        users.set_disabled(u["username"], action == "disable")
+    else:
+        abort(404)
+    return jsonify(ok=True, user=_account_row(users.by_name(u["username"])))
+
+
 @bp.get("/api/account")
 @login_required
 def get_account():

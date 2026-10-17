@@ -184,3 +184,35 @@ def test_new_account_chooses_password_on_first_login():
     users.clear_password("newbie")
     assert n.get("/diary/api/guns").status_code == 401
     assert b"Choose your password" in app.test_client().post("/diary/login", data={"username": "newbie", "password": ""}).data
+
+
+def test_admin_manages_accounts_in_the_app(two):
+    app, o, m = two
+    for n in ("buddy2",):
+        if users.by_name(n):
+            with users.uconnect() as c:
+                c.execute("DELETE FROM users WHERE username=?", (n,))
+    # Only admins
+    assert m.get("/diary/api/admin/users").status_code == 403
+    assert m.post("/diary/api/admin/users", json={"username": "sneaky"}).status_code == 403
+    assert users.by_name("sneaky") is None
+    assert m.get("/diary/api/home").get_json()["is_admin"] is False
+    assert o.get("/diary/api/home").get_json()["is_admin"] is True
+    # Add: no password, first login chooses it
+    r = o.post("/diary/api/admin/users", json={"username": "Buddy2"})
+    assert r.status_code == 200 and r.get_json()["user"]["setup_open"] is True
+    assert o.post("/diary/api/admin/users", json={"username": "buddy2"}).status_code == 400      # exists
+    assert o.post("/diary/api/admin/users", json={"username": "x"}).status_code == 400           # bad name
+    assert o.post("/diary/api/admin/users", data="username=evil").status_code == 415             # JSON only (CSRF)
+    names = [u["username"] for u in o.get("/diary/api/admin/users").get_json()]
+    assert "buddy2" in names and "osku" in names
+    assert b"Choose your password" in app.test_client().post("/diary/login", data={"username": "buddy2", "password": ""}).data
+    # Disable / reset someone else, never yourself
+    assert o.post("/diary/api/admin/users/osku/disable", json={}).status_code == 400
+    assert o.post("/diary/api/admin/users/mikko/disable", json={}).status_code == 200
+    assert m.get("/diary/api/guns").status_code == 401
+    assert o.post("/diary/api/admin/users/mikko/enable", json={}).status_code == 200
+    assert o.post("/diary/api/admin/users/mikko/clear-password", json={}).get_json()["user"]["setup_open"] is True
+    assert users.verify("mikko", "mikko-password-1") is None
+    assert o.post("/diary/api/admin/users/nobody/disable", json={}).status_code == 404
+    assert o.post("/diary/api/admin/users/mikko/explode", json={}).status_code == 404
