@@ -206,8 +206,10 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
 .drow:hover{background:var(--surface-2)}
 .drow .nm{min-width:0;overflow-wrap:anywhere;font-size:.9rem}
 .drow .nm span{color:var(--muted)}
-.drow .nm .gn{font-weight:600;color:var(--fg);margin-right:6px}
-.drow .nm .ld{display:block;color:var(--fg);font-size:.86rem;margin-top:1px}
+.drow .top{grid-column:1/-1;min-width:0;display:flex;align-items:baseline;gap:6px;font-size:.95rem}
+.drow .top .tm{margin-right:0;flex:0 0 auto}
+.drow .top .gn{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drow .top .cl{color:var(--muted);font-weight:600;white-space:nowrap;flex:0 0 auto}
 .chart h3 .gn{color:var(--accent)}
 .drow .fig{font-family:var(--f-mono);font-size:.88rem;text-align:right;white-space:nowrap}
 .drow .fig b{font-weight:600}
@@ -476,10 +478,14 @@ function renderDays(list){
     +rows.map(x=>{const st=x.stats,mean=means[(x.gun_id||"")+"|"+(x.load_id||"")];
       const delta=mean!=null&&st.avg!=null?st.avg-mean:null;
       return`<button type="button" class="drow" data-day="${date}" data-sid="${esc(x.id)}">
-      <span class="nm"><span class="tm">${esc(x.started_at||"–")}</span>${S.gun?"":`<b class="gn">${esc(gunName(x.gun_id))}</b>`}<span class="ld">${esc(loadName(x.load_id))}</span></span>
+      <span class="top"><span class="tm">${esc(x.started_at||"–")}</span>${S.gun?"":`<b class="gn">${esc(gunName(x.gun_id))}</b>`}${rowCal(x)?`<span class="cl">${esc(rowCal(x))}</span>`:""}</span>
+      <span class="nm">${esc(loadShort(x.load_id))}</span>
       <span class="fig">⌀ <b>${f1(st.avg)}</b> m/s</span>
       <span class="meta">n ${st.n}${x.shot_count>st.n?"/"+x.shot_count:""} · SD ${f2(st.sd)} · ES ${f1(st.es)}${st.ke_j?` · ⌀ ${st.ke_j} J`:""}${delta!=null?` · Δ ${delta>0?"+":""}${f1(delta)}`:""}</span></button>`}).join("")+`</div>`}).join("");
 }
+// Row 1: time · gun · calibre; row 2: the load without the calibre it starts with; row 3: n / SD / ES / J
+function rowCal(x){const l=loadOf(x.load_id);return(l&&l.cal)||gunCal(x.gun_id)||""}
+function loadShort(id){const l=loadOf(id);if(!l)return"No load";return l.cal&&l.name.startsWith(l.cal+" · ")?l.name.slice(l.cal.length+3):l.name}
 $("days").addEventListener("click",e=>{const b=e.target.closest("[data-day]");if(b)openDay(b.dataset.day,b.dataset.sid)});
 
 /* ---------- charts ---------- */
