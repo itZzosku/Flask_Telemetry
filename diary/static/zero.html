@@ -374,9 +374,9 @@ header.top{padding-top:6px!important}
       <label class="f">Click<input type="text" id="sClick" inputmode="decimal"></label>
       <label class="f">Zero stop (dial)<input type="text" id="sStop" inputmode="decimal" placeholder="e.g. −0.5"></label></div>
     <p class="hint" style="margin:0">The zero stop is where the elevation turret bottoms out, as a dial reading (below 0 = negative).</p>
-    <div class="grid2"><label class="f">Elevation turn<input type="text" id="sETurn" inputmode="decimal" placeholder="e.g. 10"></label>
-      <label class="f">Windage turn<input type="text" id="sWTurn" inputmode="decimal" placeholder="e.g. 10"></label></div>
-    <p class="hint" style="margin:0">One full turret turn, in the scope's unit. Optional: with these the swap also says where the caps stop (elevation numbered one way, windage both ways to the half-turn mark).</p>
+    <div class="grid2"><label class="f"><span id="sETurnL">Elevation turn (MRAD)</span><input type="text" id="sETurn" inputmode="decimal" placeholder="e.g. 10"></label>
+      <label class="f"><span id="sWTurnL">Windage turn (MRAD)</span><input type="text" id="sWTurn" inputmode="decimal" placeholder="e.g. 10"></label></div>
+    <p class="hint" style="margin:0">One full turret turn in the scope's unit, not clicks: a 10 MRAD turn with 0.1 clicks is <b>10</b> (= 100 clicks). Optional: with these the swap also says where the caps stop (elevation numbered one way, windage both ways to the half-turn mark).</p>
     <label class="f" id="sRefRow">0 / 0 reference<select id="sRef"></select></label>
     <p class="hint" style="margin:0" id="sRefHint">Turret zero: every value is simply what the turrets read, and 0 / 0 doesn't have to match any rifle. Picking a position relabels everything so that position reads 0 / 0 (swaps stay the same).</p>
     <div class="msg" id="sMsg" hidden></div>
@@ -729,7 +729,7 @@ function openScope(s){
   $("sTitle").textContent=s?"Scope settings":"New scope";
   $("sName").value=s?s.name:"";$("sUnit").value=s?s.unit:"MRAD";$("sClick").value=s?+s.click:"0.1";
   $("sStop").value=s&&s.zero_stop!=null?elevDial(s.zero_stop).replace(MINUS,"-"):"";
-  $("sETurn").value=s&&s.elev_turn?+s.elev_turn:"";$("sWTurn").value=s&&s.wind_turn?+s.wind_turn:"";
+  $("sETurn").value=s&&s.elev_turn?+s.elev_turn:"";$("sWTurn").value=s&&s.wind_turn?+s.wind_turn:"";turnLabels();
   $("sRefRow").hidden=$("sRefHint").hidden=!s||!(s.zeros||[]).length;
   if(s)$("sRef").innerHTML=`<option value="">Turret zero (dial readings)</option>`+(s.zeros||[]).filter(z=>!z.archived)
     .map(z=>`<option value="${esc(z.id)}" ${z.id===s.ref_zero_id?"selected":""}>${esc(z.name)} (${elevDial(z.elev)} / ${windShort(z.wind)})</option>`).join("");
@@ -737,7 +737,12 @@ function openScope(s){
 }
 $("scopeBtn").addEventListener("click",()=>openScope(scope()));
 $("newScopeBtn").addEventListener("click",()=>openScope(null));
-$("sUnit").addEventListener("change",()=>{if(!editingScope)$("sClick").value=$("sUnit").value==="MOA"?"0.25":"0.1"});
+// Labels show the unit and how many clicks a turn is, so "100" (clicks) isn't typed for a 10 MRAD turn
+function turnLabels(){const u=$("sUnit").value,c=num($("sClick").value)||0.1;
+  [["sETurn","Elevation"],["sWTurn","Windage"]].forEach(([id,n])=>{const v=num($(id).value);
+    $(id+"L").textContent=`${n} turn (${u})`+(v?` = ${Math.round(v/c)} clicks`:"")})}
+["sETurn","sWTurn","sClick"].forEach(id=>$(id).addEventListener("input",turnLabels));
+$("sUnit").addEventListener("change",()=>{turnLabels();if(!editingScope)$("sClick").value=$("sUnit").value==="MOA"?"0.25":"0.1"});
 $("sForm").addEventListener("submit",async e=>{e.preventDefault();
   const s=editingScope?S.scopes.find(x=>x.id===editingScope):null;
   const id=s?s.id:"s-"+$("sName").value.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40)+"-"+Math.random().toString(36).slice(2,6);
