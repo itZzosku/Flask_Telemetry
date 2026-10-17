@@ -206,6 +206,9 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
 .drow:hover{background:var(--surface-2)}
 .drow .nm{min-width:0;overflow-wrap:anywhere;font-size:.9rem}
 .drow .nm span{color:var(--muted)}
+.drow .nm .gn{font-weight:600;color:var(--fg);margin-right:6px}
+.drow .nm .ld{display:block;color:var(--fg);font-size:.86rem;margin-top:1px}
+.chart h3 .gn{color:var(--accent)}
 .drow .fig{font-family:var(--f-mono);font-size:.88rem;text-align:right;white-space:nowrap}
 .drow .fig b{font-weight:600}
 .drow .meta{grid-column:1/-1;color:var(--muted);font-size:.78rem;font-family:var(--f-mono)}
@@ -473,7 +476,7 @@ function renderDays(list){
     +rows.map(x=>{const st=x.stats,mean=means[(x.gun_id||"")+"|"+(x.load_id||"")];
       const delta=mean!=null&&st.avg!=null?st.avg-mean:null;
       return`<button type="button" class="drow" data-day="${date}" data-sid="${esc(x.id)}">
-      <span class="nm"><span class="tm">${esc(x.started_at||"–")}</span>${esc(loadName(x.load_id))}${S.gun?"":` <span>· ${esc(gunName(x.gun_id))}</span>`}</span>
+      <span class="nm"><span class="tm">${esc(x.started_at||"–")}</span>${S.gun?"":`<b class="gn">${esc(gunName(x.gun_id))}</b>`}<span class="ld">${esc(loadName(x.load_id))}</span></span>
       <span class="fig">⌀ <b>${f1(st.avg)}</b> m/s</span>
       <span class="meta">n ${st.n}${x.shot_count>st.n?"/"+x.shot_count:""} · SD ${f2(st.sd)} · ES ${f1(st.es)}${st.ke_j?` · ⌀ ${st.ke_j} J`:""}${delta!=null?` · Δ ${delta>0?"+":""}${f1(delta)}`:""}</span></button>`}).join("")+`</div>`}).join("");
 }
@@ -829,7 +832,7 @@ function renderDay(){
   $("dBody").innerHTML=list.map((s,i)=>{const st=s.stats;const temps=s.shots.filter(x=>x.temp_c!=null);
     const w=temps.length?temps[0]:{};
     return`<div class="chart" data-card="${esc(s.id)}" style="scroll-margin-top:70px">
-      <h3>String ${i+1}/${list.length} · ${esc(s.started_at||"–")} · ${esc(loadName(s.load_id))}</h3>
+      <h3><span class="gn">${esc(gunName(s.gun_id))}</span> · ${esc(loadName(s.load_id))}<br><span style="color:var(--muted);font-weight:400">String ${i+1}/${list.length} · ${esc(s.started_at||"–")}</span></h3>
       ${calClash(s.gun_id,s.load_id)?`<div class="msg" style="margin:2px 0 6px">${esc(calClash(s.gun_id,s.load_id))}</div>`:""}
       <p class="sub">⌀ <b>${f1(st.avg)}</b> m/s · n ${st.n}/${s.shots.length} · SD ${f2(st.sd)} (Garmin ${f2(st.sd_garmin)}) · ES ${f1(st.es)}${st.ke_j?` · ⌀ ${st.ke_j} J`:""}${w.temp_c!=null?` · ${f1(w.temp_c)} °C ${w.rh!=null?f1(w.rh)+" %":""} ${w.hpa!=null?Math.round(w.hpa)+" hPa":""}`:""}</p>
       ${dotPlot(s.shots,st.avg)}
