@@ -142,7 +142,9 @@ def mail_backup(json_path):
         f"Visits: {len(sessions)}\nShooting days: {days}\nShots: {rounds}\n"
         f"Guns: {len(data.get('guns', []))}\nLast visit: {last}\n"
         f"Velocity strings: {len(data.get('chrono_strings', []))}, shots {len(data.get('chrono_shots', []))}\n"
-        f"Scopes: {len(data.get('scopes', []))}, zeroes {len(data.get('scope_zeros', []))}\n\n"
+        f"Scopes: {len(data.get('scopes', []))}, zeroes {len(data.get('scope_zeros', []))}\n"
+        f"Velocity name aliases: {len((data.get('chrono_settings') or {}).get('aliases', {}))}, "
+        f"powders: {len((data.get('chrono_settings') or {}).get('powders', []))}\n\n"
         f"Restore on the server:\n  ./venv/bin/python -m diary import {name} --replace\n")
     msg.add_attachment(payload, maintype="application", subtype="json", filename=name)
 

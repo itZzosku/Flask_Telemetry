@@ -63,6 +63,21 @@ type, calibre, toimintatapa and lisätietoja within a visit.
 
 Back up `diary_data/diary.db` (or a `python -m diary export` dump) with the rest of the server.
 
+### Updating the server
+
+```bash
+./venv/bin/pip install pytest          # once: lets the update run the tests before restarting
+./scripts/update.sh --check            # what would come in
+./scripts/update.sh                    # pull + check + restart
+```
+
+`update.sh` refuses to run over local edits, snapshots `diary.db` to `diary_backups/pre-update/` (newest 5
+kept), pulls `main`, installs `requirements.txt` if it changed, compiles, starts the app once in a
+throwaway folder and runs the tests. If anything fails it rolls back to the previous commit and leaves
+the running site alone; otherwise it restarts and checks the site answers. Restart command:
+`RESTART_CMD="…"` or a systemd unit `SERVICE` (default `flask_telemetry`); `./scripts/update.sh --restart`
+only restarts.
+
 ### Weekly backup by email
 
 `scripts/diary_backup.sh` runs `python -m diary backup diary_backups --keep 12 --mail`: a dated JSON +
@@ -166,4 +181,5 @@ python -m diary zero-import notes/javelin-zeroing-note.md             # --replac
 ```
 
 Rifle names are matched to diary guns the same way as velocity folders (aliases, then the model, e.g. `T3X`).
-Zeroes (`scopes`, `scope_zeros`, `scope_log`) are part of `export`/`import`/`backup`.
+Zeroes (`scopes`, `scope_zeros`, `scope_log`) are part of `export`/`import`/`backup`; so are the velocity
+folder→gun aliases and the powder list (`chrono_settings`), so the emailed JSON alone restores everything.

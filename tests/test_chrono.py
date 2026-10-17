@@ -382,3 +382,19 @@ def test_names_regenerated_in_new_order():
                  "('l-1','6.5 CM · Lapua Scenar 139 gr · Lapua brass · N555 44.0 gr','handload','6.5 CM','Lapua','Scenar',139,'Lapua','N555',44)")
     assert chrono_loads.backfill_calibres(conn) == 1
     assert conn.execute("SELECT name FROM loads").fetchone()[0] == "6.5 CM · Lapua Scenar 139 gr · N555 44.0 gr · Lapua brass"
+
+
+def test_backup_keeps_velocity_settings():
+    """Gun aliases and the powder list travel in the JSON backup (not only the .db copy)."""
+    conn = diary.connect()
+    diary.upsert_gun(conn, "g-wwsd", {"name": "WWSD AR-15"})
+    diary.kv_set(chrono.ALIAS_KEY, '{"KP-15": "g-wwsd", "Gone": "g-missing"}', conn)
+    diary.kv_set(chrono.POWDERS_KEY, '["N555", "N133"]', conn)
+    data = chrono.export_rows(conn)
+    assert data["chrono_settings"]["aliases"]["KP-15"] == "g-wwsd" and data["chrono_settings"]["powders"] == ["N555", "N133"]
+    diary.kv_set(chrono.ALIAS_KEY, "{}", conn)
+    diary.kv_set(chrono.POWDERS_KEY, "[]", conn)
+    chrono.import_rows(conn, data, replace=True)
+    assert chrono.aliases(conn) == {"KP-15": "g-wwsd"}           # alias to a gun that doesn't exist is dropped
+    assert chrono.known_powders(conn) == ["N555", "N133"]
+    conn.close()

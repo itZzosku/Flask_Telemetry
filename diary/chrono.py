@@ -546,7 +546,9 @@ def load_summary(conn, lid):
 
 
 def export_rows(conn):
-    return {"loads": load_rows(conn),
+    # Settings too (folder/file name → gun aliases, known powders), so the emailed JSON alone restores everything
+    return {"chrono_settings": {"aliases": aliases(conn), "powders": known_powders(conn)},
+            "loads": load_rows(conn),
             "chrono_strings": [dict(r) for r in conn.execute("SELECT * FROM chrono_strings ORDER BY date, id")],
             "chrono_shots": [dict(r) for r in conn.execute("SELECT * FROM chrono_shots ORDER BY string_id, n")]}
 
@@ -559,6 +561,17 @@ def import_rows(conn, data, replace=False):
             cols = list(row)
             conn.execute(f"INSERT OR REPLACE INTO {table}({','.join(cols)}) VALUES({','.join('?' * len(cols))})",
                          [row[c] for c in cols])
+    st = data.get("chrono_settings")
+    if isinstance(st, dict):
+        gids = set(guns(conn))
+        al = {str(k)[:60]: v for k, v in (st.get("aliases") or {}).items() if v in gids}
+        if not replace:
+            al = {**aliases(conn), **al}
+        kv_set(ALIAS_KEY, json.dumps(al, ensure_ascii=False), conn)
+        pw = [str(p)[:30] for p in (st.get("powders") or [])]
+        if not replace:
+            pw = list(dict.fromkeys(known_powders(conn) + pw))
+        kv_set(POWDERS_KEY, json.dumps(pw, ensure_ascii=False), conn)
     chrono_loads.migrate(conn)          # backups from before the structured load fields
     return {t: len(data.get(t, [])) for t in ("loads", "chrono_strings", "chrono_shots")}
 
