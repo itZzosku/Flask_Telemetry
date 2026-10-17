@@ -31,7 +31,7 @@ rm diary_seed.json                          # contains licence numbers
 python main.py
 ```
 
-Open `https://<your-domain>/diary/`. The login lasts 90 days per device.
+Open `https://<your-domain>/diary/`. The login lasts 360 days per device.
 
 ### Settings (`.env`, all optional)
 
