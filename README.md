@@ -114,7 +114,7 @@ workbooks and Kestrel DROP weather logs. Open it from the diary header (*Velocit
   exclude/include per shot, manual weather per string.
 - **Loads**: like guns, each load is a set of fields — handload: bullet maker, bullet,
   weight, brass, powder, charge, primer, COAL; factory: maker, product, bullet weight. The name is generated,
-  e.g. `6.5 CM · Lapua Scenar 139 gr · Lapua brass · N555 44.0 gr` or `.22 LR · SK Long Range Match 40 gr`.
+  e.g. `6.5 CM · Lapua Scenar 139 gr · N555 44.0 gr · Lapua brass` or `.22 LR · SK Long Range Match 40 gr`.
   The calibre is part of the load: the same 123 gr FMJ in .308 Win and 7.62x53R are two loads. Saving a load
   whose name matches another offers to merge them. Loads saved before this were converted on first start.
 

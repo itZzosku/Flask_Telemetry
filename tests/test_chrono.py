@@ -233,7 +233,7 @@ def test_api_parse_commit_idempotent(client):
     p = r.get_json()
     s = p["strings"][0]
     assert s["suggest"]["gun_id"] == "g-t3x"
-    assert s["suggest"]["load"]["name"] == "6.5 CM · Lapua Scenar 139 gr · Lapua brass · N555 44.0 gr"
+    assert s["suggest"]["load"]["name"] == "6.5 CM · Lapua Scenar 139 gr · N555 44.0 gr · Lapua brass"
     item = dict(s, gun_id=s["suggest"]["gun_id"], load=s["suggest"]["load"])
     r = client.post("/diary/api/chrono/commit", json={"strings": [item]})
     assert r.status_code == 200 and len(r.get_json()["created"]) == 1
@@ -295,12 +295,12 @@ from diary import chrono_loads
 def test_load_names_and_legacy_migration():
     assert chrono_loads.load_name({"kind": "handload", "bullet_maker": "Lapua", "bullet_model": "Scenar",
                                    "bullet_gr": 139, "brass": "Lapua", "powder": "N555", "charge_gr": 44}) \
-        == "Lapua Scenar 139 gr · Lapua brass · N555 44.0 gr"
+        == "Lapua Scenar 139 gr · N555 44.0 gr · Lapua brass"
     assert chrono_loads.load_name({"kind": "factory", "maker": "SK", "product": "Long Range Match", "bullet_gr": 40}) \
         == "SK Long Range Match 40 gr"
     leg = lambda **kw: chrono_loads.from_legacy(kw)["name"]
     assert leg(kind="handload", bullet="9 g Scenar", bullet_gr=139, brass="Lapua", powder="N555", charge_gr=44.0) \
-        == "Lapua Scenar 139 gr · Lapua brass · N555 44.0 gr"
+        == "Lapua Scenar 139 gr · N555 44.0 gr · Lapua brass"
     assert leg(kind="handload", bullet="8,8 g Scenar-L", bullet_gr=136, brass="Lapua", powder="N555", charge_gr=44.0) \
         .startswith("Lapua Scenar-L 136 gr")
     assert leg(kind="factory", name="Geco .22lr Rifle 2,6g") == "Geco .22lr Rifle 40 gr"
@@ -319,7 +319,7 @@ def test_migrate_old_loads_table():
                  "'9 g Scenar',139,'Lapua','N555',40,'',0)")
     assert chrono_loads.migrate(conn) == 1
     r = conn.execute("SELECT * FROM loads").fetchone()
-    assert r["name"] == "Lapua Scenar 139 gr · Lapua brass · N555 40.0 gr" and r["bullet_model"] == "Scenar"
+    assert r["name"] == "Lapua Scenar 139 gr · N555 40.0 gr · Lapua brass" and r["bullet_model"] == "Scenar"
     assert chrono_loads.migrate(conn) == 0                           # idempotent
 
 
@@ -327,7 +327,7 @@ def test_api_load_duplicate_and_merge(client):
     base = {"kind": "handload", "bullet_maker": "Lapua", "bullet_model": "Scenar", "bullet_gr": "139",
             "brass": "Lapua", "powder": "N555", "charge_gr": "44,0"}
     r = client.put("/diary/api/chrono/loads/l-a", json=base)
-    assert r.status_code == 200 and r.get_json()["name"] == "Lapua Scenar 139 gr · Lapua brass · N555 44.0 gr"
+    assert r.status_code == 200 and r.get_json()["name"] == "Lapua Scenar 139 gr · N555 44.0 gr · Lapua brass"
     client.put("/diary/api/chrono/loads/l-b", json=dict(base, charge_gr="43,5"))
     conn = diary.connect()
     chrono.commit_strings(conn, [{"date": "2024-07-13", "source": "workbook", "gun_id": "g-t3x", "load_id": "l-b",
@@ -351,7 +351,7 @@ def test_calibre_is_part_of_the_load(client):
     a = client.put("/diary/api/chrono/loads/l-308", json=dict(fmj, cal=".308 Win"))
     b = client.put("/diary/api/chrono/loads/l-53r", json=dict(fmj, cal="7.62x53R"))
     assert a.status_code == b.status_code == 200                      # not duplicates
-    assert a.get_json()["name"] == ".308 Win · Lapua FMJ 123 gr · Lapua brass · N133 43.0 gr"
+    assert a.get_json()["name"] == ".308 Win · Lapua FMJ 123 gr · N133 43.0 gr · Lapua brass"
     assert b.get_json()["name"].startswith("7.62x53R · ")
     assert client.put("/diary/api/chrono/loads/l-x", json=dict(fmj, cal=".308 Win")).status_code == 409
 
@@ -366,5 +366,19 @@ def test_calibre_backfilled_from_gun():
                  "VALUES('c-1','2025-01-09','g-m39','l-1','workbook','now')")
     assert chrono_loads.backfill_calibres(conn) == 1
     r = conn.execute("SELECT cal, name FROM loads WHERE id='l-1'").fetchone()
-    assert r["cal"] == "7.62x53R" and r["name"] == "7.62x53R · FMJ 123 gr · Lapua brass · N133 43.0 gr"
+    assert r["cal"] == "7.62x53R" and r["name"] == "7.62x53R · FMJ 123 gr · N133 43.0 gr · Lapua brass"
     conn.close()
+
+
+def test_names_regenerated_in_new_order():
+    """Loads saved with the old order (… · brass · powder) are renamed on start."""
+    import sqlite3
+    from diary import chrono_loads
+    conn = sqlite3.connect(":memory:")
+    conn.executescript("CREATE TABLE guns(id TEXT PRIMARY KEY, data TEXT); CREATE TABLE chrono_strings(id TEXT, load_id TEXT, gun_id TEXT);"
+                       "CREATE TABLE loads(id TEXT PRIMARY KEY)")
+    chrono_loads.migrate(conn)
+    conn.execute("INSERT INTO loads(id,name,kind,cal,bullet_maker,bullet_model,bullet_gr,brass,powder,charge_gr) VALUES"
+                 "('l-1','6.5 CM · Lapua Scenar 139 gr · Lapua brass · N555 44.0 gr','handload','6.5 CM','Lapua','Scenar',139,'Lapua','N555',44)")
+    assert chrono_loads.backfill_calibres(conn) == 1
+    assert conn.execute("SELECT name FROM loads").fetchone()[0] == "6.5 CM · Lapua Scenar 139 gr · N555 44.0 gr · Lapua brass"

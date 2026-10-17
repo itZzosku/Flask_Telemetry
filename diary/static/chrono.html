@@ -887,9 +887,9 @@ function genName(f){
   const cal=f.cal?[f.cal]:[];
   if(f.kind==="factory")return cal.concat([[f.maker,f.product,w].filter(Boolean).join(" ")||"Factory ammo"]).join(" · ");
   const out=cal.concat([[f.bullet_maker,f.bullet_model,w].filter(Boolean).join(" ")||"Load"]);
-  if(f.brass)out.push(f.brass+" brass");
   const pw=[f.powder,numFi(f.charge_gr,1)?numFi(f.charge_gr,1)+" gr":""].filter(Boolean).join(" ");
   if(pw)out.push(pw);
+  if(f.brass)out.push(f.brass+" brass");
   return out.join(" · ");
 }
 const dl=(id,vals)=>{$(id).innerHTML=[...new Set(vals.filter(Boolean))].sort((a,b)=>a.localeCompare(b,"fi")).map(v=>`<option value="${esc(v)}">`).join("")};

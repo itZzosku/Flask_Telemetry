@@ -1,7 +1,7 @@
 """Loads as structured fields with one uniform, generated name.
 
-Handload:  <calibre> · <bullet maker> <bullet> <weight> gr · <brass> brass · <powder> <charge> gr
-           e.g. "6.5 CM · Lapua Scenar 139 gr · Lapua brass · N555 44.0 gr"
+Handload:  <calibre> · <bullet maker> <bullet> <weight> gr · <powder> <charge> gr · <brass> brass
+           e.g. "6.5 CM · Lapua Scenar 139 gr · N555 44.0 gr · Lapua brass"
 Factory:   <calibre> · <maker> <product> <weight> gr
            e.g. ".22 LR · SK Long Range Match 40 gr"
 
@@ -57,21 +57,21 @@ def load_name(f):
             parts.append(_weight(f["bullet_gr"]) + " gr")
         return " · ".join(cal + [" ".join(p for p in parts if p) or "Factory ammo"])
     out = cal + [bullet_label(f) or "Load"]
-    if f.get("brass"):
-        out.append(f["brass"] + " brass")
     pw = " ".join(p for p in [f.get("powder"), _num(f["charge_gr"]) + " gr" if f.get("charge_gr") is not None else None] if p)
     if pw:
         out.append(pw)
+    if f.get("brass"):
+        out.append(f["brass"] + " brass")
     return " · ".join(out)
 
 
 def ladder_group(f):
     """Everything but the charge: the line a charge ladder is drawn along."""
     out = ([f["cal"]] if f.get("cal") else []) + [bullet_label(f) or "Load"]
-    if f.get("brass"):
-        out.append(f["brass"] + " brass")
     if f.get("powder"):
         out.append(f["powder"])
+    if f.get("brass"):
+        out.append(f["brass"] + " brass")
     return " · ".join(out)
 
 
