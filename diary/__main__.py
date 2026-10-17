@@ -1,9 +1,11 @@
 """Server-side admin for the shooting diary.
 
 Accounts (each has its own data file):
-  python -m diary user-add NAME [--admin]   new account (asks for the password)
+  python -m diary user-add NAME [--admin]   new account without a password: they log in with an empty
+                                            password within 7 days and choose one (--password: set it now)
   python -m diary user-list                 accounts, data files, last login
-  python -m diary user-passwd NAME          set a new password (logs that user out everywhere)
+  python -m diary user-passwd NAME [--clear] set a new password, or --clear it so they choose one at next
+                                            login (either logs that user out everywhere)
   python -m diary user-disable NAME / user-enable NAME / user-rename OLD NEW
 
 Data commands work on one account: add --user NAME (default: the first admin account, i.e. diary.db).
@@ -49,15 +51,19 @@ def _ask_password():
     return pw
 
 
-def user_add(name, admin):
+def user_add(name, admin, with_password):
     try:
         users.check_name(name)
         if users.by_name(name):
             sys.exit(f"User {name} already exists.")
-        u = users.create(name, _ask_password(), admin=admin)
+        u = users.create(name, _ask_password() if with_password else None, admin=admin)
     except ValueError as e:
         sys.exit(str(e))
     print(f"Created {u['username']}{' (admin)' if admin else ''} – data in {users.db_path(u)}")
+    if not with_password:
+        print(f"No password yet: {u['username']} logs in with an EMPTY password within {users.SETUP_DAYS} days "
+              f"(until {u['setup_until'][:10]}) and chooses one.\n"
+              "Until then anyone who knows the username could claim it – tell them soon.")
 
 
 def user_list():
@@ -65,13 +71,20 @@ def user_list():
     if not rows:
         print("No accounts. Create one: python -m diary user-add NAME --admin")
     for u in rows:
-        flags = ", ".join(f for f in ("admin" if u["is_admin"] else "", "DISABLED" if u["disabled"] else "") if f)
+        flags = ", ".join(f for f in ("admin" if u["is_admin"] else "", "DISABLED" if u["disabled"] else "",
+                                      ("no password – first login until " + u["setup_until"][:10]) if users.needs_setup(u)
+                                      else ("no password, first-login window expired (user-passwd --clear)"
+                                            if not u["pw_hash"] else "")) if f)
         print(f"{u['username']:<20} {u['db_file']:<24} last login {u['last_login'] or '–':<22} {flags}")
 
 
-def user_passwd(name):
+def user_passwd(name, clear=False):
     if not users.by_name(name):
         sys.exit(f"No user {name}.")
+    if clear:
+        users.clear_password(name)
+        return print(f"{name} has no password now and is logged out everywhere. They log in with an EMPTY "
+                     f"password within {users.SETUP_DAYS} days and choose a new one.")
     users.set_password(name, _ask_password())
     print(f"Password set for {name}. Their existing logins have been logged out.")
 
@@ -443,9 +456,12 @@ def main():
     ua = sub.add_parser("user-add")
     ua.add_argument("name")
     ua.add_argument("--admin", action="store_true")
+    ua.add_argument("--password", action="store_true", help="set the password now instead of on first login")
     sub.add_parser("user-list")
     for cmd in ("user-passwd", "user-disable", "user-enable"):
         sub.add_parser(cmd).add_argument("name")
+    sub.choices["user-passwd"].add_argument("--clear", action="store_true",
+                                            help="remove the password: they choose a new one at next login")
     ur = sub.add_parser("user-rename")
     ur.add_argument("old")
     ur.add_argument("new")
@@ -486,14 +502,14 @@ def main():
     init_db()
     users.migrate_single_user()          # first run after accounts came in: the old diary becomes an account
     if a.cmd == "user-add":
-        return user_add(a.name, a.admin)
+        return user_add(a.name, a.admin, a.password)
     if a.cmd == "user-list":
         return user_list()
     if a.cmd in ("user-passwd", "set-password"):
         name = getattr(a, "name", None) or a.user or (_pick_user(None) or {}).get("username")
         if not name:
             sys.exit("No accounts yet. Create one: python -m diary user-add NAME --admin")
-        return user_passwd(name)
+        return user_passwd(name, getattr(a, "clear", False))
     if a.cmd in ("user-disable", "user-enable", "user-rename"):
         try:
             if a.cmd == "user-rename":

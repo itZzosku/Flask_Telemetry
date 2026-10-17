@@ -147,3 +147,40 @@ def test_single_user_diary_becomes_an_account(tmp_path, monkeypatch):
     assert [g["name"] for g in c.get("/diary/api/guns").get_json()] == ["Old Rifle"]
     # Next account gets its own file
     assert users.create("buddy", "buddy-password")["db_file"] == os.path.join("users", "buddy.db")
+
+
+def test_new_account_chooses_password_on_first_login():
+    """user-add without a password: empty password once → must choose one → logged in with it."""
+    for n in ("newbie", "late"):
+        if users.by_name(n):
+            with users.uconnect() as c:
+                c.execute("DELETE FROM users WHERE username=?", (n,))
+    users.create("newbie")
+    app = _app()
+    c = app.test_client()
+    # Not logged in yet: the empty password only opens the "choose your password" step
+    r = c.post("/diary/login", data={"username": "newbie", "password": ""})
+    assert r.status_code == 200 and b"Choose your password" in r.data
+    assert c.get("/diary/api/guns").status_code == 401
+    r = c.post("/diary/first-password", data={"password": "short", "password2": "short"})
+    assert b"at least 10" in r.data and c.get("/diary/api/guns").status_code == 401
+    r = c.post("/diary/first-password", data={"password": "newbie-pass-1", "password2": "other-pass-11"})
+    assert b"match" in r.data
+    r = c.post("/diary/first-password", data={"password": "newbie-pass-1", "password2": "newbie-pass-1"})
+    assert r.status_code == 302 and c.get("/diary/api/account").get_json()["username"] == "newbie"
+    # From now on the empty password is just wrong, the chosen one works
+    assert b"Choose your password" not in app.test_client().post(
+        "/diary/login", data={"username": "newbie", "password": ""}).data
+    _login(app, "newbie", "newbie-pass-1")
+    # Without the setup step, /first-password does nothing
+    assert app.test_client().post("/diary/first-password", data={"password": "x" * 12, "password2": "x" * 12}).status_code == 302
+    assert users.verify("newbie", "x" * 12) is None
+    # The window closes: an unclaimed account can't be taken with an empty password after SETUP_DAYS
+    users.create("late", setup_days=-1)
+    r = app.test_client().post("/diary/login", data={"username": "late", "password": ""})
+    assert b"Choose your password" not in r.data
+    # --clear: back to choosing a new one, and existing logins end
+    n = _login(app, "newbie", "newbie-pass-1")
+    users.clear_password("newbie")
+    assert n.get("/diary/api/guns").status_code == 401
+    assert b"Choose your password" in app.test_client().post("/diary/login", data={"username": "newbie", "password": ""}).data

@@ -25,7 +25,7 @@ After changing `diary/static/sw.js`, bump `VERSION` in it so phones drop the old
 
 ```bash
 pip install -r requirements.txt             # no new packages needed
-python -m diary user-add NAME --admin       # first account; prompts twice, min. 10 chars
+python -m diary user-add NAME --admin --password   # first account; prompts twice, min. 10 chars
 python -m diary import diary_seed.json      # one-time import of existing entries
 rm diary_seed.json                          # contains licence numbers
 python main.py
@@ -46,14 +46,17 @@ Open `https://<your-domain>/diary/`. The login lasts 90 days per device.
 ### Accounts
 
 Every person has their own account and their own database file – one user's pages, API calls, offline
-queue and backups never touch another's data. Accounts are created on the server; each user changes their
-own password on the landing page (*Password*).
+queue and backups never touch another's data. Accounts are created on the server without a password: the
+person logs in with their username and an **empty password** (within 7 days) and must choose their own
+before anything else. Later they change it on the landing page (*Password*).
 
 ```bash
-python -m diary user-add mikko             # new account (asks for a password, min. 10 chars)
+python -m diary user-add mikko             # new account, no password yet – tell them to log in soon
+python -m diary user-add NAME --password   # …or set the password now (asks twice, min. 10 chars)
 python -m diary user-add NAME --admin      # an admin account (admins are just flagged for now)
-python -m diary user-list                  # accounts, data files, last login
+python -m diary user-list                  # accounts, data files, last login, unclaimed accounts
 python -m diary user-passwd mikko          # new password – logs that user out on every device
+python -m diary user-passwd mikko --clear  # forgot it: no password again, they choose a new one at next login
 python -m diary user-disable mikko         # blocks login and ends their sessions (data kept); user-enable
 python -m diary user-rename old new        # login name only; the data file stays
 ```

@@ -223,26 +223,58 @@ def login():
         username = request.form.get("username", "").strip().lower()[:32]
         if _too_many(ip):
             error = "Too many wrong attempts. Wait 15 minutes."
+        elif users.verify_setup(username, request.form.get("password", "")):
+            # New account, empty password: on to choosing one (not logged in until then)
+            session.clear()
+            session["diary_setup"] = username
+            return render_template("diary_login.html", setup=True, username=username,
+                                   min_len=users.MIN_PASSWORD, error=None)
         else:
             u = users.verify(username, request.form.get("password", ""))
             if u:
                 with _fails_lock:
                     _fails.pop(ip, None)
-                session.clear()
-                session.permanent = True
-                session["diary_auth"] = True
-                session["diary_uid"] = u["id"]
-                session["diary_pw"] = users.stamp(u)
-                users.touch_login(u["id"])
-                resp = redirect(url_for("diary.home"))
-                # Readable by the pages (not a secret): keeps each account's offline queue apart on a shared phone
-                resp.set_cookie("diary_user", u["username"], max_age=int(PERMANENT_LIFETIME.total_seconds()),
-                                path="/diary", samesite="Lax", secure=_cookie_secure(), httponly=False)
-                return resp
+                return _logged_in(u)
             _note_fail(ip)
             time.sleep(1)
             error = "Wrong username or password."
     return render_template("diary_login.html", error=error, disabled=False, username=username)
+
+
+def _logged_in(u):
+    from . import users
+    session.clear()
+    session.permanent = True
+    session["diary_auth"] = True
+    session["diary_uid"] = u["id"]
+    session["diary_pw"] = users.stamp(u)
+    users.touch_login(u["id"])
+    resp = redirect(url_for("diary.home"))
+    # Readable by the pages (not a secret): keeps each account's offline queue apart on a shared phone
+    resp.set_cookie("diary_user", u["username"], max_age=int(PERMANENT_LIFETIME.total_seconds()),
+                    path="/diary", samesite="Lax", secure=_cookie_secure(), httponly=False)
+    return resp
+
+
+@bp.post("/first-password")
+def first_password():
+    """New account: the empty-password login above leads here; the chosen password logs them in."""
+    from . import users
+    name = session.get("diary_setup")
+    u = users.by_name(name) if name else None
+    if not users.needs_setup(u):
+        session.pop("diary_setup", None)
+        return redirect(url_for("diary.login"))
+    pw, pw2 = request.form.get("password", ""), request.form.get("password2", "")
+    error = None
+    if pw != pw2:
+        error = "The passwords don't match."
+    elif len(pw) < users.MIN_PASSWORD:
+        error = f"Use at least {users.MIN_PASSWORD} characters."
+    if error:
+        return render_template("diary_login.html", setup=True, username=name, min_len=users.MIN_PASSWORD, error=error)
+    users.set_password(name, pw)
+    return _logged_in(users.by_name(name))
 
 
 @bp.post("/logout")

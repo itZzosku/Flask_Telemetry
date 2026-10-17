@@ -5,15 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>Log in · Shooting Diary</title>
-<link rel="manifest" href="{{ url_for('diary.page') }}manifest.webmanifest">
+<link rel="manifest" href="{{ url_for('diary.home') }}manifest.webmanifest">
 <meta name="theme-color" content="#eef0ec" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#141714" media="(prefers-color-scheme: dark)">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Shooting Diary">
-<link rel="apple-touch-icon" href="{{ url_for('diary.page') }}static/icons/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('diary.page') }}static/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="{{ url_for('diary.home') }}static/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('diary.home') }}static/icons/favicon-32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&family=IBM+Plex+Sans:wght@400;600&display=swap">
@@ -33,15 +33,30 @@ input:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline
 button{font:inherit;font-weight:600;background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:14px;cursor:pointer}
 button:disabled{opacity:.5;cursor:default}
 .err{color:var(--danger);font-size:.9rem;margin:0}
+.note{color:var(--muted);font-size:.85rem;margin:0}
+.note b{color:var(--fg)}
 </style>
 </head>
 <body>
+{% if setup %}
+<form method="post" action="{{ url_for('diary.first_password') }}" autocomplete="on">
+  <h1>Shooting <span>diary</span></h1>
+  <p class="note">Welcome, <b>{{ username }}</b>. Choose your password (at least {{ min_len }} characters) – you'll use it from now on.</p>
+  {% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}
+  <input type="text" name="username" value="{{ username }}" autocomplete="username" hidden>
+  <label>New password<input type="password" name="password" autocomplete="new-password" minlength="{{ min_len }}" required autofocus></label>
+  <label>New password again<input type="password" name="password2" autocomplete="new-password" minlength="{{ min_len }}" required></label>
+  <button type="submit">Save and log in</button>
+</form>
+{% else %}
 <form method="post" autocomplete="on">
   <h1>Shooting <span>diary</span></h1>
   {% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}
   <label>Username<input type="text" name="username" value="{{ username or '' }}" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required {% if not username %}autofocus{% endif %} {% if disabled %}disabled{% endif %}></label>
-  <label>Password<input type="password" name="password" autocomplete="current-password" required {% if username %}autofocus{% endif %} {% if disabled %}disabled{% endif %}></label>
+  <label>Password<input type="password" name="password" autocomplete="current-password" {% if username %}autofocus{% endif %} {% if disabled %}disabled{% endif %}></label>
   <button type="submit" {% if disabled %}disabled{% endif %}>Log in</button>
+  <p class="note">New account? Leave the password empty the first time and choose one.</p>
 </form>
+{% endif %}
 </body>
 </html>

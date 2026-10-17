@@ -5,7 +5,8 @@ open that user's data — isolation doesn't depend on every query remembering a 
   DATA_DIR/diary.db          the first (admin) account's data — the single-user database from before
   DATA_DIR/users/<name>.db   every other account
 
-Accounts are created on the server: python -m diary user-add NAME. Users change their own password in the app.
+Accounts are created on the server: python -m diary user-add NAME. A new account has no password: the person
+logs in with an empty password once (within SETUP_DAYS) and must choose their own before anything else.
 """
 import os
 import re
@@ -16,6 +17,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,31}$")
 MIN_PASSWORD = 10
+SETUP_DAYS = 7          # how long a new account can be claimed with an empty password
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,6 +45,8 @@ def uconnect():
     conn = sqlite3.connect(users_db_path())
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    if "setup_until" not in {r[1] for r in conn.execute("PRAGMA table_info(users)")}:
+        conn.execute("ALTER TABLE users ADD COLUMN setup_until TEXT")   # empty-password first login allowed until
     return conn
 
 
@@ -88,11 +92,17 @@ def check_password(pw):
     return pw
 
 
-def create(username, password, admin=False, db_file=None):
-    """New account with an empty database (schema created). db_file defaults to users/<name>.db."""
+def _setup_deadline(days):
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + days * 86400))
+
+
+def create(username, password=None, admin=False, db_file=None, setup_days=SETUP_DAYS):
+    """New account with an empty database (schema created). db_file defaults to users/<name>.db.
+    password=None: no password yet – first login with an empty password, then they choose one."""
     from . import init_db
     name = check_name(username)
-    check_password(password)
+    if password is not None:
+        check_password(password)
     migrate_single_user()                 # an old single-password diary.db becomes its own account first
     if by_name(name):
         raise ValueError(f"User {name} already exists.")
@@ -100,8 +110,9 @@ def create(username, password, admin=False, db_file=None):
     db_file = db_file or ("diary.db" if not all_users() else os.path.join("users", name + ".db"))
     os.makedirs(os.path.dirname(os.path.join(_data_dir(), db_file)) or _data_dir(), exist_ok=True)
     with uconnect() as c:
-        c.execute("INSERT INTO users(username,pw_hash,is_admin,db_file,created) VALUES(?,?,?,?,?)",
-                  (name, generate_password_hash(password), 1 if admin else 0, db_file, _now()))
+        c.execute("INSERT INTO users(username,pw_hash,is_admin,db_file,created,setup_until) VALUES(?,?,?,?,?,?)",
+                  (name, generate_password_hash(password) if password is not None else None, 1 if admin else 0,
+                   db_file, _now(), None if password is not None else _setup_deadline(setup_days)))
     init_db(os.path.join(_data_dir(), db_file))
     return by_name(name)
 
@@ -109,10 +120,25 @@ def create(username, password, admin=False, db_file=None):
 def set_password(username, password):
     check_password(password)
     with uconnect() as c:
-        n = c.execute("UPDATE users SET pw_hash=? WHERE username=?",
+        n = c.execute("UPDATE users SET pw_hash=?, setup_until=NULL WHERE username=?",
                       (generate_password_hash(password), str(username).lower())).rowcount
     if not n:
         raise ValueError(f"No user {username}.")
+
+
+def clear_password(username, setup_days=SETUP_DAYS):
+    """Back to 'no password': logged out everywhere; next login with an empty password picks a new one."""
+    with uconnect() as c:
+        n = c.execute("UPDATE users SET pw_hash=NULL, setup_until=? WHERE username=?",
+                      (_setup_deadline(setup_days), str(username).lower())).rowcount
+    if not n:
+        raise ValueError(f"No user {username}.")
+
+
+def needs_setup(user):
+    """Account without a password whose first-login window is still open."""
+    return bool(user and not user["pw_hash"] and not user["disabled"] and user.get("setup_until")
+                and user["setup_until"] >= _now())
 
 
 def set_disabled(username, disabled):
@@ -131,6 +157,12 @@ def rename(old, new):
         n = c.execute("UPDATE users SET username=? WHERE username=?", (new, str(old).lower())).rowcount
     if not n:
         raise ValueError(f"No user {old}.")
+
+
+def verify_setup(username, password):
+    """First login of a new account: empty password while the setup window is open → the user row."""
+    u = by_name(username)
+    return u if (password or "") == "" and needs_setup(u) else None
 
 
 def verify(username, password):
@@ -175,7 +207,7 @@ def migrate_single_user(name=None):
     return by_name(name)
 
 
-def ensure(username, password, admin=False, db_file=None):
+def ensure(username, password, admin=False, db_file=None):  # noqa: E302
     """Create the account, or reset its password if it exists (setup scripts and tests)."""
     if by_name(username):
         set_password(username, password)
