@@ -372,7 +372,9 @@ header.top{padding-top:6px!important}
     <div class="grid3"><label class="f">Unit<select id="sUnit"><option>MRAD</option><option>MOA</option></select></label>
       <label class="f">Click<input type="text" id="sClick" inputmode="decimal"></label>
       <label class="f">Zero stop (dial)<input type="text" id="sStop" inputmode="decimal" placeholder="e.g. −0.5"></label></div>
-    <p class="hint" style="margin:0">The zero stop is where the elevation turret bottoms out, in the same dial frame as the positions (below the reference = negative).</p>
+    <p class="hint" style="margin:0">The zero stop is where the elevation turret bottoms out, as a dial reading (below 0 = negative).</p>
+    <label class="f" id="sRefRow">0 / 0 reference<select id="sRef"></select></label>
+    <p class="hint" style="margin:0" id="sRefHint">Turret zero: every value is simply what the turrets read, and 0 / 0 doesn't have to match any rifle. Picking a position relabels everything so that position reads 0 / 0 (swaps stay the same).</p>
     <div class="msg" id="sMsg" hidden></div>
     <div class="actions"><button class="primary" type="submit">Save</button></div>
     <div class="row2" id="sDelRow"><button class="ghost" type="button" id="sArch">Archive scope</button><button class="danger" type="button" id="sDel">Delete scope</button></div>
@@ -506,7 +508,8 @@ function otherScopeOn(z){
   return""}
 function renderList(){
   const s=scope(),zs=zeros(true);
-  $("posInfo").textContent=`${s.unit} · click ${+s.click}`+(s.zero_stop!=null?` · zero stop ${elevDial(s.zero_stop)}`:"");
+  const rz=zOf(s.ref_zero_id);
+  $("posInfo").textContent=`${s.unit} · click ${+s.click} · 0 / 0 = ${rz?rz.name:"turret zero"}`+(s.zero_stop!=null?` · zero stop ${elevDial(s.zero_stop)}`:"");
   $("zList").innerHTML=zs.length?zs.map(z=>{
     const ref=z.id===s.ref_zero_id,on=z.id===s.mounted_zero_id;
     const low=s.zero_stop!=null&&z.elev<s.zero_stop-click()/2;
@@ -572,7 +575,7 @@ function logLine(e){
   const what={adjust:`adjusted <b>${elevMove(d)}</b> / <b>${windDial(w)}</b> → ${elevDial(e.elev)} / ${windDial(e.wind)}`,
     set:`set to <b>${elevDial(e.elev)}</b> / <b>${windDial(e.wind)}</b>`+(e.prev_elev!=null?` <span>(was ${elevDial(e.prev_elev)} / ${windDial(e.prev_wind)})</span>`:""),
     check:e.ok===0?"check shot off":"check shot on zero ✓",swap:"scope mounted",unmount:"scope taken off",
-    reference:`made the 0 / 0 reference – every position shifted ${elevMove(-d)} / ${windDial(-w)}`,
+    reference:e.zero_id?`made the 0 / 0 reference – every position shifted ${elevMove(-d)} / ${windDial(-w)}`:"turret zero is the 0 / 0 reference (values are dial readings)",
     new:`added at ${elevDial(e.elev)} / ${windDial(e.wind)}`,import:`imported at ${elevDial(e.elev)} / ${windDial(e.wind)}`}[k]||esc(k);
   return`<div><time>${fiDate(e.date)}</time><span class="what">${e.position?`<b>${esc(e.position)}</b>: `:""}${what}${e.note?` <span>– ${esc(e.note)}</span>`:""}</span></div>`;
 }
@@ -703,6 +706,9 @@ function openScope(s){
   $("sTitle").textContent=s?"Scope settings":"New scope";
   $("sName").value=s?s.name:"";$("sUnit").value=s?s.unit:"MRAD";$("sClick").value=s?+s.click:"0.1";
   $("sStop").value=s&&s.zero_stop!=null?elevDial(s.zero_stop).replace(MINUS,"-"):"";
+  $("sRefRow").hidden=$("sRefHint").hidden=!s||!(s.zeros||[]).length;
+  if(s)$("sRef").innerHTML=`<option value="">Turret zero (dial readings)</option>`+(s.zeros||[]).filter(z=>!z.archived)
+    .map(z=>`<option value="${esc(z.id)}" ${z.id===s.ref_zero_id?"selected":""}>${esc(z.name)} (${elevDial(z.elev)} / ${windShort(z.wind)})</option>`).join("");
   $("sDelRow").hidden=!s;$("sMsg").hidden=true;$("sArch").textContent=s&&s.archived?"Restore scope":"Archive scope";openSheet("sSheet");
 }
 $("scopeBtn").addEventListener("click",()=>openScope(scope()));
@@ -713,7 +719,10 @@ $("sForm").addEventListener("submit",async e=>{e.preventDefault();
   const id=s?s.id:"s-"+$("sName").value.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40)+"-"+Math.random().toString(36).slice(2,6);
   const body={name:$("sName").value,unit:$("sUnit").value,click:num($("sClick").value),zero_stop:num($("sStop").value),
     notes:s?s.notes:"",status:s?s.status:"",ord:s?s.ord:S.scopes.length,archived:s?!!s.archived:false};
-  try{await api("PUT","zero/scopes/"+encodeURIComponent(id),body)}catch(err){$("sMsg").textContent=errText(err);$("sMsg").hidden=false;return}
+  try{await api("PUT","zero/scopes/"+encodeURIComponent(id),body);
+    if(s&&!$("sRefRow").hidden&&($("sRef").value||null)!==(s.ref_zero_id||null))
+      await api("POST",`zero/scopes/${encodeURIComponent(id)}/reference`,{zero_id:$("sRef").value||null,date:today()});
+  }catch(err){$("sMsg").textContent=errText(err);$("sMsg").hidden=false;return}
   S.sid=id;closeSheets();toast("Saved");await loadAll();
 });
 $("sArch").addEventListener("click",async()=>{
@@ -758,7 +767,7 @@ $("pdfBtn").addEventListener("click",async()=>{
     doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(90);
     doc.text(P("Printed "+fiDate(today())+(s.updated?" · last change "+fiDate(s.updated):"")),W-M,M+6,{align:"right"});doc.setTextColor(0);
     const facts=[`All values in ${s.unit}, click ${+s.click} ${s.unit}.`,
-      ref?`Reference: ${ref.name} = 0 / 0.`:"",
+      ref?`Reference: ${ref.name} = 0 / 0.`:"Values are turret readings (0 / 0 = turret zero).",
       s.zero_stop!=null?(ref?`Zero stop ${fx(ref.elev-s.zero_stop)} ${s.unit} ${ref.elev>=s.zero_stop?"below":"above"} the ${ref.name} zero (dial ${elevDial(s.zero_stop)}).`:`Zero stop at ${elevDial(s.zero_stop)}.`):"",
       on?`Scope currently on: ${on.name}.`:""].filter(Boolean).join("  ");
     doc.setFontSize(9.5);const fl=doc.splitTextToSize(P(facts),W-2*M);doc.text(fl,M,M+26);
@@ -810,7 +819,7 @@ $("pdfBtn").addEventListener("click",async()=>{
     if(log.length){
       const what=e=>({adjust:`adjusted ${elevMove(e.d_elev||0)} / ${windDial(e.d_wind||0)} -> ${elevDial(e.elev)} / ${windDial(e.wind)}`,
         set:`set to ${elevDial(e.elev)} / ${windDial(e.wind)}`,check:e.ok===0?"check shot off":"check shot on zero",swap:"scope mounted",unmount:"scope taken off",
-        reference:`made the 0 / 0 reference (positions shifted ${elevMove(-(e.d_elev||0))} / ${windDial(-(e.d_wind||0))})`,
+        reference:e.zero_id?`made the 0 / 0 reference (positions shifted ${elevMove(-(e.d_elev||0))} / ${windDial(-(e.d_wind||0))})`:"turret zero is the 0 / 0 reference",
         new:`added at ${elevDial(e.elev)} / ${windDial(e.wind)}`}[e.kind]||e.kind);
       table(y,"Recent changes",["Date","Position","Change","Note"],log.map(e=>[fiDate(e.date),e.position||"",what(e),e.note||""]),{0:{cellWidth:56}});
     }

@@ -202,7 +202,7 @@ def test_new_scope_and_position(client):
     assert client.put("/diary/api/zero/zeros/z-a", json={"scope_id": "s-new", "rifle": "Rimfire", "gun_id": "g-rim",
                                                          "elev": 0.6, "wind": -0.3}).status_code == 200
     s = _scope(client)
-    assert s["click"] == 0.25 and s["ref_zero_id"] == "z-a" and s["log"][0]["kind"] == "new"
+    assert s["click"] == 0.25 and s["ref_zero_id"] is None and s["log"][0]["kind"] == "new"
     assert (s["zeros"][0]["elev"], s["zeros"][0]["wind"]) == (0.5, -0.25)      # snapped to the 0.25 MOA click
 
 
@@ -259,3 +259,23 @@ def test_second_scope_takes_the_rifle(client):
     assert len(scopes[a["id"]]["zeros"]) == 3 and len(scopes["s-b"]["zeros"]) == 2
     h = client.get("/diary/api/home").get_json()["zeroes"]
     assert {(z["name"], z["on"]) for z in h} == {("Test Scope", None), ("Second", "AB-10")}
+
+
+def test_turret_zero_reference(client):
+    """0 / 0 can be the turret's own zero (a virtual point): choosing it shifts nothing, and a reference
+    position that gets re-zeroed off 0 / 0 hands the reference back to the turret zero."""
+    _import()
+    s = _scope(client)
+    rim = s["zeros"][0]
+    assert s["ref_zero_id"] == rim["id"]
+    before = [(z["elev"], z["wind"]) for z in s["zeros"]]
+    assert client.post(f"/diary/api/zero/scopes/{s['id']}/reference", json={"zero_id": None}).status_code == 200
+    s = _scope(client)
+    assert s["ref_zero_id"] is None and [(z["elev"], z["wind"]) for z in s["zeros"]] == before
+    assert s["log"][0]["kind"] == "reference" and s["log"][0]["zero_id"] is None and s["zero_stop"] == -0.3
+    # Back to a position, then adjust it: the reference returns to the turret zero, values are dial readings
+    client.post(f"/diary/api/zero/scopes/{s['id']}/reference", json={"zero_id": rim["id"]})
+    client.post(f"/diary/api/zero/zeros/{rim['id']}/adjust", json={"d_elev": 0.2, "d_wind": 0})
+    s = _scope(client)
+    assert s["ref_zero_id"] is None and next(z for z in s["zeros"] if z["id"] == rim["id"])["elev"] == 0.2
+    assert "moved off 0 / 0" in s["log"][0]["note"]

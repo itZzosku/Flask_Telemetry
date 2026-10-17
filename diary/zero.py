@@ -181,9 +181,26 @@ def save_zero(conn, zid, b):
         conn.execute("INSERT INTO scope_zeros(id,scope_id," + ",".join(vals) + ",elev,wind,ord,updated) VALUES("
                      + ",".join("?" * (len(vals) + 6)) + ")", (zid, scope_id, *vals.values(), elev, wind, ordv, date))
         _log(conn, scope_id, zid, "new", date, elev=elev, wind=wind, note=note)
-        if not s["ref_zero_id"]:
-            conn.execute("UPDATE scopes SET ref_zero_id=? WHERE id=?", (zid, scope_id))
+    _drop_moved_reference(conn, scope_id, date)
     return zid
+
+
+def _drop_moved_reference(conn, scope_id, date):
+    """A reference position that no longer reads 0 / 0 isn't one: the turret's own zero becomes the
+    reference (a virtual point no rifle has to match). Values stay as they are – they are dial readings."""
+    s = conn.execute("SELECT s.ref_zero_id, s.click, z.elev, z.wind, z.rifle, z.label FROM scopes s "
+                     "JOIN scope_zeros z ON z.id=s.ref_zero_id WHERE s.id=?", (scope_id,)).fetchone()
+    if s and not (zn.is_zero(s["elev"], s["click"]) and zn.is_zero(s["wind"], s["click"])):
+        set_turret_reference(conn, scope_id, date, note=f"{zn.position_name(dict(s))} moved off 0 / 0")
+
+
+def set_turret_reference(conn, scope_id, date=None, note=None):
+    """0 / 0 = the turret's own zero, not any rifle. Nothing shifts."""
+    if not conn.execute("SELECT 1 FROM scopes WHERE id=?", (scope_id,)).fetchone():
+        return None
+    conn.execute("UPDATE scopes SET ref_zero_id=NULL WHERE id=?", (scope_id,))
+    _log(conn, scope_id, None, "reference", _date(date), d_elev=0, d_wind=0, note=note)
+    return True
 
 
 def adjust(conn, zid, d_elev, d_wind, date=None, note=None):
@@ -202,6 +219,7 @@ def adjust(conn, zid, d_elev, d_wind, date=None, note=None):
     conn.execute("UPDATE scope_zeros SET elev=?, wind=?, updated=? WHERE id=?", (elev, wind, date, zid))
     _log(conn, z["scope_id"], zid, "adjust", date, elev=elev, wind=wind, d_elev=de, d_wind=dw,
          prev_elev=z["elev"], prev_wind=z["wind"], note=_txt(note, 300))
+    _drop_moved_reference(conn, z["scope_id"], date)
     return {"elev": elev, "wind": wind}
 
 
@@ -463,6 +481,8 @@ def api_mount(sid):
 @login_required
 def api_reference(sid):
     b = _body()
+    if not b.get("zero_id"):                       # turret zero (virtual point) is the reference
+        return _ok(lambda: set_turret_reference(db(), _id(sid), b.get("date")))
     return _ok(lambda: rebase(db(), _id(sid), _id(b.get("zero_id")), b.get("date")))
 
 

@@ -144,8 +144,10 @@ the scope's own frame where the reference position is 0 / 0. Open it from the di
 - **Adjust zero**: tap UP/DOWN and LEFT/RIGHT by clicks for what you corrected at the range; the position
   moves by that much and the change is logged with date and note. *Undo* reverts the newest change of a
   position. Exact values can also be typed under *Details* (logged as “set”).
-- **0 / 0 reference**: *Make this the 0 / 0 reference* relabels every position and the zero stop so the chosen
-  one reads 0 / 0. Swaps don't change — only the turret labels do.
+- **0 / 0 reference**: by default 0 / 0 is the turret's own zero — values are what the dials read, and no
+  rifle has to sit at 0 / 0. *Scope settings → 0 / 0 reference* can instead pick a position: everything is
+  relabelled so it reads 0 / 0 (swaps don't change). If that position is later re-zeroed off 0 / 0, the
+  reference goes back to the turret zero by itself.
 - **Several scopes**: *+ Scope* adds another; each has its own positions, zero stop, reference and history.
   The chips show where each scope is. Mounting a scope on a rifle takes any other scope off that rifle (logged),
   and a position whose rifle carries a different scope says so. Old scopes can be archived.
