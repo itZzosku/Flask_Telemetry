@@ -1,4 +1,4 @@
-"""Scope zeroes: note parsing / rendering, swap arithmetic, the API and backups. Synthetic data only,
+"""Scope zeroes: one-time note import, swap arithmetic, the API and backups. Synthetic data only,
 plus one check that the note committed in notes/ still agrees with itself."""
 import glob
 import os
@@ -87,21 +87,6 @@ def test_formatting_and_swap():
     assert zn.decimals(0.25) == 2 and zn.fmt(1.5, 0.25) == "1.50"
 
 
-def test_render_round_trip():
-    p = zn.parse_note(NOTE)
-    zs = [dict(z, id=f"z{i}") for i, z in enumerate(p["zeros"])]
-    md = zn.render_note(dict(p["scope"], ref_zero_id="z0"), zs)
-    assert "**Reference: Rimfire = 0 / 0** (lowest elevation of the two)" in md
-    assert "Zero stop is set **0.3 MRAD below** the Rimfire zero" in md
-    assert "*Last updated: 2026-10-01 — both rifles zeroed.*" in md
-    again = zn.parse_note(md)
-    assert [(z["rifle"], z["label"], z["elev"], z["wind"], z["is_ref"]) for z in again["zeros"]] == \
-           [(z["rifle"], z["label"], z["elev"], z["wind"], z["is_ref"]) for z in p["zeros"]]
-    assert again["scope"]["zero_stop"] == -0.3 and again["scope"]["notes"] == p["scope"]["notes"]
-    chk = zn.check_swaps(again["zeros"], again["swaps"])
-    assert chk["bad"] == [] and chk["ok"] == 6          # 2 rifle swaps × 2 directions + 1 load change × 2
-
-
 def test_repo_notes_are_consistent():
     """Every zeroing note in notes/ parses and its swap tables match its dial positions."""
     root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "notes")
@@ -138,17 +123,26 @@ def client():
 H = {"X-Requested-With": "fetch"}
 
 
+def _import(replace=False):
+    conn = diary.connect()
+    try:
+        return zero.import_note(conn, NOTE, replace)
+    finally:
+        conn.commit()
+        conn.close()
+
+
 def _scope(c):
     return c.get("/diary/api/zero").get_json()[0]
 
 
 def test_api_import_adjust_undo_mount_check(client):
     assert client.get("/diary/zero").status_code == 200
-    r = client.post("/diary/api/zero/preview-note", json={"text": NOTE}).get_json()
-    assert r["check"]["ok"] == 3 and not r["exists"]
-    r = client.post("/diary/api/zero/import", json={"text": NOTE}).get_json()["result"]
-    assert r["zeros"] == 3 and r["links"]["AB-10 — 150 gr FMJ"]["gun_id"] == "g-ab10"
-    assert client.post("/diary/api/zero/import", json={"text": NOTE}).status_code == 400      # exists
+    r = _import()
+    assert r["zeros"] == 3 and r["check"]["ok"] == 3 and r["links"]["AB-10 — 150 gr FMJ"]["gun_id"] == "g-ab10"
+    with pytest.raises(ValueError, match="exists"):
+        _import()
+    assert _import(replace=True)["created"] is False
     s = _scope(client)
     ab = next(z for z in s["zeros"] if z["label"] == "150 gr FMJ")
     assert s["ref_zero_id"] == s["zeros"][0]["id"] and s["zero_stop"] == -0.3
@@ -160,8 +154,7 @@ def test_api_import_adjust_undo_mount_check(client):
     s = _scope(client)
     ab = next(z for z in s["zeros"] if z["id"] == ab["id"])
     assert s["updated"] == "2026-10-20" and ab["undo_id"]
-    md = client.get(f"/diary/api/zero/scopes/{s['id']}/note.md").get_data(as_text=True)
-    assert "| AB-10 — 150 gr FMJ | **+2.5** | **1.0 LEFT** |" in md and "adjusted UP 0.2 / 0.1 RIGHT" in md
+    assert s["log"][0]["kind"] == "adjust" and (s["log"][0]["d_elev"], s["log"][0]["d_wind"]) == (0.2, 0.1)
 
     # Undo restores the old position
     assert client.post(f"/diary/api/zero/log/{ab['undo_id']}/undo", json={}).status_code == 200
@@ -176,7 +169,7 @@ def test_api_import_adjust_undo_mount_check(client):
 
 
 def test_api_set_rebase_and_delete(client):
-    client.post("/diary/api/zero/import", json={"text": NOTE})
+    _import()
     s = _scope(client)
     rim, ab, smk = s["zeros"]
     # Editing the dial value logs a 'set'
@@ -213,7 +206,7 @@ def test_new_scope_and_position(client):
 
 
 def test_backup_round_trip(client):
-    client.post("/diary/api/zero/import", json={"text": NOTE})
+    _import()
     conn = diary.connect()
     data = zero.export_rows(conn)
     assert len(data["scopes"]) == 1 and len(data["scope_zeros"]) == 3 and len(data["scope_log"]) == 3

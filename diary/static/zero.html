@@ -253,9 +253,9 @@ a.ghost{text-decoration:none;display:inline-block}
   <div class="banner" id="offNote" hidden></div>
   <div class="chips" id="scopeChips" hidden></div>
   <div id="empty" class="empty" hidden>
-    <p style="margin:0 0 12px">No scopes yet. Import your zeroing note (the .md) or start a new scope.</p>
-    <div class="row2" style="justify-content:center"><button class="ghost" type="button" data-import>Import note (.md)</button>
-      <button class="ghost" type="button" id="newScopeBtn">New scope</button></div>
+    <p style="margin:0 0 12px">No scopes yet. Start one here, or bring an old Markdown zeroing note in on the server:<br>
+      <code>python -m diary zero-import notes/javelin-zeroing-note.md</code></p>
+    <div class="row2" style="justify-content:center"><button class="ghost" type="button" id="newScopeBtn">New scope</button></div>
   </div>
 
   <div id="main" hidden class="sec">
@@ -296,7 +296,7 @@ a.ghost{text-decoration:none;display:inline-block}
       <div class="md card" id="notesView"></div>
       <form id="notesForm" class="sec" hidden>
         <label class="f">Notes (Markdown: ## headings, - bullets, - [ ] to-dos)<textarea id="notesTxt"></textarea></label>
-        <label class="f">Status line (after “Last updated” in the note)<input type="text" id="statusTxt" maxlength="200"></label>
+        <label class="f">Status line (printed in the PDF footer)<input type="text" id="statusTxt" maxlength="200"></label>
         <div class="actions"><button class="primary" type="submit">Save notes</button><button class="ghost" type="button" id="notesCancel">Cancel</button></div>
       </form>
     </section>
@@ -308,8 +308,7 @@ a.ghost{text-decoration:none;display:inline-block}
     </section>
 
     <section class="row2">
-      <a class="ghost" id="dlNote" href="#" download>Download note (.md)</a>
-      <button class="ghost" type="button" data-import>Import note</button>
+      <button class="ghost" type="button" id="pdfBtn">Zeroing card (PDF)</button>
       <button class="ghost" type="button" id="scopeBtn">Scope settings</button>
     </section>
   </div>
@@ -372,19 +371,6 @@ a.ghost{text-decoration:none;display:inline-block}
     <div class="actions"><button class="primary" type="submit">Save</button></div>
     <div class="row2" id="sDelRow"><button class="danger" type="button" id="sDel">Delete scope</button></div>
   </form>
-</div>
-
-<!-- Import -->
-<div class="sheet" id="iSheet" hidden role="dialog" aria-modal="true" aria-labelledby="iTitle">
-  <div class="sheet-in">
-    <div class="sheet-bar"><h2 id="iTitle">Import zeroing note</h2><button class="ghost" type="button" data-close>Close</button></div>
-    <p class="hint" style="margin:0">A note in the layout of <b>notes/javelin-zeroing-note.md</b>: title, the rifle table, the dial-position table and the notes. Swap tables are worked out from the dial positions and only checked.</p>
-    <div class="row2"><button class="ghost" type="button" id="iPick">Choose .md file</button><input type="file" id="iFile" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden></div>
-    <label class="f">…or paste it<textarea id="iText" style="min-height:160px"></textarea></label>
-    <div class="actions"><button class="ghost" type="button" id="iPrev">Preview</button></div>
-    <div id="iOut" class="sec" hidden></div>
-    <div class="msg" id="iMsg" hidden></div>
-  </div>
 </div>
 
 <script>
@@ -455,7 +441,6 @@ function render(){
     +`<button type="button" class="chip add" data-new>+ Scope</button>`;
   if(!s)return;
   lsSet(s.id);
-  $("dlNote").href="api/zero/scopes/"+encodeURIComponent(s.id)+"/note.md";
   renderSwap();renderList();renderAll();renderNotes();renderLog();
 }
 $("scopeChips").addEventListener("click",e=>{const b=e.target.closest("[data-sid]");if(b){S.sid=b.dataset.sid;S.to="";S.justMounted=null;render()}
@@ -586,7 +571,7 @@ function renderLog(){
 $("logMore").addEventListener("click",()=>{S.logAll=true;renderLog()});
 
 /* ---------- sheets ---------- */
-const SHEETS=["zSheet","sSheet","iSheet"];
+const SHEETS=["zSheet","sSheet"];
 function openSheet(id){SHEETS.forEach(s=>$(s).hidden=s!==id);document.body.style.overflow="hidden";$(id).scrollTop=0}
 function closeSheets(){SHEETS.forEach(s=>$(s).hidden=true);document.body.style.overflow="";S.zid=null}
 document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",closeSheets));
@@ -715,32 +700,101 @@ $("sDel").addEventListener("click",()=>confirmTap($("sDel"),"Tap again – delet
   S.sid="";closeSheets();toast("Scope deleted");await loadAll();
 }));
 
-/* ---------- import ---------- */
-document.querySelectorAll("[data-import]").forEach(b=>b.addEventListener("click",()=>{$("iText").value="";$("iOut").hidden=true;$("iMsg").hidden=true;openSheet("iSheet")}));
-$("iPick").addEventListener("click",()=>$("iFile").click());
-$("iFile").addEventListener("change",async e=>{const f=e.target.files[0];if(!f)return;$("iText").value=await f.text();e.target.value="";preview()});
-$("iPrev").addEventListener("click",preview);
-async function preview(){
-  $("iMsg").hidden=true;$("iOut").hidden=true;
-  let p;try{p=await api("POST","zero/preview-note",{text:$("iText").value})}catch(e){$("iMsg").textContent=errText(e);$("iMsg").hidden=false;return}
-  const c=p.scope.click||0.1;
-  const f=v=>Math.abs(v).toFixed(String(c).includes(".")?String(c).split(".")[1].length:0);
-  const ed=v=>Math.abs(v)<c/2?"0":(v>0?"+":MINUS)+f(v),wd=v=>Math.abs(v)<c/2?"0":f(v)+(v>0?" R":" L");
-  $("iOut").innerHTML=`<div class="namebox"><small>${esc(p.scope.unit)} · click ${c}${p.scope.zero_stop!=null?" · zero stop "+ed(p.scope.zero_stop):""}${p.scope.updated?" · updated "+fiDate(p.scope.updated):""}</small><b>${esc(p.scope.name||"(no name)")}</b></div>
-    <table class="tbl"><tbody>${p.zeros.map(z=>`<tr><td>${esc(z.rifle)}${z.label?" — "+esc(z.label):""}${z.is_ref?' <span class="badge ref">ref</span>':""}</td><td>${ed(z.elev)}</td><td>${wd(z.wind)}</td></tr>`).join("")}</tbody></table>
-    <p class="hint" style="margin:0">${p.check.ok+p.check.bad.length?`Swap tables in the note: <b>${p.check.ok}</b> of <b>${p.check.ok+p.check.bad.length}</b> agree with the dial positions.`:"No swap tables to check."}</p>
-    ${p.check.bad.length?`<div class="warns">${p.check.bad.map(b=>`<div class="msg">${esc(b)}</div>`).join("")}</div>`:""}
-    ${p.exists?`<label class="check"><input type="checkbox" id="iRep"> Replace the existing ${esc(p.scope.name)} (its positions and history)</label>`:""}
-    <div class="actions"><button class="primary" type="button" id="iGo">${p.exists?"Replace":"Import"}</button></div>`;
-  $("iOut").hidden=false;
-  $("iGo").addEventListener("click",async()=>{
-    if(p.exists&&!$("iRep").checked){$("iMsg").textContent="Tick “Replace” to overwrite the existing scope.";$("iMsg").hidden=false;return}
-    let r;try{r=await api("POST","zero/import",{text:$("iText").value,replace:!!p.exists})}catch(e){$("iMsg").textContent=errText(e);$("iMsg").hidden=false;return}
-    S.sid=r.result.scope_id;closeSheets();
-    const unl=Object.values(r.result.links).filter(l=>!l.gun_id).length;
-    toast(`Imported ${r.result.zeros} positions`+(unl?` – pick the diary gun for ${unl}`:""));await loadAll();
-  });
+/* ---------- PDF zeroing card ---------- */
+function loadScript(src){return new Promise((ok,no)=>{if(document.querySelector('script[src="'+src+'"]'))return ok();const s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=()=>no(new Error("load"));document.head.appendChild(s)})}
+function saveFile(name,data,type){
+  const url=URL.createObjectURL(new Blob([data],{type}));
+  const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},1000);
 }
+// The built-in PDF font has no "−", "→" or ✓: keep the PDF text to plain characters.
+const P=t=>String(t??"").replace(/−/g,"-").replace(/→/g,"->").replace(/[✓✔]/g,"ok").replace(/[‘’]/g,"'").replace(/[“”]/g,'"');
+$("pdfBtn").addEventListener("click",async()=>{
+  const s=scope();if(!s)return;
+  const btn=$("pdfBtn"),label=btn.textContent;btn.disabled=true;btn.textContent="Creating PDF…";
+  try{
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js");
+    const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"pt",format:"a4"});
+    const W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight(),M=36;
+    const zs=zeros(),ref=zOf(s.ref_zero_id),on=zOf(s.mounted_zero_id);
+    const style={font:"helvetica",fontSize:8.5,cellPadding:3,lineColor:[180,180,180],lineWidth:.4,textColor:20,overflow:"linebreak"};
+    const head={fillColor:[225,228,222],textColor:20,fontStyle:"bold"};
+    const table=(y,title,cols,body,colStyles)=>{
+      if(y>H-110){doc.addPage();y=M}
+      doc.setFont("helvetica","bold");doc.setFontSize(10.5);doc.text(P(title),M,y);
+      doc.autoTable({startY:y+6,margin:{left:M,right:M,bottom:44},theme:"grid",rowPageBreak:"avoid",head:[cols],body:body.map(r=>r.map(P)),
+        styles:style,headStyles:head,columnStyles:colStyles||{}});
+      return doc.lastAutoTable.finalY+22;
+    };
+    // Title
+    doc.setFont("helvetica","bold");doc.setFontSize(16);doc.text(P(s.name+" - zeroing card"),M,M+6);
+    doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(90);
+    doc.text(P("Printed "+fiDate(today())+(s.updated?" · last change "+fiDate(s.updated):"")),W-M,M+6,{align:"right"});doc.setTextColor(0);
+    const facts=[`All values in ${s.unit}, click ${+s.click} ${s.unit}.`,
+      ref?`Reference: ${ref.name} = 0 / 0.`:"",
+      s.zero_stop!=null?(ref?`Zero stop ${fx(ref.elev-s.zero_stop)} ${s.unit} ${ref.elev>=s.zero_stop?"below":"above"} the ${ref.name} zero (dial ${elevDial(s.zero_stop)}).`:`Zero stop at ${elevDial(s.zero_stop)}.`):"",
+      on?`Scope currently on: ${on.name}.`:""].filter(Boolean).join("  ");
+    doc.setFontSize(9.5);const fl=doc.splitTextToSize(P(facts),W-2*M);doc.text(fl,M,M+26);
+    let y=M+26+fl.length*12+16;
+
+    // Dial positions: the part you need at the range, first
+    const stop=s.zero_stop!=null;
+    y=table(y,"Dial positions",["Rifle / load","Elevation","Windage"].concat(stop?["Above stop"]:[],["Zero","Last check"]),
+      zs.map(z=>[z.name+(z.id===s.ref_zero_id?"  (reference)":""),elevDial(z.elev),windDial(z.wind)]
+        .concat(stop?[fx(z.elev-s.zero_stop)]:[],[[z.distance_m?z.distance_m+" m":"",z.cal].filter(Boolean).join(" · "),
+        z.checks&&z.checks.n?fiDate(z.checks.last)+(z.checks.n>1?` (${z.checks.n}x)`:""):""])),
+      {1:{halign:"right",fontStyle:"bold",cellWidth:56},2:{halign:"right",fontStyle:"bold",cellWidth:68},...(stop?{3:{halign:"right",cellWidth:54}}:{})});
+
+    // Every swap, both directions, grouped by where the scope comes from
+    const rows=[];
+    zs.forEach(a=>zs.forEach(b=>{if(a===b)return;const de=rnd(b.elev-a.elev),dw=rnd(b.wind-a.wind);
+      rows.push([a.name,b.name+(a.rifle===b.rifle?"  (load change)":""),elevMove(de),windDial(dw),nClicks(de)+" / "+nClicks(dw)])}));
+    if(rows.length)y=table(y,"Swaps",["From","To","Elevation","Windage","Clicks E / W"],rows,
+      {2:{halign:"right",fontStyle:"bold",cellWidth:62},3:{halign:"right",fontStyle:"bold",cellWidth:68},4:{halign:"right",cellWidth:58}});
+
+    // Rifles / mounts
+    const seen=new Set(),rif=zs.filter(z=>!seen.has(z.rifle)&&seen.add(z.rifle));
+    if(rif.some(z=>z.cal||z.distance_m||z.mount||z.gun_id))
+      y=table(y,"Rifles",["Rifle","Diary gun","Calibre","Zero distance","Rail / mount"],
+        rif.map(z=>[z.rifle,gunName(z.gun_id),z.cal||"",z.distance_m?z.distance_m+" m":"",z.mount||""]));
+
+    // Notes (Markdown subset → plain lines)
+    const notes=String(s.notes||"").split(/\r?\n/);
+    if(notes.some(l=>l.trim())){
+      if(y>H-120){doc.addPage();y=M}
+      doc.setFont("helvetica","bold");doc.setFontSize(10.5);doc.text("Notes",M,y);y+=16;
+      notes.forEach((ln,i)=>{
+        let m,txt=ln.replace(/\*\*(.+?)\*\*/g,"$1").replace(/`(.+?)`/g,"$1"),ind=0,bold=false;
+        if(i===0&&/^#{1,6}\s+Notes\s*$/i.test(ln))return;
+        if(!ln.trim()){y+=4;return}
+        if(/^\s*-{3,}\s*$/.test(ln))return;
+        if(m=txt.match(/^#{1,6}\s+(.*)/)){txt=m[1];bold=true;y+=4}
+        else if(m=txt.match(/^\s*[-*]\s+\[( |x|X)\]\s+(.*)/)){txt=(m[1]===" "?"[  ] ":"[x] ")+m[2];ind=10}
+        else if(m=txt.match(/^\s*[-*]\s+(.*)/)){txt="•  "+m[1];ind=10}
+        doc.setFont("helvetica",bold?"bold":"normal");doc.setFontSize(bold?9.5:9);
+        const lines=doc.splitTextToSize(P(txt),W-2*M-ind-12);
+        lines.forEach((l,k)=>{if(y>H-50){doc.addPage();y=M}doc.text(l,M+ind+(k&&ind?10:0),y);y+=11.5});
+      });
+      y+=12;
+    }
+
+    // Recent changes
+    const log=(s.log||[]).filter(e=>e.kind!=="import").slice(0,25);
+    if(log.length){
+      const what=e=>({adjust:`adjusted ${elevMove(e.d_elev||0)} / ${windDial(e.d_wind||0)} -> ${elevDial(e.elev)} / ${windDial(e.wind)}`,
+        set:`set to ${elevDial(e.elev)} / ${windDial(e.wind)}`,check:e.ok===0?"check shot off":"check shot on zero",swap:"scope mounted",
+        reference:`made the 0 / 0 reference (positions shifted ${elevMove(-(e.d_elev||0))} / ${windDial(-(e.d_wind||0))})`,
+        new:`added at ${elevDial(e.elev)} / ${windDial(e.wind)}`}[e.kind]||e.kind);
+      table(y,"Recent changes",["Date","Position","Change","Note"],log.map(e=>[fiDate(e.date),e.position||"",what(e),e.note||""]),{0:{cellWidth:56}});
+    }
+    const pages=doc.internal.getNumberOfPages();
+    for(let i=1;i<=pages;i++){doc.setPage(i);doc.setFont("helvetica","normal");doc.setFontSize(7.5);doc.setTextColor(120);
+      doc.text(P(s.name+" zeroing card"+(s.status?" · "+s.status:"")),M,H-20);doc.text(`Page ${i} / ${pages}`,W-M,H-20,{align:"right"});doc.setTextColor(0)}
+    saveFile(s.name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+"-zeroing-"+today()+".pdf",doc.output("arraybuffer"),"application/pdf");
+  }catch(e){toast(e&&e.message==="load"?"Could not load the PDF library, check the connection":"PDF export failed")}
+  finally{btn.disabled=false;btn.textContent=label}
+});
 
 loadAll();
 if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js",{scope:"./"}).catch(()=>{});

@@ -16,8 +16,7 @@
                                           (files or folders, searched recursively)
   python -m diary chrono-stats [--gun ID] [--load ID]   per-day velocity table
   python -m diary zero-import NOTE.md [--replace] [--dry-run]
-                                          import a scope zeroing note (dial positions, notes)
-  python -m diary zero-note [SCOPE_ID] [-o FILE]   print / write the zeroing note from the database
+                                          one-time import of an old Markdown zeroing note
 """
 import argparse
 import glob
@@ -369,27 +368,6 @@ def zero_import(path, replace, dry_run):
     print(f"{'Created' if res['created'] else 'Replaced'} {sc['name']} with {res['zeros']} positions.")
 
 
-def zero_print_note(scope_id, out):
-    conn = connect()
-    rows = zero.scope_rows(conn)
-    if not rows:
-        sys.exit("No scopes yet. Import one: python -m diary zero-import notes/javelin-zeroing-note.md")
-    if not scope_id:
-        if len(rows) > 1:
-            sys.exit("Several scopes – give one: " + ", ".join(f"{r['id']} ({r['name']})" for r in rows))
-        scope_id = rows[0]["id"]
-    md = zero.note_md(conn, scope_id)
-    conn.close()
-    if md is None:
-        sys.exit(f"No scope {scope_id}")
-    if out:
-        with open(out, "w", encoding="utf-8") as f:
-            f.write(md)
-        print(f"Wrote {out}")
-    else:
-        print(md, end="")
-
-
 def main():
     p = argparse.ArgumentParser(prog="python -m diary")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -427,9 +405,6 @@ def main():
     zi.add_argument("path")
     zi.add_argument("--replace", action="store_true", help="overwrite a scope with the same name")
     zi.add_argument("--dry-run", action="store_true")
-    zo = sub.add_parser("zero-note")
-    zo.add_argument("scope_id", nargs="?")
-    zo.add_argument("-o", "--out")
     a = p.parse_args()
     init_db()
     if a.cmd == "set-password":
@@ -453,8 +428,6 @@ def main():
         chrono_print_stats(a.gun, a.load)
     elif a.cmd == "zero-import":
         zero_import(a.path, a.replace, a.dry_run)
-    elif a.cmd == "zero-note":
-        zero_print_note(a.scope_id, a.out)
     elif a.cmd == "backup":
         json_path = backup(a.directory, max(1, a.keep))
         if a.mail:

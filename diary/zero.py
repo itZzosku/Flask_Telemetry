@@ -5,15 +5,15 @@ Tables in the diary database:
   scope_zeros  dial positions (elev + = up, wind + = right) linked to a diary gun and optionally a load
   scope_log    every change, swap and check shot; prev_* lets the last change of a position be undone
 
-The Markdown note (notes/javelin-zeroing-note.md) imports with `python -m diary zero-import` or the
-page's Import button, and the page downloads it back in the same layout.
+The old Markdown note (notes/javelin-zeroing-note.md) is brought in once with `python -m diary zero-import`;
+after that the database is the only copy. The page prints a PDF zeroing card.
 """
 import os
 import re
 import secrets
 import time
 
-from flask import Response, abort, jsonify, request, send_from_directory
+from flask import abort, jsonify, request, send_from_directory
 
 from . import DATE_RE, HERE, ID_RE, bp, db, login_required
 from . import zero_note as zn
@@ -99,11 +99,6 @@ def full(conn, scope_id):
         z["undo_id"] = last.get(z["id"])
         z["checks"] = checks.get(z["id"], {"n": 0, "last": None, "ok": None})
     return s
-
-
-def note_md(conn, scope_id):
-    s = full(conn, scope_id)
-    return zn.render_note(s, s["zeros"], s["log"]) if s else None
 
 
 # ------------------------------------------------------------------ writes
@@ -455,40 +450,3 @@ def api_reference(sid):
 def api_undo(log_id):
     _body()
     return _ok(lambda: undo(db(), log_id))
-
-
-@bp.post("/api/zero/import")
-@login_required
-def api_import():
-    b = _body()
-    text = str(b.get("text") or "")
-    if not text.strip() or len(text) > 200_000:
-        return jsonify(error="empty"), 400
-    return _ok(lambda: import_note(db(), text, bool(b.get("replace"))))
-
-
-@bp.post("/api/zero/preview-note")
-@login_required
-def api_preview_note():
-    """Parse without saving: what the Import button shows before it writes."""
-    b = _body()
-    try:
-        p = zn.parse_note(str(b.get("text") or ""))
-    except ValueError as e:
-        return jsonify(error=str(e)), 400
-    old = db().execute("SELECT id FROM scopes WHERE lower(name)=lower(?)", (p["scope"]["name"] or "",)).fetchone()
-    return jsonify(scope=p["scope"], zeros=p["zeros"], exists=bool(old),
-                   check=zn.check_swaps(p["zeros"], p["swaps"], p["scope"]["click"]))
-
-
-@bp.get("/api/zero/scopes/<sid>/note.md")
-@login_required
-def api_note(sid):
-    md = note_md(db(), _id(sid))
-    if md is None:
-        abort(404)
-    name = re.sub(r"[^a-z0-9]+", "-", (db().execute("SELECT name FROM scopes WHERE id=?", (sid,)).fetchone()["name"]
-                                        or "scope").lower()).strip("-")
-    return Response(md, mimetype="text/markdown; charset=utf-8",
-                    headers={"Content-Disposition": f'attachment; filename="{name}-zeroing-note.md"'})
-

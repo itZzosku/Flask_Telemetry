@@ -1,17 +1,15 @@
-"""Scope zeroing note: dial positions ↔ Markdown, and the swap arithmetic.
+"""Scope zeroing: the swap arithmetic, and a one-time reader for the old Markdown zeroing note.
 
 Sign convention (stored values, in the scope's unit, MRAD or MOA):
   elev  + = UP,    − = DOWN   (turret reading from the reference frame)
   wind  + = RIGHT, − = LEFT
 
-A swap from position A to position B is simply B − A. The note in notes/ is the human-readable
-form; parse_note() reads it, render_note() writes the same layout back from the database.
+A swap from position A to position B is simply B − A. The database is the source of truth; parse_note()
+only brings an existing note (notes/javelin-zeroing-note.md layout) in once. Printouts are PDFs made on
+the page.
 """
 import re
-from itertools import combinations
 
-NUMBER_WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight",
-                9: "nine", 10: "ten"}
 MINUS = "−"
 
 
@@ -265,129 +263,3 @@ def check_swaps(zeros, swaps, click=0.1):
             bad.append(f"{s['from']} → {s['to']}: note says {elev_move(s['d_elev'], click)} / "
                        f"{wind_move(s['d_wind'], click)}, positions give {calc['elev']} / {calc['wind']}")
     return {"ok": ok, "bad": bad}
-
-
-# ------------------------------------------------------------------ Markdown out
-def render_note(scope, zeros, log=()):
-    """The note in the same layout as notes/javelin-zeroing-note.md."""
-    click = scope.get("click") or 0.1
-    unit = scope.get("unit") or "MRAD"
-    zs = [z for z in zeros if not z.get("archived")]
-    ref = next((z for z in zs if z["id"] == scope.get("ref_zero_id")), None)
-    rifles = []
-    for z in zs:
-        if z["rifle"] not in [r["rifle"] for r in rifles]:
-            rifles.append(z)
-    n = len(rifles)
-    words = NUMBER_WORDS.get(n, str(n))
-    out = [f"# {scope['name']} — Scope Zeroing Note", ""]
-    shared = f"shared between {words} rifles" if n > 1 else "on one rifle"
-    out += [f"Scope: **{scope['name']}**, {shared}. All values in **{unit}**"
-            + (f" (click {click:g} {unit})." if (unit == "MRAD" and click != 0.1) or (unit == "MOA" and click != 0.25) else "."), ""]
-    if ref:
-        rn = position_name(ref)
-        line = f"**Reference: {rn} = 0 / 0**"
-        if n > 1 and all(z["elev"] >= ref["elev"] for z in zs):
-            line += f" (lowest elevation of the {words})"
-        line += "."
-        if scope.get("zero_stop") is not None:
-            d = rnd(ref["elev"] - scope["zero_stop"], click)
-            if not is_zero(d, click):
-                where = "below" if d > 0 else "above"
-                line += (f" Zero stop is set **{fmt(d, click)} {unit} {where}** the {rn} zero, so the {rn} zero sits "
-                         f"{fmt(d, click)} {'up' if d > 0 else 'down'} from the hard stop.")
-            else:
-                line += f" Zero stop is set at the {rn} zero."
-        out += [line, ""]
-    elif scope.get("zero_stop") is not None:
-        out += [f"Zero stop at **{elev_dial(scope['zero_stop'], click)}** on the dial.", ""]
-
-    out += ["| Rifle | Caliber | Zero distance | Rail / mount |", "|---|---|---|---|"]
-    for z in rifles:
-        dist = f"{z['distance_m']:g} m" if z.get("distance_m") else ""
-        mount = z.get("mount") or ""
-        if mount and re.search(r"cant|moa", mount, re.I) and not re.search(r"\b0 MOA\b", mount):
-            mount = f"**{mount}**"
-        out.append(f"| {z['rifle']} | {z.get('cal') or ''} | {dist} | {mount} |")
-    out += ["", "---", "", "## Dial positions (primary reference)", "",
-            "When swapping the scope, set the turrets to the target rifle's positions:", "",
-            "| Rifle / load | Elevation dial | Windage dial |", "|---|---|---|"]
-    for z in zs:
-        name = f"**{position_name(z)}** (reference)" if z is ref else position_name(z)
-        out.append(f"| {name} | **{elev_dial(z['elev'], click)}** | **{wind_dial(z['wind'], click)}** |")
-    if ref and len(zs) > 1:
-        others = [z for z in zs if z is not ref]
-        de = {(z["elev"] > ref["elev"]) - (z["elev"] < ref["elev"]) for z in others}
-        dw = {(z["wind"] > ref["wind"]) - (z["wind"] < ref["wind"]) for z in others}
-        if len(de) == 1 and len(dw) == 1 and 0 not in de:
-            dirs = ["up" if de == {1} else "down"] + ([] if dw == {0} else ["right" if dw == {1} else "left"])
-            note = f"All positions are {' and '.join(dirs)} of the {position_name(ref)} — everything dials in one direction from the reference"
-            if scope.get("zero_stop") is not None and de == {1}:
-                d = rnd(ref["elev"] - scope["zero_stop"], click)
-                if d > 0:
-                    note += f", and the zero stop sits safely {fmt(d, click)} below it"
-            out += ["", f"*({note}.)*"]
-    if scope.get("zero_stop") is not None:
-        low = [position_name(z) for z in zs if z["elev"] < scope["zero_stop"] - click / 2]
-        if low:
-            out += ["", f"**Warning:** below the zero stop, cannot be dialled: {', '.join(low)}."]
-
-    pairs = [(a, b) for a, b in combinations(zs, 2) if a["rifle"] != b["rifle"]]
-    if ref:     # swaps to / from the reference first, written reference → rifle
-        pairs = [(ref, b if a is ref else a) for a, b in pairs if ref in (a, b)] + \
-                [(a, b) for a, b in pairs if ref not in (a, b)]
-    if pairs:
-        out += ["", "---", "", "## Swap adjustments (derived from dial positions)", "",
-                "| Swap | Elevation | Windage |", "|---|---|---|"]
-        for a, b in pairs:
-            for x, y in ((a, b), (b, a)):
-                s = swap(x, y, click)
-                out.append(f"| {short_name(x)} → {short_name(y)} | {s['elev']} | {s['wind']} |")
-    for r in rifles:
-        same = [z for z in zs if z["rifle"] == r["rifle"]]
-        if len(same) < 2:
-            continue
-        out += ["", f"**{r['rifle']} load change (scope stays on):**", "",
-                "| Change | Elevation | Windage |", "|---|---|---|"]
-        for a, b in combinations(same, 2):
-            for x, y in ((a, b), (b, a)):
-                s = swap(x, y, click)
-                out.append(f"| {x.get('label') or x['rifle']} → {y.get('label') or y['rifle']} | {s['elev']} | {s['wind']} |")
-
-    notes = (scope.get("notes") or "").strip()
-    if notes:
-        if not notes.startswith("#"):
-            notes = "## Notes\n\n" + notes
-        out += ["", "---", "", notes]
-    entries = [e for e in log if e.get("kind") not in ("import",)]
-    if entries:
-        out += ["", "## Change log", ""]
-        for e in entries[:40]:
-            out.append("- " + log_line(e, click))
-    foot = f"*Last updated: {scope.get('updated') or '–'}"
-    foot += f" — {scope['status']}.*" if scope.get("status") else ".*"
-    out += ["", foot, ""]
-    return "\n".join(out)
-
-
-def log_line(e, click=0.1):
-    name = e.get("position") or ""
-    k = e.get("kind")
-    if k == "adjust":
-        what = f"adjusted {elev_move(e['d_elev'] or 0, click)} / {wind_move(e['d_wind'] or 0, click)} → " \
-               f"{elev_dial(e['elev'], click)} / {wind_dial(e['wind'], click)}"
-    elif k == "set":
-        what = f"set to {elev_dial(e['elev'], click)} / {wind_dial(e['wind'], click)}"
-    elif k == "check":
-        what = "check shot on zero" if e.get("ok", 1) else "check shot off"
-    elif k == "swap":
-        what = "scope mounted"
-    elif k == "reference":
-        what = "made the reference (0 / 0), every position shifted " \
-               f"{elev_move(-(e['d_elev'] or 0), click)} / {wind_move(-(e['d_wind'] or 0), click)}"
-    elif k == "new":
-        what = f"added at {elev_dial(e['elev'], click)} / {wind_dial(e['wind'], click)}"
-    else:
-        what = k or ""
-    note = f" — {e['note']}" if e.get("note") else ""
-    return f"{e.get('date') or ''} · {name}: {what}{note}"

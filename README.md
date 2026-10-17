@@ -132,7 +132,7 @@ Velocity tables (`loads`, `chrono_strings`, `chrono_shots`) live in `diary.db` a
 
 One scope moved between rifles: a dial position (elevation + up, windage left/right) per rifle and load, in
 the scope's own frame where the reference position is 0 / 0. Open it from the diary or velocity header
-(*Zeroes*). Built from `notes/javelin-zeroing-note.md`.
+(*Zeroes*). The database is the only copy; there is no Markdown file to keep in sync.
 
 - **Swap**: *Scope is on* → *Move to* shows what to dial (e.g. `DOWN 2.7` / `0.1 RIGHT`, in clicks too), the
   target's turret readings and its distance above the zero stop. *Mounted on …* records the swap, then asks
@@ -143,15 +143,15 @@ the scope's own frame where the reference position is 0 / 0. Open it from the di
 - **0 / 0 reference**: *Make this the 0 / 0 reference* relabels every position and the zero stop so the chosen
   one reads 0 / 0. Swaps don't change — only the turret labels do.
 - **Notes**: free Markdown (`## headings`, bullets, `- [ ]` to-dos that can be ticked on the page).
-- **Download note (.md)** writes the note in the layout of `notes/javelin-zeroing-note.md`: rifle table, dial
-  positions, every swap and load change (derived), notes, change log and *Last updated*.
+- **Zeroing card (PDF)**: one A4 page for the range bag — dial positions with distance above the zero stop and
+  last check shot, every swap in both directions with click counts, rifles and mounts, notes, recent changes.
+
+An old Markdown zeroing note (the `notes/javelin-zeroing-note.md` layout) is brought in once on the server:
 
 ```bash
-python -m diary zero-import notes/javelin-zeroing-note.md --dry-run   # parse + check the swap tables
+python -m diary zero-import notes/javelin-zeroing-note.md --dry-run   # parse + check the note's swap tables
 python -m diary zero-import notes/javelin-zeroing-note.md             # --replace to overwrite (history too)
-python -m diary zero-note -o notes/javelin-zeroing-note.md            # write the note from the database
 ```
 
-Import checks every hand-written swap in the note against the dial positions and lists any that disagree;
-rifle names are matched to diary guns the same way as velocity folders (aliases, then the model, e.g. `T3X`).
+Rifle names are matched to diary guns the same way as velocity folders (aliases, then the model, e.g. `T3X`).
 Zeroes (`scopes`, `scope_zeros`, `scope_log`) are part of `export`/`import`/`backup`.
