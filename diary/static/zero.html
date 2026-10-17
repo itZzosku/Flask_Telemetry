@@ -252,7 +252,7 @@ header.top{padding-top:6px!important}
   <header class="top">
     <h1>Scope <span>zeroes</span></h1>
     <div class="hbtns">
-      <button class="ghost" type="button" id="scopeBtn" hidden title="Scope settings">Settings</button>
+      <button class="ghost" type="button" id="scopeBtn" hidden title="Scope name, unit, click, zero stop, turret turns, 0 / 0 reference">Scope info</button>
       <button class="ghost" type="button" id="pdfBtn" hidden title="Zeroing card as PDF">PDF card</button>
       <form method="post" action="logout" style="display:contents"><button class="ghost" type="submit">Log out</button></form>
     </div>
@@ -567,7 +567,7 @@ function calcSwap(){
     +(s.zero_stop!=null?` · ${fx(b.elev-s.zero_stop)} above the zero stop`:"")
     +(b.distance_m?` · ${b.distance_m} m zero`:"");
   const low=s.zero_stop!=null&&b.elev<s.zero_stop-click()/2;
-  $("rWarn").hidden=!low;$("rWarn").textContent=low?"This position is below the zero stop – it can't be dialled. Check the zero stop in Scope settings.":"";
+  $("rWarn").hidden=!low;$("rWarn").textContent=low?"This position is below the zero stop – it can't be dialled. Check the zero stop in Scope info.":"";
 }
 /* Cap readings for a move, starting from caps re-indexed to 0 / 0 (needs the turn sizes in Scope settings).
    Elevation cap: numbered one way, 0 → turn; down past 0 it reads from the top again (−2.9 on a 10-turn = 7.1).
@@ -818,7 +818,7 @@ $("addZeroBtn").addEventListener("click",()=>openZero(null));
 let editingScope=null;
 function openScope(s){
   editingScope=s?s.id:null;
-  $("sTitle").textContent=s?"Scope settings":"New scope";
+  $("sTitle").textContent=s?"Scope info":"New scope";
   $("sName").value=s?s.name:"";$("sUnit").value=s?s.unit:"MRAD";$("sClick").value=s?+s.click:"0.1";
   $("sStop").value=s&&s.zero_stop!=null?elevDial(s.zero_stop).replace(MINUS,"-"):"";
   $("sETurn").value=s&&s.elev_turn?+s.elev_turn:"";$("sWTurn").value=s&&s.wind_turn?+s.wind_turn:"";turnLabels();
