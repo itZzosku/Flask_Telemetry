@@ -146,6 +146,9 @@ the scope's own frame where the reference position is 0 / 0. Open it from the di
   position. Exact values can also be typed under *Details* (logged as “set”).
 - **0 / 0 reference**: *Make this the 0 / 0 reference* relabels every position and the zero stop so the chosen
   one reads 0 / 0. Swaps don't change — only the turret labels do.
+- **Several scopes**: *+ Scope* adds another; each has its own positions, zero stop, reference and history.
+  The chips show where each scope is. Mounting a scope on a rifle takes any other scope off that rifle (logged),
+  and a position whose rifle carries a different scope says so. Old scopes can be archived.
 - **Notes**: free Markdown (`## headings`, bullets, `- [ ]` to-dos that can be ticked on the page).
 - **Zeroing card (PDF)**: one A4 page for the range bag — dial positions with distance above the zero stop and
   last check shot, every swap in both directions with click counts, rifles and mounts, notes, recent changes.

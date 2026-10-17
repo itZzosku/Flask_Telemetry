@@ -237,3 +237,25 @@ def test_pages_and_home_summary(client):
     diary.init_app(app)
     anon = app.test_client()
     assert anon.get("/diary/").status_code == 302 and anon.get("/diary/api/home").status_code == 401
+
+
+def test_second_scope_takes_the_rifle(client):
+    """Two scopes: mounting B on a rifle that carries A takes A off it; other rifles are untouched."""
+    _import()
+    a = _scope(client)
+    ab_a = next(z for z in a["zeros"] if z["label"] == "150 gr FMJ")
+    assert client.post(f"/diary/api/zero/scopes/{a['id']}/mount", json={"zero_id": ab_a["id"]}).status_code == 200
+    assert client.put("/diary/api/zero/scopes/s-b", json={"name": "Second", "unit": "MRAD"}).status_code == 200
+    client.put("/diary/api/zero/zeros/z-b1", json={"scope_id": "s-b", "rifle": "AB-10", "gun_id": "g-ab10", "elev": 0, "wind": 0})
+    client.put("/diary/api/zero/zeros/z-b2", json={"scope_id": "s-b", "rifle": "Rimfire", "gun_id": "g-rim", "elev": 1, "wind": 0})
+    r = client.post("/diary/api/zero/scopes/s-b/mount", json={"zero_id": "z-b2"}).get_json()
+    assert r["result"]["unmounted"] == []                                   # Rimfire was free
+    r = client.post("/diary/api/zero/scopes/s-b/mount", json={"zero_id": "z-b1"}).get_json()
+    assert r["result"]["unmounted"] == ["Test Scope"]
+    scopes = {s["id"]: s for s in client.get("/diary/api/zero").get_json()}
+    assert scopes[a["id"]]["mounted_zero_id"] is None and scopes["s-b"]["mounted_zero_id"] == "z-b1"
+    assert scopes[a["id"]]["log"][0]["kind"] == "unmount"
+    # Positions stay per scope
+    assert len(scopes[a["id"]]["zeros"]) == 3 and len(scopes["s-b"]["zeros"]) == 2
+    h = client.get("/diary/api/home").get_json()["zeroes"]
+    assert {(z["name"], z["on"]) for z in h} == {("Test Scope", None), ("Second", "AB-10")}

@@ -219,9 +219,25 @@ def mount(conn, scope_id, zid, date=None, note=None):
     z = conn.execute("SELECT * FROM scope_zeros WHERE id=? AND scope_id=?", (zid, scope_id)).fetchone()
     if not z:
         return None
+    date = _date(date)
+    # A rifle carries one scope: any other scope recorded on the same rifle comes off it.
+    off = []
+    for o in conn.execute("SELECT s.id, s.name, z.id AS zid, z.gun_id, z.rifle FROM scopes s JOIN scope_zeros z "
+                          "ON z.id=s.mounted_zero_id WHERE s.id<>?", (scope_id,)).fetchall():
+        same = (o["gun_id"] == z["gun_id"]) if (o["gun_id"] and z["gun_id"]) else \
+            (o["rifle"] or "").casefold() == (z["rifle"] or "").casefold()
+        if same:
+            conn.execute("UPDATE scopes SET mounted_zero_id=NULL WHERE id=?", (o["id"],))
+            _log(conn, o["id"], o["zid"], "unmount", date, note=f"{z['rifle']} now carries {_scope_name(conn, scope_id)}")
+            off.append(o["name"])
     conn.execute("UPDATE scopes SET mounted_zero_id=? WHERE id=?", (zid, scope_id))
-    _log(conn, scope_id, zid, "swap", _date(date), elev=z["elev"], wind=z["wind"], note=_txt(note, 300))
-    return True
+    _log(conn, scope_id, zid, "swap", date, elev=z["elev"], wind=z["wind"], note=_txt(note, 300))
+    return {"unmounted": off}
+
+
+def _scope_name(conn, sid):
+    r = conn.execute("SELECT name FROM scopes WHERE id=?", (sid,)).fetchone()
+    return r["name"] if r else "another scope"
 
 
 def rebase(conn, scope_id, zid, date=None):

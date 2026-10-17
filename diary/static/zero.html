@@ -375,7 +375,7 @@ header.top{padding-top:6px!important}
     <p class="hint" style="margin:0">The zero stop is where the elevation turret bottoms out, in the same dial frame as the positions (below the reference = negative).</p>
     <div class="msg" id="sMsg" hidden></div>
     <div class="actions"><button class="primary" type="submit">Save</button></div>
-    <div class="row2" id="sDelRow"><button class="danger" type="button" id="sDel">Delete scope</button></div>
+    <div class="row2" id="sDelRow"><button class="ghost" type="button" id="sArch">Archive scope</button><button class="danger" type="button" id="sDel">Delete scope</button></div>
   </form>
 </div>
 
@@ -441,9 +441,11 @@ async function loadAll(keep){
 function render(){
   const s=scope();
   $("empty").hidden=!!s;$("main").hidden=!s;
-  const vis=S.scopes.filter(x=>!x.archived||x.id===S.sid);
-  $("scopeChips").hidden=vis.length<2;
-  $("scopeChips").innerHTML=vis.map(x=>`<button type="button" class="chip" data-sid="${esc(x.id)}" aria-pressed="${x.id===S.sid}">${esc(x.name)}</button>`).join("")
+  // One chip per scope (where it is now), archived ones last and dimmed, and "+ Scope" for the next one
+  const vis=S.scopes.slice().sort((a,b)=>(a.archived-b.archived)||(a.ord-b.ord)||a.name.localeCompare(b.name));
+  $("scopeChips").hidden=!S.scopes.length;
+  $("scopeChips").innerHTML=vis.map(x=>{const on=(x.zeros||[]).find(z=>z.id===x.mounted_zero_id);
+    return`<button type="button" class="chip" data-sid="${esc(x.id)}" aria-pressed="${x.id===S.sid}"${x.archived?' style="opacity:.55"':""}>${esc(x.name)}${on?` <small style="opacity:.7">· ${esc(on.rifle)}</small>`:""}</button>`}).join("")
     +`<button type="button" class="chip add" data-new>+ Scope</button>`;
   if(!s)return;
   lsSet(s.id);
@@ -457,8 +459,9 @@ function posOpts(sel,blank){
 
 function renderSwap(){
   const s=scope(),zs=zeros();
-  const from=s.mounted_zero_id&&zOf(s.mounted_zero_id)?s.mounted_zero_id:(s.ref_zero_id||"");
-  $("fromSel").innerHTML=posOpts(from,s.mounted_zero_id?null:"— not recorded —");
+  // Not recorded yet (new scope, or it was taken off): leave "Scope is on" blank so any position can be mounted
+  const from=s.mounted_zero_id&&zOf(s.mounted_zero_id)?s.mounted_zero_id:"";
+  $("fromSel").innerHTML=posOpts(from,s.mounted_zero_id?null:"— not set —");
   if(!S.to||!zOf(S.to)||S.to===$("fromSel").value)S.to=(zs.find(z=>z.id!==$("fromSel").value)||{}).id||"";
   $("toSel").innerHTML=posOpts(S.to);
   calcSwap();
@@ -485,8 +488,9 @@ $("fromSel").addEventListener("change",()=>{S.justMounted=null;calcSwap()});
 $("toSel").addEventListener("change",()=>{S.to=$("toSel").value;S.justMounted=null;calcSwap()});
 $("mountBtn").addEventListener("click",async()=>{
   const zid=$("toSel").value;if(!zid)return;
-  try{await api("POST",`zero/scopes/${encodeURIComponent(S.sid)}/mount`,{zero_id:zid,date:today()})}catch(e){toast(errText(e));return}
-  S.justMounted=zid;toast("Scope is on "+zOf(zid).name);await loadAll();
+  let r;try{r=await api("POST",`zero/scopes/${encodeURIComponent(S.sid)}/mount`,{zero_id:zid,date:today()})}catch(e){toast(errText(e));return}
+  S.justMounted=zid;const off=(r&&r.result&&r.result.unmounted)||[];
+  toast("Scope is on "+zOf(zid).name+(off.length?` – ${off.join(", ")} taken off it`:""));await loadAll();
 });
 $("ckOk").addEventListener("click",async()=>{
   const zid=S.justMounted;
@@ -495,6 +499,11 @@ $("ckOk").addEventListener("click",async()=>{
 });
 $("ckAdj").addEventListener("click",()=>{const zid=S.justMounted;S.justMounted=null;calcSwap();openZero(zid)});
 
+// Another scope currently sitting on this position's rifle (same diary gun, or same rifle name)
+function otherScopeOn(z){
+  for(const o of S.scopes){if(o.id===S.sid)continue;const m=(o.zeros||[]).find(x=>x.id===o.mounted_zero_id);if(!m)continue;
+    if(z.gun_id&&m.gun_id?z.gun_id===m.gun_id:String(z.rifle).toLowerCase()===String(m.rifle).toLowerCase())return o.name}
+  return""}
 function renderList(){
   const s=scope(),zs=zeros(true);
   $("posInfo").textContent=`${s.unit} · click ${+s.click}`+(s.zero_stop!=null?` · zero stop ${elevDial(s.zero_stop)}`:"");
@@ -506,7 +515,7 @@ function renderList(){
     return`<button type="button" class="zrow${ref?" ref":""}${on?" on":""}" data-zid="${esc(z.id)}" ${z.archived?'style="opacity:.55"':""}>
       <span class="nm">${esc(z.name)}</span>
       <span class="fig">${elevDial(z.elev)} <span style="color:var(--muted)">/</span> ${windShort(z.wind)}${s.zero_stop!=null?`<small>${fx(z.elev-s.zero_stop)} above stop</small>`:""}</span>
-      <span class="meta">${ref?'<span class="badge ref">0 / 0 reference</span>':""}${on?'<span class="badge on">scope on</span>':""}${low?'<span class="badge warn">below zero stop</span>':""}${z.archived?'<span class="badge">archived</span>':""}
+      <span class="meta">${ref?'<span class="badge ref">0 / 0 reference</span>':""}${on?'<span class="badge on">scope on</span>':""}${!on&&otherScopeOn(z)?`<span class="badge">${esc(otherScopeOn(z))} on it</span>`:""}${low?'<span class="badge warn">below zero stop</span>':""}${z.archived?'<span class="badge">archived</span>':""}
         ${sub.length?`<span>${sub.join(" · ")}</span>`:""}
         ${c.n?`<span>checked ${c.n}× · last ${fiDate(c.last)}</span>`:""}${z.load_id&&loadName(z.load_id)?`<span>${esc(loadName(z.load_id))}</span>`:""}</span></button>`}).join("")
     :'<div class="empty">No positions yet.</div>';
@@ -562,7 +571,7 @@ function logLine(e){
   const k=e.kind,d=e.d_elev||0,w=e.d_wind||0;
   const what={adjust:`adjusted <b>${elevMove(d)}</b> / <b>${windDial(w)}</b> → ${elevDial(e.elev)} / ${windDial(e.wind)}`,
     set:`set to <b>${elevDial(e.elev)}</b> / <b>${windDial(e.wind)}</b>`+(e.prev_elev!=null?` <span>(was ${elevDial(e.prev_elev)} / ${windDial(e.prev_wind)})</span>`:""),
-    check:e.ok===0?"check shot off":"check shot on zero ✓",swap:"scope mounted",
+    check:e.ok===0?"check shot off":"check shot on zero ✓",swap:"scope mounted",unmount:"scope taken off",
     reference:`made the 0 / 0 reference – every position shifted ${elevMove(-d)} / ${windDial(-w)}`,
     new:`added at ${elevDial(e.elev)} / ${windDial(e.wind)}`,import:`imported at ${elevDial(e.elev)} / ${windDial(e.wind)}`}[k]||esc(k);
   return`<div><time>${fiDate(e.date)}</time><span class="what">${e.position?`<b>${esc(e.position)}</b>: `:""}${what}${e.note?` <span>– ${esc(e.note)}</span>`:""}</span></div>`;
@@ -694,7 +703,7 @@ function openScope(s){
   $("sTitle").textContent=s?"Scope settings":"New scope";
   $("sName").value=s?s.name:"";$("sUnit").value=s?s.unit:"MRAD";$("sClick").value=s?+s.click:"0.1";
   $("sStop").value=s&&s.zero_stop!=null?elevDial(s.zero_stop).replace(MINUS,"-"):"";
-  $("sDelRow").hidden=!s;$("sMsg").hidden=true;openSheet("sSheet");
+  $("sDelRow").hidden=!s;$("sMsg").hidden=true;$("sArch").textContent=s&&s.archived?"Restore scope":"Archive scope";openSheet("sSheet");
 }
 $("scopeBtn").addEventListener("click",()=>openScope(scope()));
 $("newScopeBtn").addEventListener("click",()=>openScope(null));
@@ -706,6 +715,11 @@ $("sForm").addEventListener("submit",async e=>{e.preventDefault();
     notes:s?s.notes:"",status:s?s.status:"",ord:s?s.ord:S.scopes.length,archived:s?!!s.archived:false};
   try{await api("PUT","zero/scopes/"+encodeURIComponent(id),body)}catch(err){$("sMsg").textContent=errText(err);$("sMsg").hidden=false;return}
   S.sid=id;closeSheets();toast("Saved");await loadAll();
+});
+$("sArch").addEventListener("click",async()=>{
+  const s=S.scopes.find(x=>x.id===editingScope);if(!s)return;
+  try{await saveScope({archived:!s.archived})}catch(e){toast(errText(e));return}
+  closeSheets();toast(s.archived?"Scope restored":"Scope archived – it stays in the list, dimmed");
 });
 $("sDel").addEventListener("click",()=>confirmTap($("sDel"),"Tap again – deletes all positions and history",async()=>{
   try{await api("DELETE","zero/scopes/"+encodeURIComponent(editingScope))}catch(e){toast(errText(e));return}
@@ -795,7 +809,7 @@ $("pdfBtn").addEventListener("click",async()=>{
     const log=(s.log||[]).filter(e=>e.kind!=="import").slice(0,25);
     if(log.length){
       const what=e=>({adjust:`adjusted ${elevMove(e.d_elev||0)} / ${windDial(e.d_wind||0)} -> ${elevDial(e.elev)} / ${windDial(e.wind)}`,
-        set:`set to ${elevDial(e.elev)} / ${windDial(e.wind)}`,check:e.ok===0?"check shot off":"check shot on zero",swap:"scope mounted",
+        set:`set to ${elevDial(e.elev)} / ${windDial(e.wind)}`,check:e.ok===0?"check shot off":"check shot on zero",swap:"scope mounted",unmount:"scope taken off",
         reference:`made the 0 / 0 reference (positions shifted ${elevMove(-(e.d_elev||0))} / ${windDial(-(e.d_wind||0))})`,
         new:`added at ${elevDial(e.elev)} / ${windDial(e.wind)}`}[e.kind]||e.kind);
       table(y,"Recent changes",["Date","Position","Change","Note"],log.map(e=>[fiDate(e.date),e.position||"",what(e),e.note||""]),{0:{cellWidth:56}});
