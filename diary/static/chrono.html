@@ -639,7 +639,9 @@ function closeSheets(){["iSheet","dSheet","lSheet"].forEach(s=>$(s).hidden=true)
 document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",closeSheets));
 document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("eSheet").hidden)closeEditor();else closeSheets()});
 const gunOpts=sel=>`<option value="">— no gun —</option>`+S.guns.slice().sort((a,b)=>String(a.name).localeCompare(b.name)).map(g=>`<option value="${esc(g.id)}" ${g.id===sel?"selected":""}>${esc(g.name)}</option>`).join("");
-const calKey=c=>String(c||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+// "6.5 Creedmoor" = "6.5 CM", ".223 Remington" = ".223 Rem": compare calibres by a normalised key.
+const calKey=c=>String(c||"").toLowerCase().replace(/creedmoor/g,"cm").replace(/remington/g,"rem").replace(/winchester/g,"win")
+  .replace(/springfield/g,"spring").replace(/parabellum/g,"luger").replace(/[^a-z0-9]/g,"");
 const gunCal=id=>(S.guns.find(g=>g.id===id)||{}).cal||"";
 function loadOpts(sel,spec,gunId){
   const gc=calKey(gunCal(gunId)),opt=l=>`<option value="${esc(l.id)}" ${l.id===sel?"selected":""}>${esc(l.name)}</option>`;
@@ -958,7 +960,9 @@ $("eDel").addEventListener("click",async()=>{
   try{await api("DELETE","chrono/loads/"+encodeURIComponent(E.id));toast("Load deleted");closeEditor();await loadAll();renderLoads()}catch(e){toast("Delete failed")}
 });
 
-let rT;window.addEventListener("resize",()=>{clearTimeout(rT);rT=setTimeout(()=>{if(!$("dSheet").hidden)renderDay();else{renderLoad();renderLadder()}},200)});
+// Only a width change redraws: the phone keyboard opening shrinks the height, and redrawing then would
+// replace the field being typed in (the keyboard flashes and closes).
+let rT,lastW=window.innerWidth;window.addEventListener("resize",()=>{if(window.innerWidth===lastW)return;lastW=window.innerWidth;clearTimeout(rT);rT=setTimeout(()=>{if(!$("dSheet").hidden)renderDay();else{renderLoad();renderLadder()}},200)});
 
 /* ---------- shared files (Android share sheet → installed app) ---------- */
 async function takeShared(){

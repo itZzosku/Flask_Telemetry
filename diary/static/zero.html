@@ -577,11 +577,17 @@ function closeSheets(){SHEETS.forEach(s=>$(s).hidden=true);document.body.style.o
 document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",closeSheets));
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeSheets()});
 const gunOpts=sel=>`<option value="">— no gun —</option>`+S.guns.filter(g=>!g.archived||g.id===sel).sort((a,b)=>String(a.name).localeCompare(b.name)).map(g=>`<option value="${esc(g.id)}" ${g.id===sel?"selected":""}>${esc(g.name)}</option>`).join("");
-const calKey=c=>String(c||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-function loadOpts(sel,cal){
-  const ck=calKey(cal),list=S.loads.filter(l=>!l.archived||l.id===sel).filter(l=>!ck||!l.cal||calKey(l.cal)===ck||l.id===sel)
-    .sort((a,b)=>a.name.localeCompare(b.name,"fi",{numeric:true}));
-  return`<option value="">— none —</option>`+list.map(l=>`<option value="${esc(l.id)}" ${l.id===sel?"selected":""}>${esc(l.name)}</option>`).join("");
+// "6.5 Creedmoor" = "6.5 CM", ".223 Remington" = ".223 Rem": compare calibres by a normalised key.
+const calKey=c=>String(c||"").toLowerCase().replace(/creedmoor/g,"cm").replace(/remington/g,"rem").replace(/winchester/g,"win")
+  .replace(/springfield/g,"spring").replace(/parabellum/g,"luger").replace(/[^a-z0-9]/g,"");
+function loadOpts(sel,cal,gunId){
+  // This gun's loads first (fired with it, or same calibre), every other load below – nothing is hidden.
+  const ck=calKey(cal),opt=l=>`<option value="${esc(l.id)}" ${l.id===sel?"selected":""}>${esc(l.name)}</option>`;
+  const list=S.loads.filter(l=>!l.archived||l.id===sel).sort((a,b)=>a.name.localeCompare(b.name,"fi",{numeric:true}));
+  const isMine=l=>(gunId&&((l.use||{}).guns||[]).includes(gunId))||(ck&&calKey(l.cal)===ck);
+  const mine=(gunId||ck)?list.filter(isMine):list,other=(gunId||ck)?list.filter(l=>!isMine(l)):[];
+  return`<option value="">— none —</option>`+mine.map(opt).join("")
+    +(other.length?`<optgroup label="${mine.length?"Other loads":"All loads"}">${other.map(opt).join("")}</optgroup>`:"");
 }
 function confirmTap(btn,label,fn){      // two taps instead of a browser dialog
   if(btn.dataset.armed){delete btn.dataset.armed;btn.textContent=btn.dataset.label;fn();return}
@@ -601,7 +607,7 @@ function openZero(zid,keepAdj){
   const g=z?z.gun_id:"";
   $("fRifle").value=z?z.rifle:"";$("fGun").innerHTML=gunOpts(g);$("fLabel").value=z?z.label||"":"";
   $("fCal").value=z?z.cal||"":"";$("fDist").value=z&&z.distance_m?z.distance_m:"";$("fMount").value=z?z.mount||"":"";
-  $("fLoad").innerHTML=loadOpts(z?z.load_id:"",$("fCal").value);
+  $("fLoad").innerHTML=loadOpts(z?z.load_id:"",$("fCal").value,g);
   $("fElev").value=z?(isZ(z.elev)?"0":(z.elev>0?"+":"")+fx(z.elev).replace(/^/,z.elev<0?"-":"")):"";
   $("fWind").value=z?fx(z.wind):"";$("fWdir").value=z&&z.wind>0?"1":"-1";
   $("fHint").hidden=!z;
@@ -647,8 +653,8 @@ $("zUndo").addEventListener("click",async()=>{
 });
 $("fGun").addEventListener("change",()=>{const g=S.guns.find(x=>x.id===$("fGun").value);
   if(g){if(!$("fRifle").value.trim())$("fRifle").value=g.name;if(!$("fCal").value.trim()&&g.cal)$("fCal").value=g.cal}
-  $("fLoad").innerHTML=loadOpts($("fLoad").value,$("fCal").value)});
-$("fCal").addEventListener("change",()=>$("fLoad").innerHTML=loadOpts($("fLoad").value,$("fCal").value));
+  $("fLoad").innerHTML=loadOpts($("fLoad").value,$("fCal").value,$("fGun").value)});
+$("fCal").addEventListener("change",()=>$("fLoad").innerHTML=loadOpts($("fLoad").value,$("fCal").value,$("fGun").value));
 const num=v=>{v=String(v||"").trim().replace(",",".").replace(MINUS,"-");return v===""?null:+v};
 $("zForm").addEventListener("submit",async e=>{e.preventDefault();
   const z=zOf(S.zid),el=num($("fElev").value),wi=num($("fWind").value);
