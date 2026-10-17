@@ -344,7 +344,7 @@ header.top{padding-top:6px!important}
       <h2 style="font-size:1.05rem" id="zFormH">Details</h2>
       <div class="grid2"><label class="f">Rifle (name in the note)<input type="text" id="fRifle" maxlength="60" required></label>
         <label class="f">Diary gun<select id="fGun"></select></label></div>
-      <div class="grid2"><label class="f">Load label (optional)<input type="text" id="fLabel" maxlength="80" placeholder="e.g. GGG 55 gr"></label>
+      <div class="grid2"><label class="f">Load label (optional – else the velocity load's name)<input type="text" id="fLabel" maxlength="80" placeholder="e.g. GGG 55 gr"></label>
         <label class="f">Velocity load<select id="fLoad"></select></label></div>
       <div class="grid3"><label class="f">Calibre<input type="text" id="fCal" maxlength="40"></label>
         <label class="f">Zero distance m<input type="number" id="fDist" min="1" max="3000" step="1" inputmode="numeric"></label>
@@ -520,7 +520,7 @@ function renderList(){
       <span class="fig">${elevDial(z.elev)} <span style="color:var(--muted)">/</span> ${windShort(z.wind)}${s.zero_stop!=null?`<small>${fx(z.elev-s.zero_stop)} above stop</small>`:""}</span>
       <span class="meta">${ref?'<span class="badge ref">0 / 0 reference</span>':""}${on?'<span class="badge on">scope on</span>':""}${!on&&otherScopeOn(z)?`<span class="badge">${esc(otherScopeOn(z))} on it</span>`:""}${low?'<span class="badge warn">below zero stop</span>':""}${z.archived?'<span class="badge">archived</span>':""}
         ${sub.length?`<span>${sub.join(" · ")}</span>`:""}
-        ${c.n?`<span>checked ${c.n}× · last ${fiDate(c.last)}</span>`:""}${z.load_id&&loadName(z.load_id)?`<span>${esc(loadName(z.load_id))}</span>`:""}</span></button>`}).join("")
+        ${c.n?`<span>checked ${c.n}× · last ${fiDate(c.last)}</span>`:""}${z.label&&z.load_id&&loadName(z.load_id)?`<span>${esc(loadName(z.load_id))}</span>`:""}</span></button>`}).join("")
     :'<div class="empty">No positions yet.</div>';
 }
 $("zList").addEventListener("click",e=>{const b=e.target.closest("[data-zid]");if(b)openZero(b.dataset.zid)});

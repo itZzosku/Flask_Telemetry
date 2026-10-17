@@ -68,11 +68,27 @@ def zero_rows(conn, scope_id):
     return _rows(conn, "SELECT * FROM scope_zeros WHERE scope_id=? ORDER BY archived, ord, rowid", (scope_id,))
 
 
-def log_rows(conn, scope_id, limit=200):
-    rows = _rows(conn, "SELECT l.*, z.rifle, z.label FROM scope_log l LEFT JOIN scope_zeros z ON z.id=l.zero_id "
+def _load_labels(conn):
+    """load id → short load name (no calibre / brass): the rifle is already in the position's name."""
+    from .chrono_loads import short_name
+    try:
+        return {r["id"]: short_name(dict(r)) for r in conn.execute("SELECT * FROM loads")}
+    except Exception:                      # velocity tables not created yet
+        return {}
+
+
+def display_name(z, loads):
+    """'T3X Super Varmint — GGG 55 gr': the typed label, else the linked velocity load, else just the rifle."""
+    label = z.get("label") or (loads.get(z.get("load_id")) if z.get("load_id") else None)
+    return zn.position_name(dict(rifle=z.get("rifle"), label=label))
+
+
+def log_rows(conn, scope_id, limit=200, loads=None):
+    loads = _load_labels(conn) if loads is None else loads
+    rows = _rows(conn, "SELECT l.*, z.rifle, z.label, z.load_id FROM scope_log l LEFT JOIN scope_zeros z ON z.id=l.zero_id "
                        "WHERE l.scope_id=? ORDER BY l.date DESC, l.id DESC LIMIT ?", (scope_id, limit))
     for r in rows:
-        r["position"] = zn.position_name(r) if r.get("rifle") else ""
+        r["position"] = display_name(r, loads) if r.get("rifle") else ""
     return rows
 
 
@@ -81,8 +97,9 @@ def full(conn, scope_id):
     if not s:
         return None
     s = dict(s)
+    loads = _load_labels(conn)
     s["zeros"] = zero_rows(conn, scope_id)
-    s["log"] = log_rows(conn, scope_id)
+    s["log"] = log_rows(conn, scope_id, loads=loads)
     last = {}
     for e in s["log"]:                         # newest first: the first entry per position may be undone
         if e["zero_id"] and e["zero_id"] not in last and e["kind"] in ("adjust", "set", "check", "new"):
@@ -95,7 +112,7 @@ def full(conn, scope_id):
             if c["last"] is None:
                 c["last"], c["ok"] = e["date"], e["ok"]
     for z in s["zeros"]:
-        z["name"] = zn.position_name(z)
+        z["name"] = display_name(z, loads)
         z["undo_id"] = last.get(z["id"])
         z["checks"] = checks.get(z["id"], {"n": 0, "last": None, "ok": None})
     return s

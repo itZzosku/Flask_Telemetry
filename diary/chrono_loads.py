@@ -65,6 +65,19 @@ def load_name(f):
     return " · ".join(out)
 
 
+def short_name(f):
+    """Without calibre and brass, for places that already know the rifle: 'Lapua Scenar 139 gr · N555 44.0 gr',
+    'SK Long Range Match 40 gr'."""
+    if f.get("kind") == "factory":
+        parts = [f.get("maker"), f.get("product")] + ([_weight(f["bullet_gr"]) + " gr"] if f.get("bullet_gr") else [])
+        return " ".join(p for p in parts if p) or "Factory ammo"
+    out = [bullet_label(f) or "Load"]
+    pw = " ".join(p for p in [f.get("powder"), _num(f["charge_gr"]) + " gr" if f.get("charge_gr") is not None else None] if p)
+    if pw:
+        out.append(pw)
+    return " · ".join(out)
+
+
 def ladder_group(f):
     """Everything but the charge: the line a charge ladder is drawn along."""
     out = ([f["cal"]] if f.get("cal") else []) + [bullet_label(f) or "Load"]

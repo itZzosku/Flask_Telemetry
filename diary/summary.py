@@ -6,7 +6,7 @@ from flask import jsonify
 
 from . import bp, db, kv_get, login_required
 from .chrono_stats import stats
-from .zero_note import position_name
+from .zero import _load_labels, display_name
 
 
 def diary_summary(conn):
@@ -37,12 +37,12 @@ def velocity_summary(conn):
 
 
 def zero_summary(conn):
-    out = []
+    out, loads = [], _load_labels(conn)
     for s in conn.execute("SELECT * FROM scopes WHERE NOT archived ORDER BY ord, name"):
-        on = conn.execute("SELECT rifle, label FROM scope_zeros WHERE id=?", (s["mounted_zero_id"],)).fetchone() \
+        on = conn.execute("SELECT rifle, label, load_id FROM scope_zeros WHERE id=?", (s["mounted_zero_id"],)).fetchone() \
             if s["mounted_zero_id"] else None
         n = conn.execute("SELECT COUNT(*) FROM scope_zeros WHERE scope_id=? AND NOT archived", (s["id"],)).fetchone()[0]
-        out.append({"name": s["name"], "positions": n, "on": position_name(dict(on)) if on else None,
+        out.append({"name": s["name"], "positions": n, "on": display_name(dict(on), loads) if on else None,
                     "updated": s["updated"]})
     return out
 

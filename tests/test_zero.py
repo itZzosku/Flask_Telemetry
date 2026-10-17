@@ -279,3 +279,23 @@ def test_turret_zero_reference(client):
     s = _scope(client)
     assert s["ref_zero_id"] is None and next(z for z in s["zeros"] if z["id"] == rim["id"])["elev"] == 0.2
     assert "moved off 0 / 0" in s["log"][0]["note"]
+
+
+def test_position_named_by_linked_load(client):
+    """Two positions on one rifle told apart by their velocity load when no label is typed."""
+    client.put("/diary/api/chrono/loads/l-a", json={"kind": "handload", "cal": ".308 Win", "bullet_maker": "Lapua",
+                                                    "bullet_model": "Scenar", "bullet_gr": 155, "powder": "N140",
+                                                    "charge_gr": 44, "brass": "Lapua"})
+    client.put("/diary/api/chrono/loads/l-b", json={"kind": "handload", "cal": ".308 Win", "bullet_maker": "Sako",
+                                                    "bullet_model": "Blade", "bullet_gr": 123, "powder": "N140",
+                                                    "charge_gr": 46, "brass": "Lapua"})
+    client.put("/diary/api/zero/scopes/s-x", json={"name": "LPVO"})
+    client.put("/diary/api/zero/zeros/z-1", json={"scope_id": "s-x", "rifle": "AB-10", "gun_id": "g-ab10", "load_id": "l-a"})
+    client.put("/diary/api/zero/zeros/z-2", json={"scope_id": "s-x", "rifle": "AB-10", "gun_id": "g-ab10", "load_id": "l-b",
+                                                  "elev": 0.3, "wind": 0.1})
+    client.post("/diary/api/zero/scopes/s-x/mount", json={"zero_id": "z-2"})
+    s = _scope(client)
+    assert [z["name"] for z in s["zeros"]] == ["AB-10 — Lapua Scenar 155 gr · N140 44.0 gr",
+                                                "AB-10 — Sako Blade 123 gr · N140 46.0 gr"]
+    assert s["log"][0]["position"] == "AB-10 — Sako Blade 123 gr · N140 46.0 gr"
+    assert client.get("/diary/api/home").get_json()["zeroes"][0]["on"] == "AB-10 — Sako Blade 123 gr · N140 46.0 gr"
