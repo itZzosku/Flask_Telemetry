@@ -169,6 +169,10 @@ the scope's own frame where the reference position is 0 / 0. Open it from the di
 - **Several scopes**: *+ Scope* adds another; each has its own positions, zero stop, reference and history.
   The chips show where each scope is. Mounting a scope on a rifle takes any other scope off that rifle (logged),
   and a position whose rifle carries a different scope says so. Old scopes can be archived.
+- **Offline**: with no connection at the range, adjustments, check shots, mounts, position edits and notes are
+  kept on the phone, shown straight away (marked *not sent yet*) and sent in order when the connection is back
+  (or with *Send now*). Each carries an id, so a change that is resent is applied once. Undo, reference changes
+  and deletes need a connection.
 - **Notes**: free Markdown (`## headings`, bullets, `- [ ]` to-dos that can be ticked on the page).
 - **Zeroing card (PDF)**: one A4 page for the range bag — dial positions with distance above the zero stop and
   last check shot, every swap in both directions with click counts, rifles and mounts, notes, recent changes.

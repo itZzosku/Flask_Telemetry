@@ -257,6 +257,7 @@ header.top{padding-top:6px!important}
   </header>
 
   <div class="banner" id="offNote" hidden></div>
+  <div class="banner" id="qNote" hidden></div>
   <div class="chips" id="scopeChips" hidden></div>
   <div id="empty" class="empty" hidden>
     <p style="margin:0 0 12px">No scopes yet. Start one here, or bring an old Markdown zeroing note in on the server:<br>
@@ -414,6 +415,78 @@ async function api(method,path,body){
   return j;
 }
 
+
+/* ---------- offline queue ----------
+   Changes made without a connection are kept on this phone (localStorage), shown at once, and sent in
+   order when the connection is back. Adjust / check / mount carry an op_id so a resend applies only once.
+   Undo, reference changes and deletes need a connection (they depend on the server's history). */
+const QK="zero-queue",OFFLINE_SAVED="No connection – saved on this phone, sends when you're back online";
+const qGet=()=>{try{return JSON.parse(localStorage.getItem(QK)||"[]")}catch(e){return[]}};
+const qSet=q=>{try{localStorage.setItem(QK,JSON.stringify(q))}catch(e){}};
+const opId=()=>"op"+Date.now().toString(36)+Math.random().toString(36).slice(2,10);
+let flushing=false;
+async function write(method,path,body,eff){
+  const op={id:opId(),method,path,body:{...(body||{})},eff,at:Date.now()};
+  if(/\/(adjust|check|mount)$/.test(path))op.body.op_id=op.id;
+  const q=qGet();
+  if(!q.length){          // nothing waiting: send now, queue only if there's no connection
+    try{return{sent:true,res:await api(method,path,op.body)}}
+    catch(e){if(e.message!=="offline"&&!(e.status>=500))throw e}
+  }
+  const waiting=q.length;
+  q.push(op);qSet(q);applyEff(eff);render();queueNote();
+  if(waiting&&navigator.onLine!==false)setTimeout(flush,0);   // older changes were waiting: try them all now
+  return{sent:false};
+}
+function scopeById(id){return S.scopes.find(x=>x.id===id)}
+function pendingLog(sc,e){(sc.log=sc.log||[]).unshift({...e,pending:true,id:"p"+Math.random()})}
+function shortLoad(id){const l=S.loads.find(x=>x.id===id);if(!l)return"";return l.cal&&l.name.startsWith(l.cal+" · ")?l.name.slice(l.cal.length+3):l.name}
+function nameOf(z){const lab=z.label||(z.load_id?shortLoad(z.load_id):"");return(z.rifle||"Rifle")+(lab?" — "+lab:"")}
+function applyEff(f){
+  const sc=scopeById(f.sid);if(!sc)return;
+  const z=(sc.zeros||[]).find(x=>x.id===f.zid),c=sc.click||0.1,r=v=>Math.round(v/c)*c;
+  if(f.k==="adjust"&&z){z.elev=+r(z.elev+f.de).toFixed(3);z.wind=+r(z.wind+f.dw).toFixed(3);z.undo_id=null;
+    pendingLog(sc,{kind:"adjust",zero_id:z.id,position:z.name,date:f.date,d_elev:f.de,d_wind:f.dw,elev:z.elev,wind:z.wind,note:f.note})}
+  else if(f.k==="check"&&z){z.checks=z.checks||{n:0};z.checks.n++;z.checks.last=f.date;z.checks.ok=1;z.undo_id=null;
+    pendingLog(sc,{kind:"check",zero_id:z.id,position:z.name,date:f.date,ok:1,note:f.note})}
+  else if(f.k==="mount"&&z){
+    S.scopes.forEach(o=>{if(o===sc)return;const m=(o.zeros||[]).find(x=>x.id===o.mounted_zero_id);
+      if(m&&(z.gun_id&&m.gun_id?z.gun_id===m.gun_id:String(z.rifle).toLowerCase()===String(m.rifle).toLowerCase()))o.mounted_zero_id=null});
+    sc.mounted_zero_id=z.id;pendingLog(sc,{kind:"swap",zero_id:z.id,position:z.name,date:f.date})}
+  else if(f.k==="zero"){const b=f.body;
+    if(z){Object.assign(z,{rifle:b.rifle,gun_id:b.gun_id||null,label:b.label||null,load_id:b.load_id||null,cal:b.cal||null,
+      distance_m:b.distance_m?+b.distance_m:null,mount:b.mount||null,archived:b.archived?1:0,elev:+b.elev,wind:+b.wind});z.name=nameOf(z)}
+    else{const nz={id:f.zid,scope_id:sc.id,rifle:b.rifle,gun_id:b.gun_id||null,label:b.label||null,load_id:b.load_id||null,cal:b.cal||null,
+      distance_m:b.distance_m?+b.distance_m:null,mount:b.mount||null,archived:0,elev:+b.elev,wind:+b.wind,checks:{n:0}};
+      nz.name=nameOf(nz);(sc.zeros=sc.zeros||[]).push(nz);pendingLog(sc,{kind:"new",zero_id:nz.id,position:nz.name,date:f.date,elev:nz.elev,wind:nz.wind})}}
+  else if(f.k==="scope")Object.assign(sc,f.body);
+}
+function queueNote(){
+  const n=qGet().length,el=$("qNote");
+  el.hidden=!n;
+  if(n)el.innerHTML=`<b>${n}</b> change${n>1?"s":""} saved on this phone – sending when you're back online. <button class="ghost" type="button" id="qSend" style="padding:4px 10px;margin-left:6px">Send now</button>`;
+}
+async function flush(){
+  let q=qGet();if(flushing||!q.length)return;
+  flushing=true;let sent=0;const refused=[];
+  try{
+    while(q.length){const op=q[0];
+      try{await api(op.method,op.path,op.body);sent++}
+      catch(e){if(e.message==="offline"||e.message==="auth"||e.status>=500)break;refused.push(errText(e))}
+      q.shift();qSet(q);
+    }
+  }finally{flushing=false}
+  queueNote();
+  if(refused.length)toast(`${refused.length} change${refused.length>1?"s":""} made offline refused: ${refused[0]}`);
+  else if(sent&&!q.length)toast(`Sent ${sent} change${sent>1?"s":""} made offline`);
+  if(sent||refused.length)await loadAll(true);
+}
+const needsOnline=()=>{if(qGet().length){toast("Send the changes saved offline first (needs a connection)");return true}return false};
+document.addEventListener("click",e=>{if(e.target.closest("#qSend"))flush()});
+window.addEventListener("online",flush);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")flush()});
+setInterval(()=>{if(qGet().length&&navigator.onLine!==false)flush()},20000);
+
 /* ---------- state ---------- */
 const S={scopes:[],guns:[],loads:[],sid:"",to:"",justMounted:null,logAll:false,zid:null,adj:{e:0,w:0}};
 const scope=()=>S.scopes.find(s=>s.id===S.sid);
@@ -437,6 +510,7 @@ async function loadAll(keep){
   try{
     const[sc,g,l]=await Promise.all([api("GET","zero"),api("GET","guns").catch(()=>[]),api("GET","chrono/loads").catch(()=>[])]);
     S.scopes=sc;S.guns=g;S.loads=l;
+    qGet().forEach(op=>applyEff(op.eff));          // changes still waiting to be sent
   }catch(e){if(e.message!=="auth")$("zList").innerHTML='<div class="empty">Could not load the zeroes.</div>';return}
   if(!S.scopes.find(s=>s.id===S.sid))S.sid=(S.scopes.find(s=>s.id===lsGet())||S.scopes.find(s=>!s.archived)||S.scopes[0]||{}).id||"";
   render();
@@ -513,14 +587,18 @@ $("fromSel").addEventListener("change",()=>{S.justMounted=null;calcSwap()});
 $("toSel").addEventListener("change",()=>{S.to=$("toSel").value;S.justMounted=null;calcSwap()});
 $("mountBtn").addEventListener("click",async()=>{
   const zid=$("toSel").value;if(!zid)return;
-  let r;try{r=await api("POST",`zero/scopes/${encodeURIComponent(S.sid)}/mount`,{zero_id:zid,date:today()})}catch(e){toast(errText(e));return}
-  S.justMounted=zid;const off=(r&&r.result&&r.result.unmounted)||[];
+  let w;try{w=await write("POST",`zero/scopes/${encodeURIComponent(S.sid)}/mount`,{zero_id:zid,date:today()},{k:"mount",sid:S.sid,zid,date:today()})}catch(e){toast(errText(e));return}
+  S.justMounted=zid;
+  if(!w.sent){toast(OFFLINE_SAVED);render();return}
+  const r=w.res,off=(r&&r.result&&r.result.unmounted)||[];
   toast("Scope is on "+zOf(zid).name+(off.length?` – ${off.join(", ")} taken off it`:""));await loadAll();
 });
 $("ckOk").addEventListener("click",async()=>{
   const zid=S.justMounted;
-  try{await api("POST",`zero/zeros/${encodeURIComponent(zid)}/check`,{ok:true,date:today()})}catch(e){toast(errText(e));return}
-  S.justMounted=null;toast("Check shot logged");await loadAll();
+  let w;try{w=await write("POST",`zero/zeros/${encodeURIComponent(zid)}/check`,{ok:true,date:today()},{k:"check",sid:S.sid,zid,date:today()})}catch(e){toast(errText(e));return}
+  S.justMounted=null;
+  if(!w.sent){toast(OFFLINE_SAVED);render();return}
+  toast("Check shot logged");await loadAll();
 });
 $("ckAdj").addEventListener("click",()=>{const zid=S.justMounted;S.justMounted=null;calcSwap();openZero(zid)});
 
@@ -590,7 +668,8 @@ $("notesForm").addEventListener("submit",async e=>{e.preventDefault();
 async function saveScope(patch){
   const s=scope();
   const body={name:s.name,unit:s.unit,click:s.click,zero_stop:s.zero_stop,elev_turn:s.elev_turn,wind_turn:s.wind_turn,notes:s.notes,status:s.status,ord:s.ord,archived:!!s.archived,...patch};
-  await api("PUT","zero/scopes/"+encodeURIComponent(s.id),body);await loadAll(true);
+  const w=await write("PUT","zero/scopes/"+encodeURIComponent(s.id),body,{k:"scope",sid:s.id,body:patch});
+  if(w.sent)await loadAll(true);else toast(OFFLINE_SAVED);
 }
 
 function logLine(e){
@@ -600,7 +679,7 @@ function logLine(e){
     check:e.ok===0?"check shot off":"check shot on zero ✓",swap:"scope mounted",unmount:"scope taken off",
     reference:e.zero_id?`made the 0 / 0 reference – every position shifted ${elevMove(-d)} / ${windDial(-w)}`:"turret zero is the 0 / 0 reference (values are dial readings)",
     new:`added at ${elevDial(e.elev)} / ${windDial(e.wind)}`,import:`imported at ${elevDial(e.elev)} / ${windDial(e.wind)}`}[k]||esc(k);
-  return`<div><time>${fiDate(e.date)}</time><span class="what">${e.position?`<b>${esc(e.position)}</b>: `:""}${what}${e.note?` <span>– ${esc(e.note)}</span>`:""}</span></div>`;
+  return`<div><time>${fiDate(e.date)}</time><span class="what">${e.position?`<b>${esc(e.position)}</b>: `:""}${what}${e.note?` <span>– ${esc(e.note)}</span>`:""}${e.pending?' <span class="badge warn">not sent yet</span>':""}</span></div>`;
 }
 function renderLog(){
   const log=scope().log||[],shown=S.logAll?log:log.slice(0,15);
@@ -679,16 +758,21 @@ document.querySelectorAll("[data-dw]").forEach(b=>b.addEventListener("click",()=
 $("aReset").addEventListener("click",()=>{S.adj={e:0,w:0};showAdj()});
 $("aSave").addEventListener("click",async()=>{
   const z=zOf(S.zid);if(!z)return;
-  try{await api("POST",`zero/zeros/${encodeURIComponent(z.id)}/adjust`,{d_elev:+(S.adj.e*click()).toFixed(4),d_wind:+(S.adj.w*click()).toFixed(4),date:$("aDate").value,note:$("aNote").value})}
+  const de=+(S.adj.e*click()).toFixed(4),dw=+(S.adj.w*click()).toFixed(4),date=$("aDate").value||today(),note=$("aNote").value;
+  let w;try{w=await write("POST",`zero/zeros/${encodeURIComponent(z.id)}/adjust`,{d_elev:de,d_wind:dw,date,note},{k:"adjust",sid:S.sid,zid:z.id,de,dw,date,note})}
   catch(e){toast(errText(e));return}
-  S.adj={e:0,w:0};$("aNote").value="";toast("Zero adjusted");await loadAll(true);
+  S.adj={e:0,w:0};$("aNote").value="";
+  if(!w.sent){toast(OFFLINE_SAVED);openZero(z.id,true);return}
+  toast("Zero adjusted");await loadAll(true);
 });
 $("zCheck").addEventListener("click",async()=>{
-  try{await api("POST",`zero/zeros/${encodeURIComponent(S.zid)}/check`,{ok:true,date:$("aDate").value||today(),note:$("aNote").value})}catch(e){toast(errText(e));return}
+  const date=$("aDate").value||today(),note=$("aNote").value,zid=S.zid;
+  let w;try{w=await write("POST",`zero/zeros/${encodeURIComponent(zid)}/check`,{ok:true,date,note},{k:"check",sid:S.sid,zid,date,note})}catch(e){toast(errText(e));return}
+  if(!w.sent){toast(OFFLINE_SAVED);openZero(zid,true);return}
   toast("Check shot logged");await loadAll(true);
 });
 $("zUndo").addEventListener("click",async()=>{
-  const z=zOf(S.zid);if(!z||!z.undo_id)return;
+  const z=zOf(S.zid);if(!z||!z.undo_id||needsOnline())return;
   try{await api("POST",`zero/log/${z.undo_id}/undo`,{})}catch(e){toast(errText(e));return}
   toast("Undone");await loadAll(true);
 });
@@ -704,19 +788,23 @@ $("zForm").addEventListener("submit",async e=>{e.preventDefault();
     cal:$("fCal").value,distance_m:$("fDist").value,mount:$("fMount").value,archived:z?!!z.archived:false,
     elev:el??0,wind:wi==null?0:Math.abs(wi)*(+$("fWdir").value),date:today()};
   const zid=z?z.id:"z-"+Math.random().toString(36).slice(2,10);
-  try{await api("PUT","zero/zeros/"+encodeURIComponent(zid),body)}catch(err){$("zMsg").textContent=errText(err);$("zMsg").hidden=false;return}
-  toast(z?"Saved":"Position added");S.zid=zid;await loadAll(true);if(!z)openZero(zid);
+  let w;try{w=await write("PUT","zero/zeros/"+encodeURIComponent(zid),body,{k:"zero",sid:S.sid,zid,body,date:today()})}catch(err){$("zMsg").textContent=errText(err);$("zMsg").hidden=false;return}
+  S.zid=zid;
+  if(!w.sent){toast(OFFLINE_SAVED);openZero(zid,!!z);return}
+  toast(z?"Saved":"Position added");await loadAll(true);if(!z)openZero(zid);
 });
-$("zRef").addEventListener("click",()=>confirmTap($("zRef"),"Tap again – every position shifts",async()=>{
+$("zRef").addEventListener("click",()=>!needsOnline()&&confirmTap($("zRef"),"Tap again – every position shifts",async()=>{
   try{await api("POST",`zero/scopes/${encodeURIComponent(S.sid)}/reference`,{zero_id:S.zid,date:today()})}catch(e){toast(errText(e));return}
   toast("New 0 / 0 reference");await loadAll(true);
 }));
 $("zArch").addEventListener("click",async()=>{
   const z=zOf(S.zid);
-  try{await api("PUT","zero/zeros/"+encodeURIComponent(z.id),{...z,archived:!z.archived})}catch(e){toast(errText(e));return}
-  toast(z.archived?"Restored":"Archived");await loadAll(true);
+  const body={...z,archived:!z.archived};
+  let w;try{w=await write("PUT","zero/zeros/"+encodeURIComponent(z.id),body,{k:"zero",sid:S.sid,zid:z.id,body})}catch(e){toast(errText(e));return}
+  if(!w.sent){toast(OFFLINE_SAVED);openZero(z.id,true);return}
+  toast(body.archived?"Archived":"Restored");await loadAll(true);
 });
-$("zDel").addEventListener("click",()=>confirmTap($("zDel"),"Tap again to delete",async()=>{
+$("zDel").addEventListener("click",()=>!needsOnline()&&confirmTap($("zDel"),"Tap again to delete",async()=>{
   try{await api("DELETE","zero/zeros/"+encodeURIComponent(S.zid))}catch(e){toast(errText(e));return}
   toast("Deleted");closeSheets();await loadAll();
 }));
@@ -862,7 +950,7 @@ $("pdfBtn").addEventListener("click",async()=>{
   finally{btn.disabled=false;btn.textContent=label}
 });
 
-loadAll();
+loadAll().then(()=>{queueNote();flush()});
 if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js",{scope:"./"}).catch(()=>{});
 })();
 </script>

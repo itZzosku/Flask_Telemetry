@@ -44,6 +44,9 @@ def init_zero(conn):
     for col in ("elev_turn", "wind_turn"):          # MRAD / MOA per full turret turn (cap readings)
         if col not in have:
             conn.execute(f"ALTER TABLE scopes ADD COLUMN {col} REAL")
+    if "op_id" not in {r[1] for r in conn.execute("PRAGMA table_info(scope_log)")}:
+        conn.execute("ALTER TABLE scope_log ADD COLUMN op_id TEXT")   # offline queue: a resent change is applied once
+        conn.execute("CREATE INDEX IF NOT EXISTS scope_log_op ON scope_log(op_id)")
 
 
 def _now():
@@ -478,26 +481,48 @@ def api_delete_zero(zid):
     return _ok(lambda: _delete_zero(db(), _id(zid)) or True)
 
 
+OP_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+
+
+def _once(b, fn):
+    """Run a logged change once per client op_id: the page queues changes made offline and may resend one
+    whose answer never arrived. A repeat is answered ok without applying it again."""
+    op = b.get("op_id")
+    if op and not OP_RE.match(str(op)):
+        return jsonify(error="bad_op_id"), 400
+    conn = db()
+    if op and conn.execute("SELECT 1 FROM scope_log WHERE op_id=?", (op,)).fetchone():
+        return jsonify(ok=True, result={"duplicate": True})
+    before = conn.execute("SELECT COALESCE(MAX(id), 0) FROM scope_log").fetchone()[0]
+
+    def run():
+        res = fn()
+        if res is not None and op:
+            conn.execute("UPDATE scope_log SET op_id=? WHERE id>?", (op, before))
+        return res
+    return _ok(run)
+
+
 @bp.post("/api/zero/zeros/<zid>/adjust")
 @login_required
 def api_adjust(zid):
     b = _body()
-    return _ok(lambda: adjust(db(), _id(zid), _num(b.get("d_elev"), name="d_elev"), _num(b.get("d_wind"), name="d_wind"),
-                              b.get("date"), b.get("note")))
+    return _once(b, lambda: adjust(db(), _id(zid), _num(b.get("d_elev"), name="d_elev"),
+                                   _num(b.get("d_wind"), name="d_wind"), b.get("date"), b.get("note")))
 
 
 @bp.post("/api/zero/zeros/<zid>/check")
 @login_required
 def api_check(zid):
     b = _body()
-    return _ok(lambda: check(db(), _id(zid), b.get("ok", True) is not False, b.get("date"), b.get("note")))
+    return _once(b, lambda: check(db(), _id(zid), b.get("ok", True) is not False, b.get("date"), b.get("note")))
 
 
 @bp.post("/api/zero/scopes/<sid>/mount")
 @login_required
 def api_mount(sid):
     b = _body()
-    return _ok(lambda: mount(db(), _id(sid), _id(b.get("zero_id")), b.get("date"), b.get("note")))
+    return _once(b, lambda: mount(db(), _id(sid), _id(b.get("zero_id")), b.get("date"), b.get("note")))
 
 
 @bp.post("/api/zero/scopes/<sid>/reference")

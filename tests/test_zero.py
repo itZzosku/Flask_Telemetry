@@ -299,3 +299,21 @@ def test_position_named_by_linked_load(client):
                                                 "AB-10 — Sako Blade 123 gr · N140 46.0 gr"]
     assert s["log"][0]["position"] == "AB-10 — Sako Blade 123 gr · N140 46.0 gr"
     assert client.get("/diary/api/home").get_json()["zeroes"][0]["on"] == "AB-10 — Sako Blade 123 gr · N140 46.0 gr"
+
+
+def test_offline_resend_applies_once(client):
+    """The page resends a queued change when it can't tell whether the first try arrived: same op_id → once."""
+    _import()
+    s = _scope(client)
+    ab = next(z for z in s["zeros"] if z["label"] == "150 gr FMJ")
+    body = {"d_elev": 0.2, "d_wind": 0, "date": "2026-10-20", "op_id": "op-test-123456"}
+    assert client.post(f"/diary/api/zero/zeros/{ab['id']}/adjust", json=body).get_json()["result"] == {"elev": 2.5, "wind": -1.1}
+    assert client.post(f"/diary/api/zero/zeros/{ab['id']}/adjust", json=body).get_json()["result"] == {"duplicate": True}
+    assert next(z for z in _scope(client)["zeros"] if z["id"] == ab["id"])["elev"] == 2.5
+    for path, b in ((f"zeros/{ab['id']}/check", {"op_id": "op-check-1234567"}),
+                    (f"scopes/{s['id']}/mount", {"zero_id": ab["id"], "op_id": "op-mount-1234567"})):
+        assert "duplicate" not in (client.post(f"/diary/api/zero/{path}", json=b).get_json()["result"] or {})
+        assert client.post(f"/diary/api/zero/{path}", json=b).get_json()["result"] == {"duplicate": True}
+    assert client.post(f"/diary/api/zero/zeros/{ab['id']}/check", json={"op_id": "bad id!"}).status_code == 400
+    kinds = [e["kind"] for e in _scope(client)["log"]]
+    assert kinds.count("adjust") == 1 and kinds.count("check") == 1 and kinds.count("swap") == 1
