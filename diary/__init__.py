@@ -110,6 +110,8 @@ def init_db():
     )
     from .chrono import init_chrono
     init_chrono(conn)
+    from .zero import init_zero
+    init_zero(conn)
     conn.commit()
     conn.close()
 
@@ -354,3 +356,5 @@ def delete_gun(gid):
 
 # Velocity data (Garmin Xero / own logs / Kestrel): routes register on the same blueprint.
 from . import chrono  # noqa: E402,F401
+# Scope zeroes (dial positions per rifle, swap calculator, the zeroing note).
+from . import zero  # noqa: E402,F401

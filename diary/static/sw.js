@@ -5,7 +5,7 @@
    - Logging out clears everything cached. Writes are never cached; the page queues them itself.
    - Share target: a file shared to the installed app (e.g. from ShotView) is POSTed to chrono/share;
      it is kept in the SHARE cache and the velocity page opens and imports it. */
-const VERSION = "v6";
+const VERSION = "v7";
 const PAGE = "diary-page-" + VERSION, DATA = "diary-data", ASSETS = "diary-assets-" + VERSION, SHARE = "diary-share";
 const BASE = new URL("./", self.registration.scope).pathname;            // "/diary/"
 const ASSET_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com", "cdnjs.cloudflare.com"];
@@ -68,7 +68,7 @@ self.addEventListener("fetch", e => {
   }
   if (req.method !== "GET") return;
 
-  if (local && req.mode === "navigate" && (url.pathname === BASE || url.pathname === BASE + "chrono")) {
+  if (local && req.mode === "navigate" && (url.pathname === BASE || url.pathname === BASE + "chrono" || url.pathname === BASE + "zero")) {
     e.respondWith(networkFirst(req, PAGE, url.pathname).catch(() =>
       new Response("<p style='font:16px system-ui;padding:24px'>Offline. Open the app once while online and it will work offline after that.</p>",
                    {headers: {"Content-Type": "text/html; charset=utf-8"}})));

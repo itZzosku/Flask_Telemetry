@@ -15,6 +15,9 @@
                                           import ShotView exports, velocity workbooks and Kestrel CSVs
                                           (files or folders, searched recursively)
   python -m diary chrono-stats [--gun ID] [--load ID]   per-day velocity table
+  python -m diary zero-import NOTE.md [--replace] [--dry-run]
+                                          import a scope zeroing note (dial positions, notes)
+  python -m diary zero-note [SCOPE_ID] [-o FILE]   print / write the zeroing note from the database
 """
 import argparse
 import glob
@@ -30,7 +33,7 @@ from getpass import getpass
 from werkzeug.security import generate_password_hash
 
 from . import DATA_DIR, DB_PATH, connect, init_db, kv_get, kv_set, upsert_gun, upsert_session
-from . import chrono
+from . import chrono, zero
 
 
 def set_password():
@@ -65,9 +68,12 @@ def import_json(path, replace):
     if data.get("profile"):
         kv_set("profile", json.dumps(data["profile"], ensure_ascii=False), conn)
     c = chrono.import_rows(conn, data, replace)
+    z = zero.import_rows(conn, data, replace)
     conn.commit()
     conn.close()
     extra = f", {c['chrono_strings']} strings / {c['chrono_shots']} velocities" if c["chrono_shots"] else ""
+    if z["scope_zeros"]:
+        extra += f", {z['scopes']} scopes / {z['scope_zeros']} zeroes"
     print(f"Imported {n} visits and {g} guns{extra} → {DATA_DIR}")
 
 
@@ -79,6 +85,7 @@ def export_json(path):
             for r in conn.execute("SELECT id, data FROM guns ORDER BY id")]
     profile = json.loads(kv_get("profile", conn) or "{}")
     velocity = chrono.export_rows(conn)
+    velocity.update(zero.export_rows(conn))
     conn.close()
     with open(path, "w", encoding="utf-8") as f:
         json.dump({"profile": profile, "guns": guns, "sessions": sessions, **velocity}, f,
@@ -135,7 +142,8 @@ def mail_backup(json_path):
         f"Weekly backup of the shooting diary.\n\n"
         f"Visits: {len(sessions)}\nShooting days: {days}\nShots: {rounds}\n"
         f"Guns: {len(data.get('guns', []))}\nLast visit: {last}\n"
-        f"Velocity strings: {len(data.get('chrono_strings', []))}, shots {len(data.get('chrono_shots', []))}\n\n"
+        f"Velocity strings: {len(data.get('chrono_strings', []))}, shots {len(data.get('chrono_shots', []))}\n"
+        f"Scopes: {len(data.get('scopes', []))}, zeroes {len(data.get('scope_zeros', []))}\n\n"
         f"Restore on the server:\n  ./venv/bin/python -m diary import {name} --replace\n")
     msg.add_attachment(payload, maintype="application", subtype="json", filename=name)
 
@@ -316,6 +324,72 @@ def chrono_print_stats(gun, load):
     conn.close()
 
 
+# ------------------------------------------------------------------ scope zeroes
+def _dist(z):
+    return f"{z['distance_m']:g} m" if z.get("distance_m") else ""
+
+
+def zero_import(path, replace, dry_run):
+    from . import zero_note as zn
+    with open(path, encoding="utf-8") as f:
+        md = f.read()
+    try:
+        p = zn.parse_note(md)
+    except ValueError as e:
+        sys.exit(str(e))
+    sc = p["scope"]
+    c = sc["click"]
+    print(f"{sc['name']} · {sc['unit']} · click {c:g} · zero stop "
+          f"{zn.elev_dial(sc['zero_stop'], c) if sc['zero_stop'] is not None else '–'} · updated {sc['updated'] or '–'}")
+    for z in p["zeros"]:
+        print(f"  {'*' if z['is_ref'] else ' '} {zn.position_name(z):<40.40} {zn.elev_dial(z['elev'], c):>6} "
+              f"{zn.wind_dial(z['wind'], c):>11}   {z.get('cal') or ''} {_dist(z)}")
+    chk = zn.check_swaps(p["zeros"], p["swaps"], c)
+    print(f"Swap tables in the note: {chk['ok']} of {chk['ok'] + len(chk['bad'])} agree with the dial positions")
+    for b in chk["bad"]:
+        print("  ! " + b)
+    if dry_run:
+        print("Dry run – nothing saved.")
+        return
+    conn = connect()
+    try:
+        res = zero.import_note(conn, md, replace)
+    except ValueError as e:
+        if str(e).startswith("exists:"):
+            sys.exit(f"{sc['name']} is already in the database – use --replace to overwrite it "
+                     "(its change history is replaced too).")
+        sys.exit(str(e))
+    conn.commit()
+    gnames = {gid: g.get("name", gid) for gid, g in chrono.guns(conn).items()}
+    lnames = {r["id"]: r["name"] for r in chrono.load_rows(conn)}
+    for name, l in res["links"].items():
+        print(f"  {name:<40.40} gun: {gnames.get(l['gun_id'], '– (pick on the page)')}"
+              + (f" · load: {lnames.get(l['load_id'])}" if l["load_id"] else ""))
+    conn.close()
+    print(f"{'Created' if res['created'] else 'Replaced'} {sc['name']} with {res['zeros']} positions.")
+
+
+def zero_print_note(scope_id, out):
+    conn = connect()
+    rows = zero.scope_rows(conn)
+    if not rows:
+        sys.exit("No scopes yet. Import one: python -m diary zero-import notes/javelin-zeroing-note.md")
+    if not scope_id:
+        if len(rows) > 1:
+            sys.exit("Several scopes – give one: " + ", ".join(f"{r['id']} ({r['name']})" for r in rows))
+        scope_id = rows[0]["id"]
+    md = zero.note_md(conn, scope_id)
+    conn.close()
+    if md is None:
+        sys.exit(f"No scope {scope_id}")
+    if out:
+        with open(out, "w", encoding="utf-8") as f:
+            f.write(md)
+        print(f"Wrote {out}")
+    else:
+        print(md, end="")
+
+
 def main():
     p = argparse.ArgumentParser(prog="python -m diary")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -349,6 +423,13 @@ def main():
     cs = sub.add_parser("chrono-stats")
     cs.add_argument("--gun")
     cs.add_argument("--load")
+    zi = sub.add_parser("zero-import")
+    zi.add_argument("path")
+    zi.add_argument("--replace", action="store_true", help="overwrite a scope with the same name")
+    zi.add_argument("--dry-run", action="store_true")
+    zo = sub.add_parser("zero-note")
+    zo.add_argument("scope_id", nargs="?")
+    zo.add_argument("-o", "--out")
     a = p.parse_args()
     init_db()
     if a.cmd == "set-password":
@@ -370,6 +451,10 @@ def main():
         chrono_import(a.paths, a.gun, a.dry_run, a.keep_swaps, a.fix_dates)
     elif a.cmd == "chrono-stats":
         chrono_print_stats(a.gun, a.load)
+    elif a.cmd == "zero-import":
+        zero_import(a.path, a.replace, a.dry_run)
+    elif a.cmd == "zero-note":
+        zero_print_note(a.scope_id, a.out)
     elif a.cmd == "backup":
         json_path = backup(a.directory, max(1, a.keep))
         if a.mail:
