@@ -277,6 +277,7 @@ header.top{padding-top:6px!important}
         <div><small>Windage</small><b id="rW">–</b><span id="rWc"></span></div>
       </div>
       <div class="target" id="rTarget"></div>
+      <div class="target" id="rCaps" hidden></div>
       <div class="msg" id="rWarn" hidden></div>
       <div class="row2" id="mountRow"><button class="primary" type="button" id="mountBtn">Mounted – scope is on it now</button></div>
       <div class="row2" id="checkRow" hidden>
@@ -373,6 +374,9 @@ header.top{padding-top:6px!important}
       <label class="f">Click<input type="text" id="sClick" inputmode="decimal"></label>
       <label class="f">Zero stop (dial)<input type="text" id="sStop" inputmode="decimal" placeholder="e.g. −0.5"></label></div>
     <p class="hint" style="margin:0">The zero stop is where the elevation turret bottoms out, as a dial reading (below 0 = negative).</p>
+    <div class="grid2"><label class="f">Elevation turn<input type="text" id="sETurn" inputmode="decimal" placeholder="e.g. 10"></label>
+      <label class="f">Windage turn<input type="text" id="sWTurn" inputmode="decimal" placeholder="e.g. 10"></label></div>
+    <p class="hint" style="margin:0">One full turret turn, in the scope's unit. Optional: with these the swap also says where the caps stop (elevation numbered one way, windage both ways to the half-turn mark).</p>
     <label class="f" id="sRefRow">0 / 0 reference<select id="sRef"></select></label>
     <p class="hint" style="margin:0" id="sRefHint">Turret zero: every value is simply what the turrets read, and 0 / 0 doesn't have to match any rifle. Picking a position relabels everything so that position reads 0 / 0 (swaps stay the same).</p>
     <div class="msg" id="sMsg" hidden></div>
@@ -395,7 +399,7 @@ function lsSet(v){try{localStorage.setItem(LS,v)}catch(e){}}
 function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>el.hidden=true,2600)}
 const ERR={offline:"Offline – not saved.",not_latest:"Only the newest change of a position can be undone.",no_change:"Dial a correction first.",
   rifle_required:"Give the rifle a name.",name_required:"Give the scope a name.",bad_elev:"Elevation looks wrong.",bad_wind:"Windage looks wrong.",
-  bad_click:"Click value looks wrong.",bad_zero_stop:"Zero stop looks wrong.",bad_date:"Date looks wrong.",empty:"The note is empty."};
+  bad_click:"Click value looks wrong.",bad_zero_stop:"Zero stop looks wrong.",bad_elev_turn:"Elevation turn looks wrong.",bad_wind_turn:"Windage turn looks wrong.",bad_date:"Date looks wrong.",empty:"The note is empty."};
 const errText=e=>ERR[e.message]||(String(e.message).startsWith("exists:")?"A scope with this name exists.":e.message||"Failed");
 
 async function api(method,path,body){
@@ -479,12 +483,31 @@ function calcSwap(){
   if(a){const de=rnd(b.elev-a.elev),dw=rnd(b.wind-a.wind);
     $("rE").textContent=elevMove(de);$("rE").className=isZ(de)?"same":"";$("rEc").textContent=clk(de);
     $("rW").textContent=windDial(dw);$("rW").className=isZ(dw)?"same":"";$("rWc").textContent=clk(dw);
-  }else{$("rE").textContent=$("rW").textContent="?";$("rEc").textContent=$("rWc").textContent="pick where it is now"}
+    capsLine(de,dw);
+  }else{$("rE").textContent=$("rW").textContent="?";$("rEc").textContent=$("rWc").textContent="pick where it is now";$("rCaps").hidden=true}
   $("rTarget").innerHTML=`Turrets on ${esc(b.name)}: <b>${elevDial(b.elev)}</b> / <b>${windDial(b.wind)}</b>`
     +(s.zero_stop!=null?` · ${fx(b.elev-s.zero_stop)} above the zero stop`:"")
     +(b.distance_m?` · ${b.distance_m} m zero`:"");
   const low=s.zero_stop!=null&&b.elev<s.zero_stop-click()/2;
   $("rWarn").hidden=!low;$("rWarn").textContent=low?"This position is below the zero stop – it can't be dialled. Check the zero stop in Scope settings.":"";
+}
+/* Cap readings for a move, starting from caps re-indexed to 0 / 0 (needs the turn sizes in Scope settings).
+   Elevation cap: numbered one way, 0 → turn; down past 0 it reads from the top again (−2.9 on a 10-turn = 7.1).
+   Windage cap: numbered both ways from 0 to half a turn (1 L … 4 L, 5, 4 R … 1 R on a 10-turn). */
+function capsText(de,dw){
+  const s=scope(),E=+s.elev_turn||0,W=+s.wind_turn||0,out={e:"",w:"",ec:"",wc:""};
+  if(E&&!isZ(de)){const r=rnd(((de%E)+E)%E),t=Math.floor(rnd(de)/E+1e-9),rr=isZ(r-E)?0:r;
+    out.ec=fx(rr);out.e=t>0?`after ${t} full turn${t>1?"s":""} up`:t<0?`${-t===1?"one turn":(-t)+" turns"} below 0`:""}
+  if(W&&!isZ(dw)){const h=W/2,n=Math.floor((Math.abs(dw)+h-1e-9)/W);let r=((dw%W)+W)%W;if(r>h+1e-9)r-=W;r=rnd(r);
+    out.wc=isZ(Math.abs(r)-h)?fx(h):isZ(r)?"0":fx(r)+(r>0?" R":" L");
+    out.w=n?`goes past the ${fx(h)} mark ${n===1?"once":n+" times"}, count the clicks`:""}
+  return out;
+}
+function capsLine(de,dw){
+  const c=capsText(de,dw),el=$("rCaps"),parts=[];
+  if(c.ec)parts.push(`elevation cap <b>${c.ec}</b>${c.e?" "+c.e:""}`);
+  if(c.wc)parts.push(`windage cap <b>${c.wc}</b>${c.w?" – "+c.w:""}`);
+  el.hidden=!parts.length;el.innerHTML=parts.length?"With the caps at 0 / 0 now: "+parts.join(" · "):"";
 }
 $("fromSel").addEventListener("change",()=>{S.justMounted=null;calcSwap()});
 $("toSel").addEventListener("change",()=>{S.to=$("toSel").value;S.justMounted=null;calcSwap()});
@@ -566,7 +589,7 @@ $("notesForm").addEventListener("submit",async e=>{e.preventDefault();
   try{await saveScope({notes:$("notesTxt").value,status:$("statusTxt").value});toast("Notes saved")}catch(err){toast(errText(err))}});
 async function saveScope(patch){
   const s=scope();
-  const body={name:s.name,unit:s.unit,click:s.click,zero_stop:s.zero_stop,notes:s.notes,status:s.status,ord:s.ord,archived:!!s.archived,...patch};
+  const body={name:s.name,unit:s.unit,click:s.click,zero_stop:s.zero_stop,elev_turn:s.elev_turn,wind_turn:s.wind_turn,notes:s.notes,status:s.status,ord:s.ord,archived:!!s.archived,...patch};
   await api("PUT","zero/scopes/"+encodeURIComponent(s.id),body);await loadAll(true);
 }
 
@@ -706,6 +729,7 @@ function openScope(s){
   $("sTitle").textContent=s?"Scope settings":"New scope";
   $("sName").value=s?s.name:"";$("sUnit").value=s?s.unit:"MRAD";$("sClick").value=s?+s.click:"0.1";
   $("sStop").value=s&&s.zero_stop!=null?elevDial(s.zero_stop).replace(MINUS,"-"):"";
+  $("sETurn").value=s&&s.elev_turn?+s.elev_turn:"";$("sWTurn").value=s&&s.wind_turn?+s.wind_turn:"";
   $("sRefRow").hidden=$("sRefHint").hidden=!s||!(s.zeros||[]).length;
   if(s)$("sRef").innerHTML=`<option value="">Turret zero (dial readings)</option>`+(s.zeros||[]).filter(z=>!z.archived)
     .map(z=>`<option value="${esc(z.id)}" ${z.id===s.ref_zero_id?"selected":""}>${esc(z.name)} (${elevDial(z.elev)} / ${windShort(z.wind)})</option>`).join("");
@@ -718,6 +742,7 @@ $("sForm").addEventListener("submit",async e=>{e.preventDefault();
   const s=editingScope?S.scopes.find(x=>x.id===editingScope):null;
   const id=s?s.id:"s-"+$("sName").value.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40)+"-"+Math.random().toString(36).slice(2,6);
   const body={name:$("sName").value,unit:$("sUnit").value,click:num($("sClick").value),zero_stop:num($("sStop").value),
+    elev_turn:num($("sETurn").value),wind_turn:num($("sWTurn").value),
     notes:s?s.notes:"",status:s?s.status:"",ord:s?s.ord:S.scopes.length,archived:s?!!s.archived:false};
   try{await api("PUT","zero/scopes/"+encodeURIComponent(id),body);
     if(s&&!$("sRefRow").hidden&&($("sRef").value||null)!==(s.ref_zero_id||null))
@@ -782,10 +807,11 @@ $("pdfBtn").addEventListener("click",async()=>{
       {1:{halign:"right",fontStyle:"bold",cellWidth:56},2:{halign:"right",fontStyle:"bold",cellWidth:68},...(stop?{3:{halign:"right",cellWidth:54}}:{})});
 
     // Every swap, both directions, grouped by where the scope comes from
-    const rows=[];
+    const rows=[],turns=!!(+s.elev_turn||+s.wind_turn);
     zs.forEach(a=>zs.forEach(b=>{if(a===b)return;const de=rnd(b.elev-a.elev),dw=rnd(b.wind-a.wind);
-      rows.push([a.name,b.name+(a.rifle===b.rifle?"  (load change)":""),elevMove(de),windDial(dw),nClicks(de)+" / "+nClicks(dw)])}));
-    if(rows.length)y=table(y,"Swaps",["From","To","Elevation","Windage","Clicks E / W"],rows,
+      const c=capsText(de,dw),cap=[c.ec&&("E "+c.ec+(c.e.includes("below")?" (-1 turn)":c.e?" (+turn)":"")),c.wc&&("W "+c.wc+(c.w?" (past 5)".replace("5",fx(+s.wind_turn/2)):""))].filter(Boolean).join(", ");
+      rows.push([a.name,b.name+(a.rifle===b.rifle?"  (load change)":""),elevMove(de),windDial(dw),nClicks(de)+" / "+nClicks(dw)].concat(turns?[cap]:[]))}));
+    if(rows.length)y=table(y,"Swaps",["From","To","Elevation","Windage","Clicks E / W"].concat(turns?["Caps from 0 / 0"]:[]),rows,
       {2:{halign:"right",fontStyle:"bold",cellWidth:62},3:{halign:"right",fontStyle:"bold",cellWidth:68},4:{halign:"right",cellWidth:58}});
 
     // Rifles / mounts

@@ -141,6 +141,9 @@ the scope's own frame where the reference position is 0 / 0. Open it from the di
 - **Swap**: *Scope is on* → *Move to* shows what to dial (e.g. `DOWN 2.7` / `0.1 RIGHT`, in clicks too), the
   target's turret readings and its distance above the zero stop. *Mounted on …* records the swap, then asks
   for the check shot: *On zero ✓* logs it, *Off – adjust…* opens the correction.
+- **Cap readings**: with the turret turn sizes set in *Scope settings* (e.g. 10 MRAD), the swap also says where
+  the caps stop if they read 0 / 0 now — elevation numbered one way (DOWN 2.9 → `7.1`, one turn below 0), windage
+  both ways to the half-turn mark (`1 L … 4 L, 5, 4 R … 1 R`) with a warning when a move passes that mark.
 - **Adjust zero**: tap UP/DOWN and LEFT/RIGHT by clicks for what you corrected at the range; the position
   moves by that much and the change is logged with date and note. *Undo* reverts the newest change of a
   position. Exact values can also be typed under *Details* (logged as “set”).

@@ -40,6 +40,10 @@ LIMIT = 100.0          # no turret dials 100 MRAD / MOA from its reference
 
 def init_zero(conn):
     conn.executescript(SCHEMA)
+    have = {r[1] for r in conn.execute("PRAGMA table_info(scopes)")}
+    for col in ("elev_turn", "wind_turn"):          # MRAD / MOA per full turret turn (cap readings)
+        if col not in have:
+            conn.execute(f"ALTER TABLE scopes ADD COLUMN {col} REAL")
 
 
 def _now():
@@ -158,6 +162,8 @@ def save_scope(conn, sid, b):
     vals = {"name": _txt(b.get("name"), 60), "unit": unit,
             "click": _num(b.get("click"), 0.01, 5, "click") or (0.25 if unit == "MOA" else 0.1),
             "zero_stop": _num(b.get("zero_stop"), name="zero_stop"),
+            "elev_turn": _num(b.get("elev_turn"), 0.5, 100, "elev_turn"),
+            "wind_turn": _num(b.get("wind_turn"), 0.5, 100, "wind_turn"),
             "notes": str(b.get("notes") or "")[:20000] or None, "status": _txt(b.get("status"), 200),
             "ord": int(b.get("ord") or 0), "archived": 1 if b.get("archived") else 0}
     if not vals["name"]:
