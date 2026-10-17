@@ -420,7 +420,13 @@ async function api(method,path,body){
    Changes made without a connection are kept on this phone (localStorage), shown at once, and sent in
    order when the connection is back. Adjust / check / mount carry an op_id so a resend applies only once.
    Undo, reference changes and deletes need a connection (they depend on the server's history). */
-const QK="zero-queue",OFFLINE_SAVED="No connection – saved on this phone, sends when you're back online";
+// Logged-in account (cookie set at login): local storage keys are per account, so on a shared phone one
+// person's unsent changes can never be sent into another person's diary.
+const ACCOUNT=decodeURIComponent((document.cookie.match(/(?:^|; )diary_user=([^;]*)/)||[])[1]||"");
+function ukey(k){const nk=ACCOUNT?k+":"+ACCOUNT:k;
+  try{if(ACCOUNT&&localStorage.getItem(k)!==null&&localStorage.getItem(nk)===null){localStorage.setItem(nk,localStorage.getItem(k));localStorage.removeItem(k)}}catch(e){}
+  return nk}
+const QK=ukey("zero-queue"),OFFLINE_SAVED="No connection – saved on this phone, sends when you're back online";
 const qGet=()=>{try{return JSON.parse(localStorage.getItem(QK)||"[]")}catch(e){return[]}};
 const qSet=q=>{try{localStorage.setItem(QK,JSON.stringify(q))}catch(e){}};
 const opId=()=>"op"+Date.now().toString(36)+Math.random().toString(36).slice(2,10);

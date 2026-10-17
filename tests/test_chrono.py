@@ -203,17 +203,17 @@ def test_temp_sensitivity():
 @pytest.fixture()
 def client():
     from flask import Flask
-    from werkzeug.security import generate_password_hash
     app = Flask(__name__)
     diary.init_app(app)
     conn = diary.connect()
     conn.executescript("DELETE FROM chrono_shots; DELETE FROM chrono_strings; DELETE FROM loads; DELETE FROM guns;")
-    diary.kv_set("password_hash", generate_password_hash("test-password-1"), conn)
+    from diary import users
+    users.ensure("osku", "test-password-1", admin=True, db_file="diary.db")
     diary.upsert_gun(conn, "g-t3x", {"name": "T3X Super Varmint", "cal": "6.5 CM"})
     conn.commit()
     conn.close()
     c = app.test_client()
-    assert c.post("/diary/login", data={"password": "test-password-1"}).status_code == 302
+    assert c.post("/diary/login", data={"username": "osku", "password": "test-password-1"}).status_code == 302
     return c
 
 

@@ -1,12 +1,18 @@
 """Server-side admin for the shooting diary.
 
-  python -m diary set-password            set or change the login password
+Accounts (each has its own data file):
+  python -m diary user-add NAME [--admin]   new account (asks for the password)
+  python -m diary user-list                 accounts, data files, last login
+  python -m diary user-passwd NAME          set a new password (logs that user out everywhere)
+  python -m diary user-disable NAME / user-enable NAME / user-rename OLD NEW
+
+Data commands work on one account: add --user NAME (default: the first admin account, i.e. diary.db).
   python -m diary import seed.json        load sessions, guns + profile from JSON
   python -m diary import seed.json --replace   wipe sessions first
   python -m diary export backup.json      dump everything to JSON
   python -m diary backup DIR [--keep 12] [--mail]
-                                          dated JSON + SQLite copy into DIR, keep newest N,
-                                          --mail: also email the JSON (settings in .env)
+                                          every account: dated JSON + SQLite copy into DIR, keep newest N
+                                          per account, --mail: also email the JSONs (settings in .env)
   python -m diary assign-gun GUN_ID --cal ".223 Rem" [--type Kivääri] [--from 2024-04-17] [--to 2026-07-10]
                                           tie existing rows without a gun to GUN_ID (dates inclusive);
                                           --dry-run shows what would change, --list-guns shows ids
@@ -29,22 +35,61 @@ import time
 from email.message import EmailMessage
 from getpass import getpass
 
-from werkzeug.security import generate_password_hash
-
-from . import DATA_DIR, DB_PATH, connect, init_db, kv_get, kv_set, upsert_gun, upsert_session
-from . import chrono, zero
+from . import DATA_DIR, connect, init_db, kv_get, kv_set, upsert_gun, upsert_session, use_db
+from . import chrono, users, zero
 
 
-def set_password():
-    pw = getpass("New password: ")
-    if len(pw) < 10:
-        sys.exit("Use at least 10 characters.")
+# ------------------------------------------------------------------ accounts
+def _ask_password():
+    pw = getpass("Password: ")
+    if len(pw) < users.MIN_PASSWORD:
+        sys.exit(f"Use at least {users.MIN_PASSWORD} characters.")
     if pw != getpass("Again: "):
         sys.exit("The passwords do not match.")
-    conn = connect()
-    kv_set("password_hash", generate_password_hash(pw), conn)
-    conn.close()
-    print("Password set. Every existing login has been logged out.")
+    return pw
+
+
+def user_add(name, admin):
+    try:
+        users.check_name(name)
+        if users.by_name(name):
+            sys.exit(f"User {name} already exists.")
+        u = users.create(name, _ask_password(), admin=admin)
+    except ValueError as e:
+        sys.exit(str(e))
+    print(f"Created {u['username']}{' (admin)' if admin else ''} – data in {users.db_path(u)}")
+
+
+def user_list():
+    rows = users.all_users()
+    if not rows:
+        print("No accounts. Create one: python -m diary user-add NAME --admin")
+    for u in rows:
+        flags = ", ".join(f for f in ("admin" if u["is_admin"] else "", "DISABLED" if u["disabled"] else "") if f)
+        print(f"{u['username']:<20} {u['db_file']:<24} last login {u['last_login'] or '–':<22} {flags}")
+
+
+def user_passwd(name):
+    if not users.by_name(name):
+        sys.exit(f"No user {name}.")
+    users.set_password(name, _ask_password())
+    print(f"Password set for {name}. Their existing logins have been logged out.")
+
+
+def _pick_user(name):
+    """--user NAME → that account's data file for every data command; default: the first admin's."""
+    users.migrate_single_user()
+    if name:
+        u = users.by_name(name)
+        if not u:
+            sys.exit(f"No user {name}. See: python -m diary user-list")
+    else:
+        admins = [u for u in users.all_users() if u["is_admin"]]
+        u = admins[0] if admins else None
+    if u:
+        use_db(users.db_path(u))
+        init_db(users.db_path(u))
+    return u
 
 
 def import_json(path, replace):
@@ -93,28 +138,50 @@ def export_json(path):
 
 
 def backup(directory, keep):
-    """Write diary-YYYY-MM-DD.json and .db into directory, prune to the newest `keep`."""
+    """Every account: diary-<user>-YYYY-MM-DD.json and .db into directory, newest `keep` per account.
+    Returns [(username, json_path)]."""
     os.makedirs(directory, exist_ok=True)
     stamp = time.strftime("%Y-%m-%d")
-    base = os.path.join(directory, f"diary-{stamp}")
-    export_json(base + ".json")
-    # sqlite3's backup API gives a consistent copy even while the app is running.
-    src, dst = sqlite3.connect(DB_PATH), sqlite3.connect(base + ".db")
-    with dst:
-        src.backup(dst)
-    src.close()
-    dst.close()
-    for ext in (".json", ".db"):
-        old = sorted(glob.glob(os.path.join(directory, "diary-*" + ext)))[:-keep]
-        for path in old:
-            os.remove(path)
-    print(f"Backup: {base}.json + .db (keeping the newest {keep})")
-    return base + ".json"
+    done = []
+    accounts = users.all_users() or [None]          # no accounts yet: the plain diary.db
+    for u in accounts:
+        name = u["username"] if u else "diary"
+        path = users.db_path(u) if u else os.path.join(DATA_DIR, "diary.db")
+        if not os.path.exists(path):
+            continue
+        use_db(path)
+        base = os.path.join(directory, f"diary-{name}-{stamp}")
+        export_json(base + ".json")
+        # sqlite3's backup API gives a consistent copy even while the app is running.
+        src, dst = sqlite3.connect(path), sqlite3.connect(base + ".db")
+        with dst:
+            src.backup(dst)
+        src.close()
+        dst.close()
+        for ext in (".json", ".db"):
+            old = sorted(glob.glob(os.path.join(directory, f"diary-{name}-[0-9]*" + ext)))[:-keep]
+            for p in old:
+                os.remove(p)
+        print(f"Backup {name}: {base}.json + .db (keeping the newest {keep})")
+        done.append((name, base + ".json"))
+    return done
 
 
-def mail_backup(json_path):
-    """Email the backup JSON. .env: DIARY_SMTP_USER, DIARY_SMTP_PASSWORD (Gmail app password),
-    optional DIARY_BACKUP_TO (default: DIARY_SMTP_USER), DIARY_SMTP_HOST, DIARY_SMTP_PORT."""
+def _summary(data):
+    sessions = data.get("sessions", [])
+    rounds = sum(int(l.get("rounds") or 0) for s in sessions for l in s.get("lines", []))
+    return (f"Visits: {len(sessions)}, shooting days {len({s['date'] for s in sessions})}, shots {rounds}, "
+            f"last visit {max((s['date'] for s in sessions), default='–')}\n"
+            f"Guns: {len(data.get('guns', []))}\n"
+            f"Velocity strings: {len(data.get('chrono_strings', []))}, shots {len(data.get('chrono_shots', []))}, "
+            f"name aliases {len((data.get('chrono_settings') or {}).get('aliases', {}))}, "
+            f"powders {len((data.get('chrono_settings') or {}).get('powders', []))}\n"
+            f"Scopes: {len(data.get('scopes', []))}, zeroes {len(data.get('scope_zeros', []))}\n")
+
+
+def mail_backup(files):
+    """Email the backup JSONs (one per account) in one message. .env: DIARY_SMTP_USER, DIARY_SMTP_PASSWORD
+    (Gmail app password), optional DIARY_BACKUP_TO (default: DIARY_SMTP_USER), DIARY_SMTP_HOST, DIARY_SMTP_PORT."""
     user = os.getenv("DIARY_SMTP_USER", "").strip().strip('"\'')
     # Google shows the app password in groups; copying can bring non-breaking spaces along.
     password = "".join(os.getenv("DIARY_SMTP_PASSWORD", "").strip().strip('"\'').split())
@@ -124,29 +191,24 @@ def mail_backup(json_path):
     host = os.getenv("DIARY_SMTP_HOST", "smtp.gmail.com")
     port = int(os.getenv("DIARY_SMTP_PORT", "587"))
 
-    with open(json_path, "rb") as f:
-        payload = f.read()
-    data = json.loads(payload)
-    sessions = data.get("sessions", [])
-    days = len({s["date"] for s in sessions})
-    rounds = sum(int(l.get("rounds") or 0) for s in sessions for l in s.get("lines", []))
-    last = max((s["date"] for s in sessions), default="–")
-    name = os.path.basename(json_path)
-
     msg = EmailMessage()
     msg["Subject"] = f"Shooting diary backup {time.strftime('%Y-%m-%d')}"
     msg["From"] = user
     msg["To"] = to
-    msg.set_content(
-        f"Weekly backup of the shooting diary.\n\n"
-        f"Visits: {len(sessions)}\nShooting days: {days}\nShots: {rounds}\n"
-        f"Guns: {len(data.get('guns', []))}\nLast visit: {last}\n"
-        f"Velocity strings: {len(data.get('chrono_strings', []))}, shots {len(data.get('chrono_shots', []))}\n"
-        f"Scopes: {len(data.get('scopes', []))}, zeroes {len(data.get('scope_zeros', []))}\n"
-        f"Velocity name aliases: {len((data.get('chrono_settings') or {}).get('aliases', {}))}, "
-        f"powders: {len((data.get('chrono_settings') or {}).get('powders', []))}\n\n"
-        f"Restore on the server:\n  ./venv/bin/python -m diary import {name} --replace\n")
-    msg.add_attachment(payload, maintype="application", subtype="json", filename=name)
+    body = [f"Weekly backup of the shooting diary – {len(files)} account{'s' if len(files) != 1 else ''}.\n"]
+    attachments = []
+    for account, json_path in files:
+        with open(json_path, "rb") as f:
+            payload = f.read()
+        name = os.path.basename(json_path)
+        body.append(f"== {account} ({name})\n" + _summary(json.loads(payload)))
+        attachments.append((payload, name))
+    body.append("Restore one account on the server:\n"
+                "  ./venv/bin/python -m diary import --user NAME diary-NAME-YYYY-MM-DD.json --replace\n"
+                "Backups contain licence numbers – keep them to yourself.\n")
+    msg.set_content("\n".join(body))
+    for payload, name in attachments:
+        msg.add_attachment(payload, maintype="application", subtype="json", filename=name)
 
     if not password.isascii() or ("gmail" in host and len(password) != 16):
         sys.exit(f"DIARY_SMTP_PASSWORD looks wrong: {len(password)} characters"
@@ -163,7 +225,7 @@ def mail_backup(json_path):
                  "Google account the app password was made for, and that the password is right.")
     except (smtplib.SMTPException, OSError) as e:
         sys.exit(f"Sending the e-mail failed: {type(e).__name__}: {e}")
-    print(f"Sent: {name} → {to}")
+    print(f"Sent: {', '.join(n for _, n in attachments)} → {to}")
 
 
 def _norm(v):
@@ -373,7 +435,20 @@ def zero_import(path, replace, dry_run):
 def main():
     p = argparse.ArgumentParser(prog="python -m diary")
     sub = p.add_subparsers(dest="cmd", required=True)
+    u = argparse.ArgumentParser(add_help=False)
+    u.add_argument("--user", help="account whose data to use (default: the first admin account)")
+    _add = sub.add_parser
+    sub.add_parser = lambda name, **kw: _add(name, parents=[u], **kw)   # --user on every command
     sub.add_parser("set-password")
+    ua = sub.add_parser("user-add")
+    ua.add_argument("name")
+    ua.add_argument("--admin", action="store_true")
+    sub.add_parser("user-list")
+    for cmd in ("user-passwd", "user-disable", "user-enable"):
+        sub.add_parser(cmd).add_argument("name")
+    ur = sub.add_parser("user-rename")
+    ur.add_argument("old")
+    ur.add_argument("new")
     i = sub.add_parser("import")
     i.add_argument("path")
     i.add_argument("--replace", action="store_true")
@@ -409,9 +484,30 @@ def main():
     zi.add_argument("--dry-run", action="store_true")
     a = p.parse_args()
     init_db()
-    if a.cmd == "set-password":
-        set_password()
-    elif a.cmd == "import":
+    users.migrate_single_user()          # first run after accounts came in: the old diary becomes an account
+    if a.cmd == "user-add":
+        return user_add(a.name, a.admin)
+    if a.cmd == "user-list":
+        return user_list()
+    if a.cmd in ("user-passwd", "set-password"):
+        name = getattr(a, "name", None) or a.user or (_pick_user(None) or {}).get("username")
+        if not name:
+            sys.exit("No accounts yet. Create one: python -m diary user-add NAME --admin")
+        return user_passwd(name)
+    if a.cmd in ("user-disable", "user-enable", "user-rename"):
+        try:
+            if a.cmd == "user-rename":
+                users.rename(a.old, a.new)
+            else:
+                users.set_disabled(a.name, a.cmd == "user-disable")
+        except ValueError as e:
+            sys.exit(str(e))
+        return print("Done.")
+    if a.cmd != "backup":
+        who = _pick_user(a.user)
+        if who and a.cmd not in ("chrono-stats",):
+            print(f"[account: {who['username']}]", file=sys.stderr)
+    if a.cmd == "import":
         import_json(a.path, a.replace)
     elif a.cmd == "assign-gun":
         if a.list_guns or not a.gun_id:
@@ -431,9 +527,9 @@ def main():
     elif a.cmd == "zero-import":
         zero_import(a.path, a.replace, a.dry_run)
     elif a.cmd == "backup":
-        json_path = backup(a.directory, max(1, a.keep))
-        if a.mail:
-            mail_backup(json_path)
+        files = backup(a.directory, max(1, a.keep))
+        if a.mail and files:
+            mail_backup(files)
     else:
         export_json(a.path)
 

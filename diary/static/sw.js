@@ -5,7 +5,7 @@
    - Logging out clears everything cached. Writes are never cached; the page queues them itself.
    - Share target: a file shared to the installed app (e.g. from ShotView) is POSTed to chrono/share;
      it is kept in the SHARE cache and the velocity page (/velocity) opens and imports it. */
-const VERSION = "v11";
+const VERSION = "v12";
 const PAGE = "diary-page-" + VERSION, DATA = "diary-data", ASSETS = "diary-assets-" + VERSION, SHARE = "diary-share";
 const BASE = new URL("./", self.registration.scope).pathname;            // "/diary/"
 const ASSET_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com", "cdnjs.cloudflare.com"];
@@ -42,7 +42,8 @@ self.addEventListener("fetch", e => {
   const req = e.request, url = new URL(req.url);
   const local = url.origin === self.location.origin;
 
-  if (local && req.method === "POST" && url.pathname === BASE + "logout") {
+  // Logging out or in (maybe as someone else): drop every cached page and answer of the previous account
+  if (local && req.method === "POST" && (url.pathname === BASE + "logout" || url.pathname === BASE + "login")) {
     e.respondWith((async () => { await caches.delete(DATA); await caches.delete(PAGE); await caches.delete(SHARE); return fetch(req); })());
     return;
   }

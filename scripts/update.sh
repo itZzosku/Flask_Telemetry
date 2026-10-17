@@ -73,19 +73,24 @@ echo "Coming in:"
 git log --format='  %h %s' "$OLD..$NEW"
 if [ "$MODE" = "--check" ]; then exit 0; fi
 
-# 2. Snapshot the database before new code (and its migrations) touches it
-if [ -f "$DATA_DIR/diary.db" ]; then
-  mkdir -p "$SNAP_DIR"
-  SNAP="$SNAP_DIR/diary-$(date +%Y%m%d-%H%M%S)-${OLD:0:7}.db"
-  "$PYTHON" - "$DATA_DIR/diary.db" "$SNAP" <<'PY'
-import sqlite3, sys
-src, dst = sqlite3.connect(sys.argv[1]), sqlite3.connect(sys.argv[2])
-with dst:
-    src.backup(dst)
-src.close(); dst.close()
+# 2. Snapshot every database (accounts + each account's data) before new code and its migrations touch them
+if ls "$DATA_DIR"/*.db >/dev/null 2>&1; then
+  SNAP="$SNAP_DIR/$(date +%Y%m%d-%H%M%S)-${OLD:0:7}"
+  mkdir -p "$SNAP"
+  "$PYTHON" - "$DATA_DIR" "$SNAP" <<'PY'
+import glob, os, sqlite3, sys
+data, out = sys.argv[1], sys.argv[2]
+for src_path in glob.glob(os.path.join(data, "*.db")) + glob.glob(os.path.join(data, "users", "*.db")):
+    rel = os.path.relpath(src_path, data)
+    dst_path = os.path.join(out, rel)
+    os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+    src, dst = sqlite3.connect(src_path), sqlite3.connect(dst_path)
+    with dst:
+        src.backup(dst)
+    src.close(); dst.close()
 PY
   say "Database snapshot: $SNAP"
-  ls -1t "$SNAP_DIR"/diary-*.db 2>/dev/null | tail -n +"$((SNAP_KEEP + 1))" | xargs -r rm --
+  ls -1dt "$SNAP_DIR"/*/ 2>/dev/null | tail -n +"$((SNAP_KEEP + 1))" | xargs -r rm -r --
 fi
 
 rollback() {

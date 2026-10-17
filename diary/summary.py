@@ -56,4 +56,5 @@ def api_home():
     if vel["last"]:
         vel["last"]["gun"] = guns.get(vel["last"].pop("gun_id"))
     name = (json.loads(kv_get("profile", conn) or "{}") or {}).get("name") or ""
-    return jsonify(name=name, diary=diary_summary(conn), velocity=vel, zeroes=zero_summary(conn))
+    from . import current_user
+    return jsonify(name=name, username=current_user()["username"], diary=diary_summary(conn), velocity=vel, zeroes=zero_summary(conn))

@@ -39,8 +39,8 @@ button:disabled{opacity:.5;cursor:default}
 <form method="post" autocomplete="on">
   <h1>Shooting <span>diary</span></h1>
   {% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}
-  <input type="text" name="username" value="osku" autocomplete="username" hidden>
-  <label>Password<input type="password" name="password" autocomplete="current-password" required autofocus {% if disabled %}disabled{% endif %}></label>
+  <label>Username<input type="text" name="username" value="{{ username or '' }}" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required {% if not username %}autofocus{% endif %} {% if disabled %}disabled{% endif %}></label>
+  <label>Password<input type="password" name="password" autocomplete="current-password" required {% if username %}autofocus{% endif %} {% if disabled %}disabled{% endif %}></label>
   <button type="submit" {% if disabled %}disabled{% endif %}>Log in</button>
 </form>
 </body>

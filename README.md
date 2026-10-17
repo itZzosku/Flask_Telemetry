@@ -9,7 +9,8 @@ Pages (one login, a switcher at the top of each): `/diary/` landing page with a 
 `/diary/log` diary, `/diary/velocity` muzzle velocities, `/diary/zeroes` scope zeroes. The old
 `/diary/chrono` and `/diary/zero` addresses redirect. Long-press the installed app icon for shortcuts.
 
-Data is stored outside git in `diary_data/` (SQLite `diary.db`, password hash, cookie key).
+Data is stored outside git in `diary_data/`: `users.db` (accounts), one SQLite file per account (`diary.db` for
+the first one, `users/<name>.db` for the rest) and the cookie key.
 `diary_data/` and `diary_seed*.json` are in `.gitignore` – this repo is public, never commit them.
 
 ### Phone app
@@ -24,7 +25,7 @@ After changing `diary/static/sw.js`, bump `VERSION` in it so phones drop the old
 
 ```bash
 pip install -r requirements.txt             # no new packages needed
-python -m diary set-password                # prompts twice, min. 10 chars
+python -m diary user-add NAME --admin       # first account; prompts twice, min. 10 chars
 python -m diary import diary_seed.json      # one-time import of existing entries
 rm diary_seed.json                          # contains licence numbers
 python main.py
@@ -42,12 +43,31 @@ Open `https://<your-domain>/diary/`. The login lasts 90 days per device.
 | `DIARY_LOGIN_DAYS` | `90` | How long a login stays valid |
 | `FLASK_SECRET_KEY` | auto | Cookie signing key; generated into `diary_data/secret_key` if unset |
 
-### Admin commands
+### Accounts
+
+Every person has their own account and their own database file – one user's pages, API calls, offline
+queue and backups never touch another's data. Accounts are created on the server; each user changes their
+own password on the landing page (*Password*).
 
 ```bash
-python -m diary set-password          # change password – logs out every device
-python -m diary export backup.json    # full JSON backup
-python -m diary import file.json [--replace]
+python -m diary user-add mikko             # new account (asks for a password, min. 10 chars)
+python -m diary user-add NAME --admin      # an admin account (admins are just flagged for now)
+python -m diary user-list                  # accounts, data files, last login
+python -m diary user-passwd mikko          # new password – logs that user out on every device
+python -m diary user-disable mikko         # blocks login and ends their sessions (data kept); user-enable
+python -m diary user-rename old new        # login name only; the data file stays
+```
+
+A diary from before accounts becomes the admin account **osku** (or `DIARY_ADMIN_USER`) on first start, with
+the same password and data (`diary.db`).
+
+### Admin commands
+
+Data commands work on one account: add `--user NAME` (default: the first admin account).
+
+```bash
+python -m diary export backup.json --user mikko    # full JSON backup of one account
+python -m diary import file.json [--replace] --user mikko
 ```
 
 Tie old rows to a gun afterwards (only rows without a gun; dates inclusive; try `--dry-run` first):
@@ -71,8 +91,8 @@ Back up `diary_data/diary.db` (or a `python -m diary export` dump) with the rest
 ./scripts/update.sh                    # pull + check + restart
 ```
 
-`update.sh` refuses to run over local edits, snapshots `diary.db` to `diary_backups/pre-update/` (newest 5
-kept), pulls `main`, installs `requirements.txt` if it changed, compiles, starts the app once in a
+`update.sh` refuses to run over local edits, snapshots every database (accounts and each account's data) to
+`diary_backups/pre-update/` (newest 5 kept), pulls `main`, installs `requirements.txt` if it changed, compiles, starts the app once in a
 throwaway folder and runs the tests. If anything fails it rolls back to the previous commit and leaves
 the running site alone; otherwise it restarts and checks the site answers. Restart command:
 `RESTART_CMD="…"` or a systemd unit `SERVICE` (default `flask-telemetry.service`); `./scripts/update.sh --restart`
@@ -98,7 +118,8 @@ crontab -e                  # add: 17 3 * * 0  /root/Flask_Telemetry/scripts/dia
 
 Backups contain your licence numbers – they only go to your own mailbox.
 
-Restore: `python -m diary import diary_backups/diary-YYYY-MM-DD.json --replace`
+Every account is backed up: `diary-<user>-YYYY-MM-DD.json` + `.db`, newest 12 per account, and all JSONs go in
+the one e-mail. Restore one account: `python -m diary import --user NAME diary_backups/diary-NAME-YYYY-MM-DD.json --replace`
 (or stop the app and copy the `.db` over `diary_data/diary.db`).
 
 ## Language

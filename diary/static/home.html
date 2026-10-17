@@ -116,7 +116,7 @@ h2{font-family:var(--f-display);font-weight:700;font-size:1.35rem;text-transform
 .sheet-bar{display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--bg);padding-block:12px;z-index:1;border-bottom:1px solid var(--line)}
 label.f{display:flex;flex-direction:column;gap:6px;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;min-width:0}
 .field{display:flex;flex-direction:column;gap:6px}
-input[type=text],input[type=date],input[type=time],input[type=number],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:11px;font-size:1rem;color:var(--fg);font-weight:400;text-transform:none;letter-spacing:0;min-width:0}
+input[type=text],input[type=password],input[type=date],input[type=time],input[type=number],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:11px;font-size:1rem;color:var(--fg);font-weight:400;text-transform:none;letter-spacing:0;min-width:0}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px 13px;font-size:.9rem}
 .chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
@@ -205,6 +205,7 @@ header.top{padding-top:6px!important}
     <div><h1>Shooting <span>diary</span></h1><div class="who" id="who"></div></div>
     <div class="hbtns">
       <button class="ghost" id="installBtn" type="button" hidden>Install app</button>
+      <button class="ghost" id="pwBtn" type="button">Password</button>
       <form method="post" action="logout" style="display:contents"><button class="ghost" type="submit">Log out</button></form>
     </div>
   </header>
@@ -232,6 +233,18 @@ header.top{padding-top:6px!important}
   </nav>
 </div>
 <div class="toast" id="toast" hidden></div>
+<div class="sheet" id="pwSheet" hidden role="dialog" aria-modal="true" aria-labelledby="pwTitle">
+  <form class="sheet-in" id="pwForm" autocomplete="on">
+    <div class="sheet-bar"><h2 id="pwTitle">Change password</h2><button class="ghost" type="button" id="pwClose">Close</button></div>
+    <input type="text" id="pwUser" name="username" autocomplete="username" hidden>
+    <label class="f">Current password<input type="password" id="pwCur" autocomplete="current-password" required></label>
+    <label class="f">New password (at least 10 characters)<input type="password" id="pwNew" autocomplete="new-password" minlength="10" required></label>
+    <label class="f">New password again<input type="password" id="pwNew2" autocomplete="new-password" minlength="10" required></label>
+    <p class="hint" style="margin:0">Your other phones and computers are logged out; this one stays logged in.</p>
+    <div class="msg" id="pwMsg" hidden></div>
+    <div class="actions"><button class="primary" type="submit">Change password</button></div>
+  </form>
+</div>
 <script>
 (function(){
 const $=id=>document.getElementById(id);
@@ -245,7 +258,8 @@ async function load(){
   $("offNote").hidden=!r.headers.get("X-Offline");
   try{j=await r.json()}catch(e){return}
   if(!r.ok)return;
-  $("who").textContent=j.name||"";
+  $("who").textContent=[j.name,j.username?"signed in as "+j.username:""].filter(Boolean).join(" · ");
+  $("pwUser").value=j.username||"";
   const d=j.diary,v=j.velocity,z=j.zeroes||[];
   $("nDiary").innerHTML=`<b>${d.visits}</b> <span>visits in ${d.year} ·</span> <b>${nf(d.rounds)}</b> <span>shots</span>`
     +(d.last?`<br><span>Last:</span> ${fiDate(d.last.date)}${d.last.place?" · "+esc(d.last.place):""}`:"");
@@ -257,6 +271,21 @@ async function load(){
 load();
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")load()});
 
+function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>el.hidden=true,2600)}
+const pwClose=()=>{$("pwSheet").hidden=true;document.body.style.overflow="";$("pwForm").reset()};
+$("pwBtn").addEventListener("click",()=>{$("pwMsg").hidden=true;$("pwSheet").hidden=false;document.body.style.overflow="hidden";$("pwCur").focus()});
+$("pwClose").addEventListener("click",pwClose);
+$("pwForm").addEventListener("submit",async e=>{e.preventDefault();
+  const msg=t=>{$("pwMsg").textContent=t;$("pwMsg").hidden=false};
+  if($("pwNew").value!==$("pwNew2").value)return msg("The new passwords don't match.");
+  let r;try{r=await fetch("api/account/password",{method:"PUT",credentials:"same-origin",
+    headers:{"X-Requested-With":"fetch","Content-Type":"application/json"},body:JSON.stringify({current:$("pwCur").value,new:$("pwNew").value})})}
+  catch(err){return msg("No connection – try again when online.")}
+  if(r.status===401){location.href="login";return}
+  if(r.status===403)return msg("The current password is wrong.");
+  if(!r.ok)return msg("Use at least 10 characters.");
+  pwClose();toast("Password changed");
+});
 let installEvt=null;
 window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();installEvt=e;$("installBtn").hidden=false});
 window.addEventListener("appinstalled",()=>{installEvt=null;$("installBtn").hidden=true});

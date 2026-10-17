@@ -1,11 +1,13 @@
-"""Shooting diary – password-protected blueprint at /diary.
+"""Shooting diary – login-protected blueprint at /diary, one account per person.
 
 Data and secrets live in DIARY_DATA_DIR (default: <repo>/diary_data, git-ignored):
-  diary.db     SQLite: sessions, profile, password hash
-  secret_key   signs the login cookie (created on first start)
+  users.db          accounts (see users.py)
+  diary.db          the first account's data; others in users/<name>.db – every account its own file
+  secret_key        signs the login cookie (created on first start)
 
-Set the password on the server before first use:
-  python -m diary set-password
+Create the first account on the server:  python -m diary user-add NAME --admin
+(An existing single-password diary becomes an admin account – "osku", or DIARY_ADMIN_USER – with the same
+password on first start.)
 """
 import json
 import os
@@ -20,7 +22,6 @@ from functools import wraps
 from flask import (Blueprint, abort, g, jsonify, redirect, render_template,
                    request, send_from_directory, session, url_for)
 from werkzeug.middleware.proxy_fix import ProxyFix
-from werkzeug.security import check_password_hash
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 try:
@@ -43,6 +44,10 @@ def init_app(app):
     """Register the blueprint and the cookie/proxy settings it needs."""
     os.makedirs(DATA_DIR, exist_ok=True)
     init_db()
+    from . import users
+    users.migrate_single_user()
+    for u in users.all_users():              # schema / migrations for every account's file
+        init_db(users.db_path(u))
     if not app.config.get("SECRET_KEY"):
         app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY") or _secret_key_file()
     app.config.update(
@@ -51,14 +56,21 @@ def init_app(app):
         SESSION_COOKIE_SAMESITE="Lax",
         # Secure by default (site is reached over HTTPS via the proxy).
         # Set DIARY_COOKIE_SECURE=0 to log in over plain http on the LAN.
-        SESSION_COOKIE_SECURE=os.getenv("DIARY_COOKIE_SECURE", "1") != "0",
-        PERMANENT_SESSION_LIFETIME=timedelta(days=int(os.getenv("DIARY_LOGIN_DAYS", "90"))),
+        SESSION_COOKIE_SECURE=_cookie_secure(),
+        PERMANENT_SESSION_LIFETIME=PERMANENT_LIFETIME,
     )
     # Nginx Proxy Manager sits in front: trust one hop of X-Forwarded-* so the
     # login rate limit sees the real client IP. Set DIARY_BEHIND_PROXY=0 if not proxied.
     if os.getenv("DIARY_BEHIND_PROXY", "1") != "0":
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
     app.register_blueprint(bp, url_prefix="/diary")
+
+
+PERMANENT_LIFETIME = timedelta(days=int(os.getenv("DIARY_LOGIN_DAYS", "90")))
+
+
+def _cookie_secure():
+    return os.getenv("DIARY_COOKIE_SECURE", "1") != "0"
 
 
 def _secret_key_file():
@@ -72,15 +84,28 @@ def _secret_key_file():
 
 
 # ------------------------------------------------------------------ database
-def connect():
-    conn = sqlite3.connect(DB_PATH)
+_default_db = None          # the command line picks an account's file with --user (see __main__)
+
+
+def use_db(path):
+    global _default_db
+    _default_db = path
+
+
+def connect(path=None):
+    conn = sqlite3.connect(path or _default_db or DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 
 def db():
+    """The logged-in user's database – the only data a request can reach."""
     if "diary_db" not in g:
-        g.diary_db = connect()
+        user = g.get("diary_user")
+        if not user:
+            raise RuntimeError("db() outside a logged-in request")
+        from .users import db_path
+        g.diary_db = connect(db_path(user))
     return g.diary_db
 
 
@@ -91,9 +116,9 @@ def _close_db(_exc):
         conn.close()
 
 
-def init_db():
-    os.makedirs(DATA_DIR, exist_ok=True)
-    conn = connect()
+def init_db(path=None):
+    os.makedirs(os.path.dirname(path or DB_PATH), exist_ok=True)
+    conn = connect(path or DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.executescript(
         """
@@ -164,16 +189,20 @@ def _note_fail(ip):
         entry[0] += 1
 
 
-def _pw_stamp():
-    # Part of the hash goes into the cookie: changing the password logs out every device.
-    return (kv_get("password_hash") or "")[-12:]
+def current_user():
+    """The logged-in, enabled account whose password hasn't changed since this cookie was issued."""
+    from . import users
+    if "diary_user" not in g:
+        u = users.get(session.get("diary_uid")) if session.get("diary_auth") else None
+        ok = u and not u["disabled"] and users.stamp(u) and session.get("diary_pw") == users.stamp(u)
+        g.diary_user = u if ok else None
+    return g.diary_user
 
 
 def login_required(view):
     @wraps(view)
     def wrapper(*args, **kwargs):
-        stamp = _pw_stamp()
-        if stamp and session.get("diary_auth") and session.get("diary_pw") == stamp:
+        if current_user():
             return view(*args, **kwargs)
         if request.blueprint == "diary" and "/api/" in request.path:
             return jsonify(error="login_required"), 401
@@ -183,34 +212,45 @@ def login_required(view):
 
 @bp.route("/login", methods=["GET", "POST"])
 def login():
-    pw_hash = kv_get("password_hash")
-    if not pw_hash:
+    from . import users
+    users.migrate_single_user()              # a diary set up before accounts existed
+    if not users.all_users(include_disabled=False):
         return render_template("diary_login.html", disabled=True,
-                               error="No password set. Run on the server: python -m diary set-password"), 503
-    error = None
+                               error="No accounts yet. Run on the server: python -m diary user-add NAME --admin"), 503
+    error, username = None, ""
     if request.method == "POST":
         ip = request.remote_addr or "?"
+        username = request.form.get("username", "").strip().lower()[:32]
         if _too_many(ip):
             error = "Too many wrong attempts. Wait 15 minutes."
-        elif check_password_hash(pw_hash, request.form.get("password", "")):
-            with _fails_lock:
-                _fails.pop(ip, None)
-            session.clear()
-            session.permanent = True
-            session["diary_auth"] = True
-            session["diary_pw"] = _pw_stamp()
-            return redirect(url_for("diary.home"))
         else:
+            u = users.verify(username, request.form.get("password", ""))
+            if u:
+                with _fails_lock:
+                    _fails.pop(ip, None)
+                session.clear()
+                session.permanent = True
+                session["diary_auth"] = True
+                session["diary_uid"] = u["id"]
+                session["diary_pw"] = users.stamp(u)
+                users.touch_login(u["id"])
+                resp = redirect(url_for("diary.home"))
+                # Readable by the pages (not a secret): keeps each account's offline queue apart on a shared phone
+                resp.set_cookie("diary_user", u["username"], max_age=int(PERMANENT_LIFETIME.total_seconds()),
+                                path="/diary", samesite="Lax", secure=_cookie_secure(), httponly=False)
+                return resp
             _note_fail(ip)
             time.sleep(1)
-            error = "Wrong password."
-    return render_template("diary_login.html", error=error, disabled=False)
+            error = "Wrong username or password."
+    return render_template("diary_login.html", error=error, disabled=False, username=username)
 
 
 @bp.post("/logout")
 def logout():
     session.clear()
-    return redirect(url_for("diary.login"))
+    resp = redirect(url_for("diary.login"))
+    resp.delete_cookie("diary_user", path="/diary")
+    return resp
 
 
 # ------------------------------------------------------------------ pages
@@ -302,6 +342,31 @@ def delete_session(sid):
         abort(403)
     db().execute("DELETE FROM sessions WHERE id=?", (sid,))
     db().commit()
+    return jsonify(ok=True)
+
+
+@bp.get("/api/account")
+@login_required
+def get_account():
+    u = current_user()
+    return jsonify(username=u["username"], is_admin=bool(u["is_admin"]))
+
+
+@bp.put("/api/account/password")
+@login_required
+def put_password():
+    """Change your own password; your other devices are logged out, this one stays in."""
+    from . import users
+    body = _json_body()
+    u = current_user()
+    if not users.verify(u["username"], str(body.get("current", ""))):
+        time.sleep(1)
+        return jsonify(error="wrong_password"), 403
+    try:
+        users.set_password(u["username"], str(body.get("new", "")))
+    except ValueError:
+        return jsonify(error="too_short", min=users.MIN_PASSWORD), 400
+    session["diary_pw"] = users.stamp(users.get(u["id"]))
     return jsonify(ok=True)
 
 

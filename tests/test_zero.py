@@ -105,18 +105,18 @@ def test_repo_notes_are_consistent():
 @pytest.fixture()
 def client():
     from flask import Flask
-    from werkzeug.security import generate_password_hash
     app = Flask(__name__)
     diary.init_app(app)
     conn = diary.connect()
     conn.executescript("DELETE FROM scope_log; DELETE FROM scope_zeros; DELETE FROM scopes; DELETE FROM guns;")
-    diary.kv_set("password_hash", generate_password_hash("test-password-1"), conn)
+    from diary import users
+    users.ensure("osku", "test-password-1", admin=True, db_file="diary.db")
     diary.upsert_gun(conn, "g-ab10", {"name": "Maker AB-10", "cal": ".308 Win"})
     diary.upsert_gun(conn, "g-rim", {"name": "Rimfire", "cal": ".22 LR"})
     conn.commit()
     conn.close()
     c = app.test_client()
-    assert c.post("/diary/login", data={"password": "test-password-1"}).status_code == 302
+    assert c.post("/diary/login", data={"username": "osku", "password": "test-password-1"}).status_code == 302
     return c
 
 

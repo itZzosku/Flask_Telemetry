@@ -348,7 +348,13 @@ const mEn=m=>MODE_EN[m]||m||"";
 const mFi=m=>{const k=String(m||"").trim().toLowerCase();const hit=Object.entries(MODE_EN).find(([,en])=>en.toLowerCase()===k);return hit?hit[0]:String(m||"").trim()};
 const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const WD=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-const DRAFT_KEY="ampumapk-draft-v2",YEAR_KEY="ampumapk-year";
+// Logged-in account (cookie set at login): local storage keys are per account, so on a shared phone one
+// person's unsent changes can never be sent into another person's diary.
+const ACCOUNT=decodeURIComponent((document.cookie.match(/(?:^|; )diary_user=([^;]*)/)||[])[1]||"");
+function ukey(k){const nk=ACCOUNT?k+":"+ACCOUNT:k;
+  try{if(ACCOUNT&&localStorage.getItem(k)!==null&&localStorage.getItem(nk)===null){localStorage.setItem(nk,localStorage.getItem(k));localStorage.removeItem(k)}}catch(e){}
+  return nk}
+const DRAFT_KEY=ukey("ampumapk-draft-v2"),YEAR_KEY="ampumapk-year";
 const $=id=>document.getElementById(id);
 const S={sessions:[],guns:[],profile:{},ready:false,editGun:null,gDelArm:false,store:null,editId:null,form:null,delArm:false,year:null};
 
@@ -356,7 +362,7 @@ const S={sessions:[],guns:[],profile:{},ready:false,editGun:null,gDelArm:false,s
 function lsGet(k){try{return JSON.parse(localStorage.getItem(k)||"null")}catch(e){return null}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function lsDel(k){try{localStorage.removeItem(k)}catch(e){}}
-const OUTBOX_KEY="ampumapk-outbox-v1";
+const OUTBOX_KEY=ukey("ampumapk-outbox-v1");
 function apiStore(){
   let server=[],sguns=[],profile={},cb=null,flushing=false,offlineAt=null,stuck=false;
   let box=lsGet(OUTBOX_KEY)||{};box.sessions=box.sessions||{};box.guns=box.guns||{};if(box.profile===undefined)box.profile=null;
