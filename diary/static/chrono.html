@@ -853,7 +853,13 @@ $("dBody").addEventListener("click",async e=>{
 });
 $("dBody").addEventListener("change",e=>{const t=e.target;
   if(t.dataset.sgun!=null)patch(+t.dataset.sgun,{gun_id:t.value||null});
-  if(t.dataset.sload!=null)patch(+t.dataset.sload,{load_id:t.value||null});
+  if(t.dataset.sload!=null){
+    const i=+t.dataset.sload,s=S.dayStrings[i];
+    if(t.value==="custom"){                       // "+ New load…": open the load editor, then link the new load
+      t.value=s.load_id||"";
+      editLoad(null,{kind:"handload",cal:gunCal(s.gun_id)||"",bullet_gr:s.bullet_gr||""},id=>patch(i,{load_id:id}));
+      return}
+    patch(i,{load_id:t.value||null})}
 });
 
 /* ---------- loads ---------- */
