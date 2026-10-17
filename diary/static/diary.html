@@ -324,6 +324,13 @@ header.top{padding-top:6px!important}
       <label class="r"><input type="radio" name="xr" value="year" id="xrYear">Year</label>
       <div class="sub"><select id="xYear" aria-label="Year"></select></div>
     </div>
+    <div class="opt">
+      <label class="r"><input type="radio" name="xr" value="range" id="xrRange">Custom dates</label>
+      <div class="sub">
+        <div class="grid2"><label class="f">From<input type="date" id="xFrom"></label><label class="f">To<input type="date" id="xTo"></label></div>
+        <div class="hint" id="xRangeHint"></div>
+      </div>
+    </div>
     <div class="opt"><label class="r"><input type="radio" name="xr" value="all" id="xrAll">Whole diary</label></div>
     <div class="actions"><button class="primary" type="submit" id="pdfGo">Create PDF</button></div>
   </form>
@@ -785,6 +792,9 @@ function getRange(L){
   if(v==="2y"){const end=$("xEnd").value||todayStr(),start=minus2y(end);
     return{filter:s=>s.date>=start&&s.date<=end,title:L.y2,span:fiDate(start)+" – "+fiDate(end),slug:L.y2slug+"-"+end}}
   if(v==="year"){const y=$("xYear").value;return{filter:s=>s.date.startsWith(y),title:" "+y,slug:y}}
+  if(v==="range"){let a=$("xFrom").value,b=$("xTo").value||todayStr();if(a&&b&&a>b)[a,b]=[b,a];   // either order works
+    return{filter:s=>(!a||s.date>=a)&&s.date<=b,title:" "+(a?fiDate(a):"…")+" – "+fiDate(b),
+      span:(a?fiDate(a):"…")+" – "+fiDate(b),slug:(a||"start")+"_"+b}}
   return{filter:()=>true,title:"",slug:L.all}
 }
 function updHint(){
@@ -792,17 +802,22 @@ function updHint(){
   const days=new Set(list.map(s=>s.date)).size;
   const daysWith=types=>new Set(list.filter(s=>(s.lines||[]).some(l=>types.includes(l.type))).map(s=>s.date)).size;
   const pd=daysWith(["Pistooli","Revolveri"]),sd=daysWith(["Pienoispistooli","Pienoisrevolveri"]);
-  $("x2yHint").innerHTML=document.querySelector('input[name="xr"]:checked').value==="2y"?`${esc(r.span)}<br>Shooting days <b>${days}</b><br>Pistol/revolver <b>${pd}</b> · small-bore pistol/revolver <b>${sd}</b>`:"";
+  const sel=document.querySelector('input[name="xr"]:checked').value;
+  $("x2yHint").innerHTML=sel==="2y"?`${esc(r.span)}<br>Shooting days <b>${days}</b><br>Pistol/revolver <b>${pd}</b> · small-bore pistol/revolver <b>${sd}</b>`:"";
+  $("xRangeHint").innerHTML=sel==="range"?`${esc(r.span)}<br><b>${list.length}</b> visits · shooting days <b>${days}</b>`:"";
 }
 $("pdfBtn").addEventListener("click",()=>{
   if(!$("xEnd").value)$("xEnd").value=todayStr();
+  if(!$("xTo").value)$("xTo").value=todayStr();
+  if(!$("xFrom").value)$("xFrom").value=todayStr().slice(0,4)+"-01-01";
   const ys=[...new Set(S.sessions.map(s=>s.date.slice(0,4)))].sort().reverse();
   const cur=$("xYear").value||(S.year&&S.year!=="all"?S.year:ys[0]);
   $("xYear").innerHTML=ys.map(y=>`<option ${y===cur?"selected":""}>${y}</option>`).join("");
   xRender();updHint();$("xSheet").hidden=false;document.body.style.overflow="hidden";
 });
 $("xClose").addEventListener("click",closeSheets);
-$("xForm").addEventListener("input",e=>{if(e.target.id==="xYear")$("xrYear").checked=true;if(e.target.id==="xEnd")$("xr2y").checked=true;updHint()});
+$("xForm").addEventListener("input",e=>{if(e.target.id==="xYear")$("xrYear").checked=true;if(e.target.id==="xEnd")$("xr2y").checked=true;
+  if(e.target.id==="xFrom"||e.target.id==="xTo")$("xrRange").checked=true;updHint()});
 $("xForm").addEventListener("change",updHint);
 $("xForm").addEventListener("submit",async e=>{e.preventDefault();
   const L=XL[X.lang];
