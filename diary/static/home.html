@@ -216,7 +216,7 @@ header.top{padding-top:6px!important}
     <div class="hbtns">
       <button class="ghost" id="installBtn" type="button" hidden>Install app</button>
       <button class="ghost" id="pwBtn" type="button">Password</button>
-      <a class="ghost" id="myData" href="api/account/export" download style="text-decoration:none">My data</a>
+      <button class="ghost" id="myData" type="button">My data</button>
       <button class="ghost" id="accBtn" type="button" hidden>Accounts</button>
       <form method="post" action="logout" style="display:contents"><button class="ghost" type="submit">Log out</button></form>
     </div>
@@ -257,6 +257,15 @@ header.top{padding-top:6px!important}
     <div class="card" id="accNew" hidden></div>
     <div id="accList"></div>
     <p class="hint" style="margin:0">A new account has no password: the person logs in with the username and an empty password within 7 days and chooses their own. <b>Reset password</b> does the same for someone who forgot theirs. <b>Delete</b> removes the account and its data; a final copy stays on the server in <code>diary_data/deleted/</code>. Each account sees only its own data.</p>
+  </div>
+</div>
+<div class="sheet" id="dlSheet" hidden role="dialog" aria-modal="true" aria-labelledby="dlTitle">
+  <div class="sheet-in">
+    <div class="sheet-bar"><h2 id="dlTitle">Download my data</h2><button class="ghost" type="button" id="dlClose">Close</button></div>
+    <p style="margin:0">A copy of everything in your account as one file (JSON): range visits, guns, your details,
+      velocities, loads, scopes and zeroes. Nothing on the server changes.</p>
+    <p class="hint" style="margin:0">The file contains your licence numbers – keep it somewhere safe. It can be restored with the import command.</p>
+    <div class="actions"><button class="primary" type="button" id="dlGo">Download</button><button class="ghost" type="button" id="dlCancel">Cancel</button></div>
   </div>
 </div>
 <div class="sheet" id="pwSheet" hidden role="dialog" aria-modal="true" aria-labelledby="pwTitle">
@@ -313,6 +322,15 @@ $("pwForm").addEventListener("submit",async e=>{e.preventDefault();
   if(!r.ok)return msg("Use at least 10 characters.");
   pwClose();toast("Password changed");
 });
+/* ---------- my data: asks first, then downloads ---------- */
+const dlClose=()=>{$("dlSheet").hidden=true;document.body.style.overflow=""};
+$("myData").addEventListener("click",()=>{$("dlSheet").hidden=false;document.body.style.overflow="hidden"});
+$("dlClose").addEventListener("click",dlClose);$("dlCancel").addEventListener("click",dlClose);
+$("dlGo").addEventListener("click",()=>{
+  const a=document.createElement("a");a.href="api/account/export";a.download="";document.body.appendChild(a);a.click();a.remove();
+  dlClose();toast("Downloading…");
+});
+
 /* ---------- accounts (admins) ---------- */
 const fiDT=s=>s?fiDate(s.slice(0,10)):"";
 async function accApi(method,path,body){
