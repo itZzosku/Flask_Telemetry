@@ -13,7 +13,7 @@ import re
 import secrets
 import time
 
-from flask import abort, jsonify, request, send_from_directory
+from flask import abort, jsonify, redirect, request, send_from_directory, url_for
 
 from . import DATE_RE, HERE, ID_RE, bp, db, login_required
 from . import zero_note as zn
@@ -345,12 +345,17 @@ def import_rows(conn, data, replace=False):
 
 
 # ------------------------------------------------------------------ routes
-@bp.get("/zero")
+@bp.get("/zeroes")
 @login_required
 def page_zero():
     resp = send_from_directory(os.path.join(HERE, "static"), "zero.html", max_age=0)
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+@bp.get("/zero")
+def old_zero_url():
+    return redirect(url_for("diary.page_zero"), code=301)
 
 
 def _body():

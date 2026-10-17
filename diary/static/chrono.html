@@ -249,15 +249,21 @@ input[type=text],input[type=date],input[type=time],input[type=number],select{wid
 .pg .fig{font-family:var(--f-mono);text-align:right}
 .pg .meta{grid-column:1/-1;color:var(--muted);font-size:.78rem;font-family:var(--f-mono)}
 @media (max-width:560px){ .kpis{grid-template-columns:repeat(2,minmax(0,1fr))} .kpis .stat:nth-child(3){border-left:0;padding-left:4px} .kpis .stat:nth-child(n+3){border-top:1px solid var(--line)} }
+/* Page switcher (same on every page) */
+.pnav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:3px;margin-top:max(12px,env(safe-area-inset-top,0px))}
+.pnav a{display:flex;align-items:center;justify-content:center;gap:5px;min-height:38px;padding:4px 6px;border-radius:999px;color:var(--fg);text-decoration:none;font-weight:600;font-size:.86rem;white-space:nowrap;overflow:hidden}
+.pnav a:hover{background:var(--surface)}
+.pnav a[aria-current="page"]{background:var(--fg);color:var(--bg)}
+.pnav svg{width:16px;height:16px;flex:0 0 auto}
+header.top{padding-top:6px!important}
 </style>
 </head>
 <body>
 <div class="wrap">
+  <nav class="pnav" aria-label="Pages"><a href="./"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg><span>Home</span></a><a href="log">Diary</a><a href="velocity" aria-current="page">Velocity</a><a href="zeroes">Zeroes</a></nav>
   <header class="top">
     <h1>Muzzle <span>velocity</span></h1>
     <div class="hbtns">
-      <a class="ghost" href="./" style="text-decoration:none">← Diary</a>
-      <a class="ghost" href="zero" style="text-decoration:none">Zeroes</a>
       <button class="ghost" id="loadsBtn" type="button">Loads</button>
       <form method="post" action="logout" style="display:contents"><button class="ghost" type="submit">Log out</button></form>
     </div>

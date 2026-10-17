@@ -137,7 +137,8 @@ def _scope(c):
 
 
 def test_api_import_adjust_undo_mount_check(client):
-    assert client.get("/diary/zero").status_code == 200
+    assert client.get("/diary/zeroes").status_code == 200
+    assert client.get("/diary/zero").headers["Location"].endswith("/diary/zeroes")
     r = _import()
     assert r["zeros"] == 3 and r["check"]["ok"] == 3 and r["links"]["AB-10 — 150 gr FMJ"]["gun_id"] == "g-ab10"
     with pytest.raises(ValueError, match="exists"):
@@ -216,3 +217,23 @@ def test_backup_round_trip(client):
     conn.close()
     s = _scope(client)
     assert s["name"] == "Test Scope" and len(s["zeros"]) == 3
+
+
+def test_pages_and_home_summary(client):
+    for path in ("/diary/", "/diary/log", "/diary/velocity", "/diary/zeroes"):
+        assert client.get(path).status_code == 200, path
+    assert client.get("/diary/chrono?shared=2").headers["Location"].endswith("/diary/velocity?shared=2")
+    _import()
+    conn = diary.connect()
+    s = zero.full(conn, zero.scope_rows(conn)[0]["id"])
+    zero.mount(conn, s["id"], s["zeros"][1]["id"])
+    conn.commit()
+    conn.close()
+    h = client.get("/diary/api/home").get_json()
+    assert h["zeroes"] == [{"name": "Test Scope", "positions": 3, "on": "AB-10 — 150 gr FMJ", "updated": h["zeroes"][0]["updated"]}]
+    assert h["velocity"]["strings"] >= 0 and "visits" in h["diary"]
+    import flask
+    app = flask.Flask(__name__)
+    diary.init_app(app)
+    anon = app.test_client()
+    assert anon.get("/diary/").status_code == 302 and anon.get("/diary/api/home").status_code == 401

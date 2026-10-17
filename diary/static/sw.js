@@ -4,8 +4,8 @@
    - Icons, manifest, fonts and the PDF library: cache first.
    - Logging out clears everything cached. Writes are never cached; the page queues them itself.
    - Share target: a file shared to the installed app (e.g. from ShotView) is POSTed to chrono/share;
-     it is kept in the SHARE cache and the velocity page opens and imports it. */
-const VERSION = "v9";
+     it is kept in the SHARE cache and the velocity page (/velocity) opens and imports it. */
+const VERSION = "v10";
 const PAGE = "diary-page-" + VERSION, DATA = "diary-data", ASSETS = "diary-assets-" + VERSION, SHARE = "diary-share";
 const BASE = new URL("./", self.registration.scope).pathname;            // "/diary/"
 const ASSET_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com", "cdnjs.cloudflare.com"];
@@ -59,16 +59,16 @@ self.addEventListener("fetch", e => {
             new Response(f, {headers: {"X-Name": encodeURIComponent(f.name || "shared.xls"),
                                        "Content-Type": f.type || "application/octet-stream"}}));
         }
-        return Response.redirect(BASE + "chrono?shared=" + i, 303);
+        return Response.redirect(BASE + "velocity?shared=" + i, 303);
       } catch (err) {
-        return Response.redirect(BASE + "chrono?shared=error", 303);
+        return Response.redirect(BASE + "velocity?shared=error", 303);
       }
     })());
     return;
   }
   if (req.method !== "GET") return;
 
-  if (local && req.mode === "navigate" && (url.pathname === BASE || url.pathname === BASE + "chrono" || url.pathname === BASE + "zero")) {
+  if (local && req.mode === "navigate" && ["", "log", "velocity", "zeroes"].map(p => BASE + p).includes(url.pathname)) {
     e.respondWith(networkFirst(req, PAGE, url.pathname).catch(() =>
       new Response("<p style='font:16px system-ui;padding:24px'>Offline. Open the app once while online and it will work offline after that.</p>",
                    {headers: {"Content-Type": "text/html; charset=utf-8"}})));

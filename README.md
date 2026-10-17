@@ -5,6 +5,10 @@
 Password-protected shooting diary. Code lives in `diary/`; `main.py` only calls `diary.init_app(app)`.
 Everything else on the site stays public as before.
 
+Pages (one login, a switcher at the top of each): `/diary/` landing page with a summary of each section,
+`/diary/log` diary, `/diary/velocity` muzzle velocities, `/diary/zeroes` scope zeroes. The old
+`/diary/chrono` and `/diary/zero` addresses redirect. Long-press the installed app icon for shortcuts.
+
 Data is stored outside git in `diary_data/` (SQLite `diary.db`, password hash, cookie key).
 `diary_data/` and `diary_seed*.json` are in `.gitignore` – this repo is public, never commit them.
 
@@ -89,7 +93,7 @@ in the Finnish legal wording (Ampuma-aselaki: *Kivääri*, *2 - lippaallinen ker
 *Export* writes a PDF or a CSV in Finnish (the shooting-activity record for a licence application) or in
 English, for the last 2 years, a year or the whole diary; the last choice is remembered.
 
-## Muzzle velocity (`/diary/chrono`)
+## Muzzle velocity (`/diary/velocity`)
 
 Muzzle-velocity data inside the diary (same login): Garmin Xero C1 ShotView exports, your own velocity
 workbooks and Kestrel DROP weather logs. Open it from the diary header (*Velocity*).
@@ -128,7 +132,7 @@ Velocity tables (`loads`, `chrono_strings`, `chrono_shots`) live in `diary.db` a
 `export`/`import`/`backup`. `*.xls`/`*.xlsx` are git-ignored — never commit your logs. Tests use synthetic data:
 `python -m pytest tests`.
 
-## Scope zeroes (`/diary/zero`)
+## Scope zeroes (`/diary/zeroes`)
 
 One scope moved between rifles: a dial position (elevation + up, windage left/right) per rifle and load, in
 the scope's own frame where the reference position is 0 / 0. Open it from the diary or velocity header

@@ -2,7 +2,7 @@
   "id": "/diary/",
   "name": "Shooting Diary",
   "short_name": "Shooting Diary",
-  "description": "Shooting diary: range visits, shots per gun, muzzle velocities and PDF export.",
+  "description": "Shooting diary: range visits, muzzle velocities and scope zeroes.",
   "lang": "en",
   "start_url": "./",
   "scope": "./",
@@ -53,5 +53,37 @@
         }
       ]
     }
-  }
+  },
+  "shortcuts": [
+    {
+      "name": "Diary",
+      "url": "log",
+      "icons": [
+        {
+          "src": "static/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Velocity",
+      "url": "velocity",
+      "icons": [
+        {
+          "src": "static/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Zeroes",
+      "url": "zeroes",
+      "icons": [
+        {
+          "src": "static/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
 }

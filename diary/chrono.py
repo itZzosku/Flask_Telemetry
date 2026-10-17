@@ -564,12 +564,18 @@ def import_rows(conn, data, replace=False):
 
 
 # ------------------------------------------------------------------ routes
-@bp.get("/chrono")
+@bp.get("/velocity")
 @login_required
 def page_chrono():
     resp = send_from_directory(os.path.join(HERE, "static"), "chrono.html", max_age=0)
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+@bp.get("/chrono")
+def old_chrono_url():
+    """The page moved to /velocity; old bookmarks and share links keep working."""
+    return redirect(url_for("diary.page_chrono", **request.args), code=301)
 
 
 @bp.post("/chrono/share")

@@ -199,7 +199,7 @@ def login():
             session.permanent = True
             session["diary_auth"] = True
             session["diary_pw"] = _pw_stamp()
-            return redirect(url_for("diary.page"))
+            return redirect(url_for("diary.home"))
         else:
             _note_fail(ip)
             time.sleep(1)
@@ -213,13 +213,24 @@ def logout():
     return redirect(url_for("diary.login"))
 
 
-# ------------------------------------------------------------------ page
-@bp.get("/")
-@login_required
-def page():
-    resp = send_from_directory(os.path.join(HERE, "static"), "diary.html", max_age=0)
+# ------------------------------------------------------------------ pages
+def static_page(name):
+    resp = send_from_directory(os.path.join(HERE, "static"), name, max_age=0)
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+@bp.get("/")
+@login_required
+def home():
+    """Landing page: Diary, Velocity and Zeroes with a one-line summary of each."""
+    return static_page("home.html")
+
+
+@bp.get("/log")
+@login_required
+def page():
+    return static_page("diary.html")
 
 
 @bp.get("/manifest.webmanifest")
@@ -356,5 +367,7 @@ def delete_gun(gid):
 
 # Velocity data (Garmin Xero / own logs / Kestrel): routes register on the same blueprint.
 from . import chrono  # noqa: E402,F401
-# Scope zeroes (dial positions per rifle, swap calculator, the zeroing note).
+# Scope zeroes (dial positions per rifle, swap calculator, PDF zeroing card).
 from . import zero  # noqa: E402,F401
+# Landing-page summary.
+from . import summary  # noqa: E402,F401
